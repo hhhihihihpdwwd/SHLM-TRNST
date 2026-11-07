@@ -238,6 +238,8 @@ function followFrame(timestamp){
  const dt=Math.min(90,Math.max(1,timestamp-lastCameraFrame||33));
  lastCameraFrame=timestamp;
  const p=railAt(state.selected,Date.now()/1000).pos,c=map.getCenter();
+ const currentMarker=markers.get(state.selected.id);
+ if(currentMarker)currentMarker.setLatLng(p);
  const d=map.distance(c,p);if(d<1.4)return;
  // Exponential damping prevents jerks on 100 ms marker and 15 s data updates.
  const alpha=1-Math.exp(-dt/270);
