@@ -68,7 +68,7 @@ function refreshList(){
  if(railDataset){showRealList();return}
  const list=$('vehicle-list');list.replaceChildren(...visibleVehicles().map(makeVehicleButton));
 }
-function clearRoutes(){railLayer?.clearLayers();lastRouteUpdate=0}
+function clearRoutes(){railLayer?.clearLayers();lastRouteUpdate=0;selectedRouteId=null;selectedRouteLines=null}
 function routeFor(v){
  if(!map)return;
  railLayer.clearLayers();
@@ -130,6 +130,7 @@ function showStation(){
 }
 
 let railDataset=null,realActive=[],realLastList=0,realLastDraw=0;
+let selectedRouteId=null,selectedRouteLines=null;
 let lastCameraFrame=0;let cameraAnimationStarted=false;
 let photoSelection=0,lastPhotoVehicleId=null;
 function showVerifiedPhoto(v){
@@ -177,7 +178,7 @@ function showRealList(){
 }
 function selectReal(v){
  lastPhotoVehicleId=null;
- state.selected=v;state.station=false;state.follow=false;
+ state.selected=v;state.station=false;state.follow=false;selectedRouteId=null;selectedRouteLines=null;
  $('vehicle-list').hidden=true;$('station-view').hidden=true;$('selected-detail').hidden=false;
  $('tab-trains').classList.add('active');$('tab-station')?.classList.remove('active');
  updateFollow();showRealDetail();
@@ -185,7 +186,7 @@ function selectReal(v){
 }
 function clearReal(){
  lastPhotoVehicleId=null;
- state.selected=null;state.follow=false;railLayer?.clearLayers();
+ state.selected=null;state.follow=false;clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;$('station-view').hidden=true;
  $('tab-trains').classList.add('active');$('tab-station')?.classList.remove('active');
  showRealList();updateFollow();
@@ -211,12 +212,20 @@ function showRealDetail(){
   node.append(label,time);container.append(node);
  }
  if(map){
-  railLayer.clearLayers();
   const segments=railPathSplit(v,current.meters);
   const approximate=v.geometryQuality==='approximate-stop-connectors';
-  L.polyline(segments.future,{color:'#728F93',weight:4,opacity:.82,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer);
-  L.polyline(segments.past,{color:'#267FAC',weight:5,opacity:.97,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer);
-  for(const stop of stops)L.circleMarker([stop[0],stop[1]],{radius:3,fillColor:'#fff',fillOpacity:1,color:'#458578'}).addTo(railLayer).bindTooltip(stop[2]);
+  if(selectedRouteId!==v.id||!selectedRouteLines){
+   railLayer.clearLayers();
+   selectedRouteId=v.id;
+   selectedRouteLines={
+    future:L.polyline(segments.future,{color:'#728F93',weight:4,opacity:.82,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer),
+    past:L.polyline(segments.past,{color:'#267FAC',weight:5,opacity:.97,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer)
+   };
+   for(const stop of stops)L.circleMarker([stop[0],stop[1]],{radius:3,fillColor:'#fff',fillOpacity:1,color:'#458578'}).addTo(railLayer).bindTooltip(stop[2]);
+  }else{
+   selectedRouteLines.future.setLatLngs(segments.future);
+   selectedRouteLines.past.setLatLngs(segments.past);
+  }
  }
 }
 // Camera advances independently of timetable polling and marker redraws.
