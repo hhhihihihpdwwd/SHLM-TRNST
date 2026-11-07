@@ -150,12 +150,24 @@ function showVerifiedPhoto(v){
 }
 // A compact transport pictogram; unlike the old large dot it stays readable
 // at low zoom and never rebuilds for every animation frame.
+const originalSpriteUrls=new Map();
+function originalSpriteUrl(key){
+ if(originalSpriteUrls.has(key))return originalSpriteUrls.get(key);
+ const data=vehicleFrontSprites[key]||vehicleFrontSprites.rail;
+ const encoded=data.split(',')[1];
+ const binary=atob(encoded);
+ const bytes=new Uint8Array(binary.length);
+ for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+ const url=URL.createObjectURL(new Blob([bytes],{type:'image/webp'}));
+ originalSpriteUrls.set(key,url);
+ return url;
+}
 // The original Stockholm Transit vehicle-front photo sprites are restored here.
 // Small sizes keep the network legible even with hundreds of rail vehicles.
 function miniRailIcon(v,chosen=false){
   const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
     v.mode==='commuter'?'commuter':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
-  const img=vehicleFrontSprites[imageKey]||vehicleFrontSprites.rail;
+  const img=originalSpriteUrl(imageKey);
   const size=chosen?27:19;
   const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
   return L.divIcon({className:'rail-photo-icon'+(chosen?' is-selected':''),
