@@ -1,0 +1,76 @@
+name: Deploy Stockholm Rail - Real Rail Preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout new rail engine (leave stable main untouched)
+        uses: actions/checkout@v4
+        with:
+          ref: feature/rail-gtfs-foundation
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify code before downloading anything
+        run: |
+          for file in src/*.js; do node --check "$file"; done
+          python -m py_compile scripts/build_rail.py scripts/download_photos.py
+          npm test
+      - name: Check GTFS Regional SL credential is available
+        env:
+          GTFS_SL_KEY: ${{ secrets.GTFS_SL_KEY }}
+        run: |
+          if [ -z "$GTFS_SL_KEY" ]; then
+            echo "::error::Add repository secret GTFS_SL_KEY (Trafiklab GTFS Regional SL). The existing Preview 02 has NOT been changed."
+            exit 1
+          fi
+      - name: Build verified Swedish rail timetable and track shapes
+        env:
+          GTFS_SL_KEY: ${{ secrets.GTFS_SL_KEY }}
+        run: python -u scripts/build_rail.py
+      - name: Verify generated timetable
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('data/rail.json'))
+          assert x['schema']==1 and x['counts']['metro']>0
+          assert x['trips'] and x['shapes']
+          assert all(t['shapeId'] in x['shapes'] for t in x['trips'])
+          print('Verified GTFS rail trips:',len(x['trips']),'categories:',x['counts'])
+          PY
+      - name: Install photo processing library
+        run: python -m pip install --disable-pip-version-check Pillow
+      - name: Prepare local approved rail photos
+        run: python -u scripts/download_photos.py
+      - name: Package static preview
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -R src data photos _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish only successfully verified rail preview
+        id: deployment
+        uses: actions/deploy-pages@v4
