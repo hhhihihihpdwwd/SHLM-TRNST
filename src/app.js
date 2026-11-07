@@ -217,10 +217,15 @@ function tickReal(){
  const showing=realActive.filter(v=>state.filter==='all'||state.filter===v.mode);
  const seen=new Set(showing.map(v=>v.id));
  for(const [id,m] of markers)if(!seen.has(id)){map.removeLayer(m);markers.delete(id)}
+ const bounds=map.getBounds().pad(.15);
  for(const v of showing){
   const p=railAt(v,epoch).pos;
   const selectedHere=selected?.id===v.id;
   let marker=markers.get(v.id);
+  if(!bounds.contains(p)&&!selectedHere){
+   if(marker){map.removeLayer(marker);markers.delete(v.id)}
+   continue;
+  }
   if(!marker){marker=L.circleMarker(p,{radius:6,color:'#fff',weight:2,fillColor:realColor(v),fillOpacity:.95}).addTo(map);marker.on('click',()=>selectReal(v));markers.set(v.id,marker)}
   else marker.setLatLng(p);
   marker.setStyle({radius:selectedHere?9:6,opacity:(selected&&!selectedHere)?0.28:1,fillOpacity:(selected&&!selectedHere)?0.24:0.95});
