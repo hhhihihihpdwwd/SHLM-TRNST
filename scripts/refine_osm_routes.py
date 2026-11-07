@@ -18,8 +18,8 @@ import urllib.error
 ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT/"data"/"rail.json"
 BASE="https://openstreetmap.tools/public_transport_geojson/api/"
-MAX_LOOKUPS=14
-MAX_FETCHES=48
+MAX_LOOKUPS=80
+MAX_FETCHES=110
 MODES={"tram":["tram","light_rail"],"metro":["subway"],"commuter":["train"],"rail":["train"]}
 MATCH_LIMIT={"tram":220,"metro":300,"commuter":420,"rail":650}
 MAX_OUTPUT_BYTES=36_000_000
@@ -67,20 +67,39 @@ def read_json(url):
     if len(payload)>1_500_000:raise ValueError("Remote route payload exceeds limit")
     return json.loads(payload)
 
-def osm_candidates(line,mode):
-    found=[]
+def osm_candidates(line, mode, first="", last=""):
+    """Retrieve directional route relations without assuming single-character
+    line refs are valid search phrases (API requires q length >=2).
+    We match ref after searching; returned unrelated lines are discarded.
+    """
+    found={}
+    terms=[]
+    if len(line.strip())>=2:
+        terms.append(line.strip())
+    # Stop names and endpoints are searchable in OSM route names/termini.
+    for end in (first,last):
+        end=end.strip().replace(" station","").replace(" centrum","")
+        if len(end)>=4 and end.casefold() not in {x.casefold() for x in terms}:
+            terms.append(end)
+    if not terms:
+        return []
     for osm_mode in MODES.get(mode,[]):
-        url=BASE+"search?"+urllib.parse.urlencode({"q":line,"mode":osm_mode,"south":59.0,"west":17.45,"north":59.8,"east":18.65})
-        try:
-            result=read_json(url)
-            for c in result.get("routes",[]):
-                if not isinstance(c,dict):continue
-                ref=str(c.get("ref","")).strip()
-                # The line number, not merely a substring of the route name.
-                if ref.casefold()==line.casefold():found.append(c)
-        except (urllib.error.URLError,ValueError,TimeoutError,KeyError) as e:
-            print("OSM route lookup unavailable",mode,line,type(e).__name__,flush=True)
-    return found[:4]
+        for q in terms[:2]:
+            url=BASE+"search?"+urllib.parse.urlencode({
+                "q":q,"mode":osm_mode,
+                "south":59.0,"west":17.45,"north":59.8,"east":18.65})
+            try:
+                result=read_json(url)
+                for c in result.get("routes",[]):
+                    if not isinstance(c,dict):continue
+                    if c.get("type")=="route_master":continue
+                    ref=str(c.get("ref","")).strip()
+                    if ref.casefold()==line.casefold() and isinstance(c.get("id"),int):
+                        found[c["id"]]=c
+            except (urllib.error.URLError, ValueError,TimeoutError,KeyError) as exc:
+                print("OSM relation search unavailable",mode,line,type(exc).__name__,flush=True)
+            if len(found)>=6:break
+    return list(found.values())[:6]
 
 def get_shape(relation):
     rid=relation.get("id")
@@ -113,11 +132,12 @@ def enrich(dataset):
     successful=collections.Counter()
     fetches=0
     for (mode,line,first,last),group in ordered[:MAX_LOOKUPS]:
-        if (mode,line) not in lookup_cache:lookup_cache[mode,line]=osm_candidates(line,mode)
-        if not lookup_cache[mode,line]:continue
+        cache_key=(mode,line,first,last)
+        if cache_key not in lookup_cache:lookup_cache[cache_key]=osm_candidates(line,mode,first,last)
+        if not lookup_cache[cache_key]:continue
         representative=group[0]
         chosen=None
-        for candidate in lookup_cache[mode,line]:
+        for candidate in lookup_cache[cache_key]:
             rid=candidate.get("id")
             if rid not in shape_cache and fetches<MAX_FETCHES:
                 fetches+=1
