@@ -5,6 +5,7 @@ import sys
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 import build_rail as rail
@@ -34,6 +35,23 @@ class RailGTFSIntegrationTests(unittest.TestCase):
         self.assertEqual(outputs[0]["shapeId"],"TEST:metroshape")
         self.assertEqual(len(rail.SHARED_SHAPES["TEST:metroshape"]),3)
         self.assertLess(outputs[0]["start"],outputs[0]["end"])
+    def test_gtfs_compression_headers_and_gzip_response(self):
+        archive=io.BytesIO()
+        with zipfile.ZipFile(archive,"w") as z:
+            z.writestr("routes.txt","route_id,route_type\\nM,1\\n")
+        import gzip
+        class FakeResponse:
+            headers={"Content-Encoding":"gzip"}
+            def __enter__(self): return self
+            def __exit__(self,*args): pass
+            def read(self,limit): return gzip.compress(archive.getvalue())
+        def opener(request,timeout):
+            self.assertEqual(request.headers.get("Accept-encoding"),"gzip, deflate")
+            self.assertIn("application/zip",request.headers.get("Accept",""))
+            return FakeResponse()
+        with patch.object(rail.urllib.request,"urlopen",side_effect=opener):
+            with rail.fetch("https://opendata.samtrafiken.se/gtfs/sl/sl.zip","test-secret") as z:
+                self.assertIn("routes.txt",z.namelist())
     def test_gtfs_times_after_midnight(self):
         self.assertEqual(rail.parse_seconds("25:03:10"),25*3600+3*60+10)
         self.assertIsNone(rail.parse_seconds("27:90:00"))
