@@ -7,19 +7,45 @@ function setupMap(){
  if(!window.L){$('map-fallback').hidden=false;return}
  map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([59.334,18.058],11);
  L.control.zoom({position:'bottomright'}).addTo(map);
- roads=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,updateWhenIdle:true,keepBuffer:2,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'}).addTo(map);
+ setBaseLayer(false);
  railLayer=L.layerGroup().addTo(map);
  map.on('dragstart zoomstart',()=>{state.follow=false;updateFollow()});
 }
-function switchTiles(){
+// No API key required. A failed basemap is replaced rather than left blank.
+const BASEMAPS={
+  standard:[
+    {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',credit:'&copy; OpenStreetMap contributors'},
+    {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',credit:'Tiles &copy; Esri'}
+  ],
+  satellite:[
+    {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',credit:'Imagery &copy; Esri'}
+  ]
+};
+let baseLoadGeneration=0;
+function setBaseLayer(satellite,providerIndex=0){
  if(!map)return;
- if(roads)map.removeLayer(roads);
- const sat=state.satellite;
- roads=L.tileLayer(sat?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
- {maxZoom:19,updateWhenIdle:true,keepBuffer:2,attribution:sat?'Tiles &copy; Esri':'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'}).addTo(map);
- roads.bringToBack();
- $('satellite').textContent=sat?'▦ Karta':'◫ Satellit';
+ const generation=++baseLoadGeneration;
+ const providers=BASEMAPS[satellite?'satellite':'standard'];
+ const provider=providers[providerIndex]||providers[0];
+ if(roads){map.removeLayer(roads);roads=null}
+ const layer=L.tileLayer(provider.url,{maxZoom:19,updateWhenIdle:true,keepBuffer:2,attribution:provider.credit});
+ roads=layer;let errors=0,success=0;
+ layer.on('tileload',()=>{success++;if(generation!==baseLoadGeneration)return;$('map-fallback').hidden=true});
+ layer.on('tileerror',()=>{
+  if(generation!==baseLoadGeneration)return;
+  errors++;
+  if(success===0 && errors>=3 && providerIndex+1<providers.length){
+   setBaseLayer(satellite,providerIndex+1);
+  }else if(success===0&&errors>=3){
+   $('map-fallback').hidden=false;
+   $('map-fallback').textContent='Kartendienst nicht erreichbar. Bitte Verbindung prüfen.';
+  }
+ });
+ layer.addTo(map);
+ layer.bringToBack();
+ $('satellite').textContent=satellite?'▦ Karta':'◫ Satellit';
 }
+function switchTiles(){setBaseLayer(state.satellite)}
 function scheduledStops(v,clock){
  const base=Math.floor(clock.seconds/1800)*1800+({'metro-13':-370,'metro-19':-180,'commuter-43':-550,'rail-1':-240}[v.id]||0);
  return v.stops.map(s=>({...s,t:base+s.t}));
