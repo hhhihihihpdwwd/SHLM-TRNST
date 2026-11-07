@@ -6,6 +6,9 @@ for national/intercity operators. Never publishes keys. Does not invent geometry
 trips without usable shapes are omitted. Output is a compact static JSON manifest.
 """
 import csv
+import gzip
+import zlib
+import urllib.error
 import datetime as dt
 import io
 import json
@@ -83,12 +86,35 @@ def simplified_shape(pts):
     return [pts[round(i*step)] for i in range(MAX_POINTS_PER_SHAPE)]
 
 def fetch(url, api_key):
-    url += ("&" if "?" in url else "?") + urllib.parse.urlencode({"key":api_key})
-    request = urllib.request.Request(url, headers={"User-Agent":"StockholmRail/0.2 (timetable static importer)","Accept-Encoding":"identity"})
-    with urllib.request.urlopen(request,timeout=150) as resp:
-        blob=resp.read(110_000_000)
+    """Trafiklab negotiates compression. Never log the signed download URL."""
+    signed_url = url + ("&" if "?" in url else "?") + urllib.parse.urlencode({"key": api_key})
+    request = urllib.request.Request(signed_url, headers={
+        "User-Agent": "StockholmRail/0.3 (GTFS Regional SL)",
+        "Accept": "application/zip, application/octet-stream, */*",
+        "Accept-Encoding": "gzip, deflate",
+    })
+    try:
+        with urllib.request.urlopen(request, timeout=150) as resp:
+            encoding = resp.headers.get("Content-Encoding", "").lower().strip()
+            blob = resp.read(150_000_001)
+    except urllib.error.HTTPError as exc:
+        # Do not echo exc, exc.url, request URL or response bodies: these can
+        # contain the API key. Only the status and endpoint path are safe.
+        raise RuntimeError(
+            f"GTFS Regional SL download failed: HTTP {exc.code}. "
+            "Check that GTFS_SL_KEY has access to GTFS Regional Static data."
+        ) from None
+    if len(blob) > 150_000_000:
+        raise RuntimeError("GTFS download exceeds 150 MB compressed")
+    if encoding == "gzip":
+        blob = gzip.decompress(blob)
+    elif encoding == "deflate":
+        try:
+            blob = zlib.decompress(blob)
+        except zlib.error:
+            blob = zlib.decompress(blob, -zlib.MAX_WBITS)
     if not zipfile.is_zipfile(io.BytesIO(blob)):
-        raise RuntimeError("Not a GTFS zip feed")
+        raise RuntimeError("GTFS download is not a ZIP file after decompression")
     return zipfile.ZipFile(io.BytesIO(blob))
 
 def import_feed(z, source, days, output):
