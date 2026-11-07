@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {stockholmTime,tripProgress,occupancy,secondsLabel} from '../src/simulation.js';
+import {services} from '../src/demo-data.js';
+assert.equal(stockholmTime(Date.parse('2026-11-07T10:13:42Z')).display,'11:13:42');
+assert.equal(stockholmTime(Date.parse('2026-07-07T10:13:42Z')).display,'12:13:42');
+assert.equal(stockholmTime(Date.parse('2026-03-29T01:30:00Z')).display,'03:30:00');
+const s=[{coord:[0,0],t:0},{coord:[10,20],t:100}];
+assert.deepEqual(tripProgress(s,50).position,[5,10]);
+assert.equal(tripProgress(s,101).next,1);
+assert.equal(tripProgress(s,-10).next,0);
+assert.equal(occupancy(services[0],1,1,8),occupancy(services[0],1,1,8));
+assert.equal(secondsLabel(3661),'01:01');
+console.log('Simulation checks passed');
