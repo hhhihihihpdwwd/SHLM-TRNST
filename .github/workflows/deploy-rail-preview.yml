@@ -1,4 +1,4 @@
-name: Deploy Stockholm Rail - Real Rail Preview
+name: Deploy Stockholm Rail - No Key Preview 03
 on:
   workflow_dispatch:
 permissions:
