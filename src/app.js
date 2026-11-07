@@ -7,7 +7,7 @@ function setupMap(){
  if(!window.L){$('map-fallback').hidden=false;return}
  map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([59.334,18.058],11);
  L.control.zoom({position:'bottomright'}).addTo(map);
- roads=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+ roads=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,updateWhenIdle:true,keepBuffer:2,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'}).addTo(map);
  railLayer=L.layerGroup().addTo(map);
  map.on('dragstart zoomstart',()=>{state.follow=false;updateFollow()});
 }
@@ -15,8 +15,8 @@ function switchTiles(){
  if(!map)return;
  if(roads)map.removeLayer(roads);
  const sat=state.satellite;
- roads=L.tileLayer(sat?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
- {maxZoom:19,attribution:sat?'Tiles &copy; Esri':'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+ roads=L.tileLayer(sat?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+ {maxZoom:19,updateWhenIdle:true,keepBuffer:2,attribution:sat?'Tiles &copy; Esri':'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'}).addTo(map);
  roads.bringToBack();
  $('satellite').textContent=sat?'▦ Karta':'◫ Satellit';
 }
