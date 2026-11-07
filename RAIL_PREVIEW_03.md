@@ -1,32 +1,30 @@
-# Stockholm Rail — Rail Preview 03
+# Stockholm Rail — Rail Preview 03 (keyless historical rail mode)
 
-This release is intentionally isolated from the working Preview 02.
+The existing working Preview 02 remains deployed until this build completes successfully.
 
-## What's implemented
-- Read actual SL GTFS Regional static schedules and only draw rail services that have source-provided `shapes.txt`.
-- Monotonic station-to-shape projection to avoid jumping backwards along a line.
-- Colour travelled selected route blue and untravelled part grey, both following published geometries.
-- Smooth camera following and viewport culling to reduce marker work.
-- 20 previously approved rail photo references; download optimised local WebP assets and include attribution.
-- Timetable stops, deterministic illustrative occupancy, Stockholm time zone.
-- Existing station schematic is still demo-only and not a real platform allocation.
-- Existing Preview 02 remains intact until the new deployment passes.
+## What Preview 03 contains
+- A **public, free** GTFS Sverige 2 historical archive download with **no API key**.
+- Timetabled trains and station calls from the historical archive, mapped by weekday to the current week for an immersive private simulator.
+- No buses or ferries; metro, commuter, regional/long-distance rail and tram modes only.
+- Vehicle positions between historical station stops are **estimated**.
+- Because GTFS Sverige 2 does not include `shapes.txt`, routes are **dashed schematic stop-to-stop connectors**, not verified railway geometry. Never label them as mapped OSM/GTFS tracks.
+- The map's standard/satellite switch, smooth following and modeled occupancy.
+- Twenty previously approved rail photo sources, imported as local optimised WebP files where accessible. Unavailable photos get a neutral placeholder.
+- Automated checks include synthetic keyless GTFS archive validation, JS simulation, timezone and route simulation tests.
 
-## Required, one-time GitHub setup
-1. Create/reuse a key for **GTFS Regional SL (Static)** at https://developer.trafiklab.se/.
-2. Open this repository's **Settings → Secrets and variables → Actions → New repository secret**.
-3. Secret name: `GTFS_SL_KEY`. Paste the API key as the secret's value. Never add a key to the repository or chat.
-4. Run the Actions workflow **Deploy Stockholm Rail - Real Rail Preview** on branch `main`.
-5. This build will download the current SL feed, validate actual shape-backed rail trips, build verified local photos and only then update GitHub Pages.
+## Deploy
+1. Open GitHub → Actions → **Deploy Stockholm Rail - Real Rail Preview** (workflow name retained for continuity).
+2. Run workflow on `main`; the script checks out the `feature/rail-gtfs-foundation` branch.
+3. Wait for both build and deploy to succeed, then refresh GitHub Pages.
 
-## Current limits
-- This is *scheduled* data, not GPS or realtime tracking.
-- It uses the SL regional data feed. National intercity rail in GTFS Sweden 3 is not included, because Trafiklab reports that these trains often lack actual shapes/platforms as of spring 2026. A separate verified operator feed / Trafikverket integration is required.
-- No inference of platform allocation for Stockholm Central yet.
-- Stops with a poor shape match are omitted, never joined by invented straight tracks.
-- Local photo import may omit an image if Wikimedia is unavailable; a truthful placeholder appears instead.
-- The published output is intentionally a static rail snapshot and needs a new build for refreshed timetables.
+No `GTFS_SL_KEY` is needed. You may leave or remove the existing secret independently.
 
-Sources:
-- https://www.trafiklab.se/api/gtfs-datasets/gtfs-regional
-- https://www.trafiklab.se/docs/using-trafiklab-data/frequently-asked-questions/
+## Data provenance
+Historical source: https://data.samtrafiken.se/trafiklab/gtfs-sverige-2/2026/11/sweden-20261104.zip
+Official dataset description: https://www.trafiklab.se/api/trafiklab-apis/gtfs-sverige-2/
+The archive is a **past timetable**, not a source for live departures or observed train locations. A weekday's 2026-11-09 to 2026-11-15 schedule is repeated for matching present weekdays; holidays and later changes will not be reflected.
+
+## Remaining work
+- Build an accurately routable rail geometry library from OSM / verified operator feeds.
+- Integrate genuine photographed model matching for more operators and a richer station-level view.
+- Stockholm Central platform allocations require separate verified Trafikverket data.
