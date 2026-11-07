@@ -1,6 +1,7 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
+import {loadPhotoCatalog,photoForVehicle} from './photos.js';
 const $=id=>document.getElementById(id);
 const state={filter:'all',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
@@ -129,6 +130,19 @@ function showStation(){
 }
 
 let railDataset=null,realActive=[],realLastList=0,realLastDraw=0;
+let photoSelection=0;
+function showVerifiedPhoto(v){
+ const token=++photoSelection,el=document.querySelector('.image-placeholder');
+ if(!el)return;
+ const pic=photoForVehicle(v);el.replaceChildren();
+ if(!pic){el.textContent='Fordonssymbol · verifierat modellspecifikt foto saknas';return}
+ const img=document.createElement('img');img.src='./'+pic.path;img.alt=pic.label||'Godkänt fordonsfoto';
+ img.style.cssText='width:100%;height:170px;object-fit:cover;border-radius:9px';
+ img.onerror=()=>{if(token===photoSelection)el.textContent='Fotot kunde inte laddas';};
+ const link=document.createElement('a');link.href=pic.source;link.target='_blank';link.rel='noopener noreferrer';
+ link.textContent=(pic.author||'Foto')+' · '+(pic.license||'Wikimedia Commons');link.style.cssText='font-size:10px;color:#587B74;margin-top:8px';
+ el.append(img,link);
+}
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#4C9876',rail:'#C89D52'};
 function realColor(v){return railColors[v.mode]||'#537F85'}
 function realTitle(v){return (v.line||v.train||v.mode.toUpperCase())+' · '+(v.destination||'Stockholm')}
@@ -164,6 +178,7 @@ function showRealDetail(){
  const epoch=Date.now()/1000,current=railAt(v,epoch),idx=current.next;
  const stops=v.stops,first=stops[0][3],base=v.start-first;
  $('train-heading').textContent=realTitle(v);
+ showVerifiedPhoto(v);
  $('train-sub').textContent='GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
@@ -204,7 +219,7 @@ function tickReal(){
   let marker=markers.get(v.id);
   if(!marker){marker=L.circleMarker(p,{radius:6,color:'#fff',weight:2,fillColor:realColor(v),fillOpacity:.95}).addTo(map);marker.on('click',()=>selectReal(v));markers.set(v.id,marker)}
   else marker.setLatLng(p);
-  marker.setStyle({radius:selectedHere?9:6,opacity:selected&&!selectedHere?.28:1,fillOpacity:selected&&!selectedHere?.24:.95});
+  marker.setStyle({radius:selectedHere?9:6,opacity:(selected&&!selectedHere)?0.28:1,fillOpacity:(selected&&!selectedHere)?0.24:0.95});
   if(selectedHere&&state.follow){
    const c=map.getCenter();if(map.distance(c,p)>5)map.panTo([c.lat+(p[0]-c.lat)*.065,c.lng+(p[1]-c.lng)*.065],{animate:false});
   }
@@ -267,6 +282,6 @@ function start(){
  $('tab-trains').onclick=clearSelected;$('tab-station').onclick=showStation;
  $('clear').onclick=clearSelected;
  $('follow').onclick=()=>{state.follow=!state.follow;updateFollow()};
- tick();setInterval(tick,100);initializeReal();
+ tick();setInterval(tick,100);loadPhotoCatalog().then(()=>{if(state.selected&&railDataset)showVerifiedPhoto(state.selected)});initializeReal();
 }
 start();
