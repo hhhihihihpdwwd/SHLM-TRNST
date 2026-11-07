@@ -196,7 +196,7 @@ function showRealDetail(){
  const stops=v.stops,first=stops[0][3],base=v.start-first;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
- $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · ungefärlig färdväg · ingen GPS':'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
  $('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);
@@ -284,7 +284,7 @@ async function initializeReal(){
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
  const label=document.querySelector('.map-note strong');if(label)label.textContent=data.type==='historical-weekday-simulation'?'HISTORICAL RAIL · NO KEY':'GTFS · SCHEDULED';
- const hint=document.querySelector('.map-note span');if(hint)hint.textContent=data.type==='historical-weekday-simulation'?'Historischer Fahrplan (Archiv '+(data.archiveSource||'')+'), wöchentlich simuliert · gestrichelte Strecken sind angenähert':'Planerade positioner på verifierade GTFS-linjer · ingen GPS';
+ const hint=document.querySelector('.map-note span');if(hint)hint.textContent=data.type==='historical-weekday-simulation'?'Historischer Fahrplan (Archiv '+(data.archiveSource||'')+'), wöchentlich simuliert · durchgezogene OSM-Routen geprüft, gestrichelte angenähert':'Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Rail timetable';
  realLastList=0;tickReal();
 }
