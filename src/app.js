@@ -309,7 +309,14 @@ async function initializeReal(){
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
  const label=document.querySelector('.map-note strong');if(label)label.textContent=data.type==='historical-weekday-simulation'?'HISTORICAL RAIL · NO KEY':'GTFS · SCHEDULED';
- const hint=document.querySelector('.map-note span');if(hint)hint.textContent=data.type==='historical-weekday-simulation'?'Historischer Fahrplan (Archiv '+(data.archiveSource||'')+'), wöchentlich simuliert · durchgezogene OSM-Routen geprüft, gestrichelte angenähert':'Planerade positioner på verifierade GTFS-linjer · ingen GPS';
+ const hint=document.querySelector('.map-note span');
+ if(hint){
+   if(data.type==='historical-weekday-simulation'){
+     const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
+     const total=data.trips.length;
+     hint.textContent='Historischer Fahrplan · '+verified+' von '+total+' Fahrten auf OSM-Strecken geprüft · übrige Routen gestrichelt/angenähert';
+   }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
+ }
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Rail timetable';
  realLastList=0;tickReal();
 }
