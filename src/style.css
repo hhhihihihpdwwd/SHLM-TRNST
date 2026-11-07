@@ -6,3 +6,8 @@
 .rail-mini-icon.is-selected .rail-mini-body{width:19px;height:19px;border-width:2px;box-shadow:0 0 0 3px #fff8,0 2px 7px #163d4b70}
 .rail-mini-body svg{width:12px;height:12px;display:block}
 .rail-mini-icon.is-selected svg{width:15px;height:15px}
+
+/* Original vehicle-front image markers, compact on busy Stockholm maps. */
+.rail-photo-icon{background:transparent!important;border:0!important;pointer-events:auto}
+.rail-photo-marker{width:19px;height:19px;display:block;object-fit:contain;filter:drop-shadow(0 1px 2px #21343b77);user-select:none}
+.rail-photo-icon.is-selected .rail-photo-marker{width:27px;height:27px;filter:drop-shadow(0 0 3px #f5cf6e) drop-shadow(0 2px 3px #13242e80)}
