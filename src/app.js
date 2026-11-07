@@ -1,5 +1,7 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
+import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
+import {loadPhotoCatalog,photoForVehicle} from './photos.js';
 const $=id=>document.getElementById(id);
 const state={filter:'all',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
@@ -63,9 +65,10 @@ function makeVehicleButton(v){
  btn.append(badge,center,icon);btn.addEventListener('click',()=>selectVehicle(v));return btn;
 }
 function refreshList(){
+ if(railDataset){showRealList();return}
  const list=$('vehicle-list');list.replaceChildren(...visibleVehicles().map(makeVehicleButton));
 }
-function clearRoutes(){railLayer?.clearLayers();lastRouteUpdate=0}
+function clearRoutes(){railLayer?.clearLayers();lastRouteUpdate=0;selectedRouteId=null;selectedRouteLines=null}
 function routeFor(v){
  if(!map)return;
  railLayer.clearLayers();
@@ -80,15 +83,16 @@ function routeFor(v){
 function setSelected(v){
  state.selected=v;state.station=false;state.follow=false;
  $('selected-detail').hidden=false;$('vehicle-list').hidden=true;$('station-view').hidden=true;
- $('tab-trains').classList.add('active');$('tab-station').classList.remove('active');
+ $('tab-trains').classList.add('active');$('tab-station')?.classList.remove('active');
  refreshList();updateFollow();refreshSelected();
  if(map){map.flyTo(vehicleAt(v,stockholmTime()).pg.position,12,{duration:1.15})}
 }
 function selectVehicle(v){setSelected(v)}
 function clearSelected(){
+ if(railDataset){clearReal();return}
  state.selected=null;state.follow=false;state.station=false;
  $('selected-detail').hidden=true;$('vehicle-list').hidden=false;$('station-view').hidden=true;
- $('tab-trains').classList.add('active');$('tab-station').classList.remove('active');
+ $('tab-trains').classList.add('active');$('tab-station')?.classList.remove('active');
  clearRoutes();refreshList();updateFollow();
 }
 function updateFollow(){$('follow').textContent=state.follow?'◎ Följer tåget':'◎ Följ tåget';$('follow').classList.toggle('active',state.follow)}
@@ -112,7 +116,7 @@ function refreshSelected(){
 function showStation(){
  state.station=true;state.follow=false;state.selected=null;clearRoutes();
  $('vehicle-list').hidden=true;$('selected-detail').hidden=true;$('station-view').hidden=false;
- $('tab-trains').classList.remove('active');$('tab-station').classList.add('active');
+ $('tab-trains').classList.remove('active');$('tab-station')?.classList.add('active');
  const examples=[['SPÅR A','SJ Regional','Uppsala','#517e98'],['SPÅR B','Mälartåg','Västerås','#9169b0'],['SPÅR C','','Ledigt','#67888b'],['SPÅR D','Arlanda Express','Arlanda','#d2a44b']];
  $('platforms').replaceChildren(...examples.map(([num,train,dest,color])=>{
   const box=document.createElement('div');box.className='platform';
@@ -124,7 +128,179 @@ function showStation(){
  }));
  if(map)map.flyTo(central,15,{duration:1.2});
 }
+
+let railDataset=null,realActive=[],realLastList=0,realLastDraw=0;
+let selectedRouteId=null,selectedRouteLines=null;
+let lastCameraFrame=0;let cameraAnimationStarted=false;
+let photoSelection=0,lastPhotoVehicleId=null;
+function showVerifiedPhoto(v){
+ if(lastPhotoVehicleId===v.id)return;
+ lastPhotoVehicleId=v.id;
+ const token=++photoSelection,el=document.querySelector('.image-placeholder');
+ if(!el)return;
+ const pic=photoForVehicle(v);el.replaceChildren();
+ if(!pic){el.textContent='Fordonssymbol · verifierat modellspecifikt foto saknas';return}
+ const img=document.createElement('img');img.src='./'+pic.path;img.alt=pic.label||'Godkänt fordonsfoto';
+ img.style.cssText='width:100%;height:170px;object-fit:cover;border-radius:9px';
+ img.onerror=()=>{if(token===photoSelection)el.textContent='Fotot kunde inte laddas';};
+ const link=document.createElement('a');link.href=pic.source;link.target='_blank';link.rel='noopener noreferrer';
+ link.textContent=(pic.author||'Foto')+' · '+(pic.license||'Wikimedia Commons');link.style.cssText='font-size:10px;color:#587B74;margin-top:8px';
+ el.append(img,link);
+}
+// A compact transport pictogram; unlike the old large dot it stays readable
+// at low zoom and never rebuilds for every animation frame.
+function miniRailIcon(v,chosen=false){
+ const color=realColor(v),size=chosen?19:15;
+ const body=v.mode==='tram'
+   ?'<path d="M4 5.5h12v7H4z" fill="none" stroke="white" stroke-width="1.5"/><path d="M7 14l-2 2m8-2l2 2M7 4l3-2 13-2" stroke="white" stroke-width="1.3" fill="none"/><circle cx="7" cy="10" r="1" fill="white"/><circle cx="13" cy="10" r="1" fill="white"/>'
+   :'<rect x="4.5" y="3" width="11" height="11" rx="2.5" fill="none" stroke="white" stroke-width="1.5"/><path d="M7 6h6M7 9h6M8 14l-2 3m6-3l2 3" stroke="white" stroke-width="1.3" stroke-linecap="round"/>';
+ const svg='<svg aria-hidden="true" viewBox="0 0 20 20" width="13" height="13" xmlns="http://www.w3.org/2000/svg">'+body+'</svg>';
+ return L.divIcon({className:'rail-mini-icon'+(chosen?' is-selected':''),
+    html:'<span class="rail-mini-body" style="background:'+color+'">'+svg+'</span>',
+    iconSize:[size,size],iconAnchor:[size/2,size/2]});
+}
+const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#4C9876',rail:'#C89D52'};
+function realColor(v){return railColors[v.mode]||'#537F85'}
+function realTitle(v){return (v.line||v.train||v.mode.toUpperCase())+' · '+(v.destination||'Stockholm')}
+function showRealList(){
+ if(!railDataset)return;
+ const list=$('vehicle-list');list.innerHTML='';
+ const frag=document.createDocumentFragment();
+ for(const v of realActive.filter(v=>state.filter==='all'||v.mode===state.filter).slice(0,90)){
+  const btn=document.createElement('button');btn.className='vehicle'+(state.selected&&state.selected.id!==v.id?' muted':'');
+  const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.line||v.mode.slice(0,2).toUpperCase();
+  const t=document.createElement('span');
+  const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
+  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · simulerat':v.agency+' · Tidtabell, ingen GPS';
+  t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
+ }
+ list.append(frag);
+}
+function selectReal(v){
+ lastPhotoVehicleId=null;
+ state.selected=v;state.station=false;state.follow=false;selectedRouteId=null;selectedRouteLines=null;
+ $('vehicle-list').hidden=true;$('station-view').hidden=true;$('selected-detail').hidden=false;
+ $('tab-trains').classList.add('active');$('tab-station')?.classList.remove('active');
+ updateFollow();showRealDetail();
+ const p=railAt(v,Date.now()/1000).pos;if(map)map.flyTo(p,12,{duration:1});
+}
+function clearReal(){
+ lastPhotoVehicleId=null;
+ state.selected=null;state.follow=false;clearRoutes();
+ $('vehicle-list').hidden=false;$('selected-detail').hidden=true;$('station-view').hidden=true;
+ $('tab-trains').classList.add('active');$('tab-station')?.classList.remove('active');
+ showRealList();updateFollow();
+}
+function showRealDetail(){
+ const v=state.selected;if(!v||!railDataset)return;
+ const epoch=Date.now()/1000,current=railAt(v,epoch),idx=current.next;
+ const stops=v.stops,first=stops[0][3],base=v.start-first;
+ $('train-heading').textContent=realTitle(v);
+ showVerifiedPhoto(v);
+ $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('next-stop-name').textContent=stops[idx][2];
+ const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
+ $('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);
+ const mock={id:v.id,stops:stops.map(s=>({name:s[2]}))},now=stockholmTime();
+ const occ=occupancy(mock,idx,now.weekday,Math.floor(now.seconds/3600));
+ $('occupancy-value').textContent=occ+'%';$('occupancy-fill').style.width=occ+'%';
+ const container=$('stops');container.innerHTML='';
+ for(let i=0;i<stops.length;i++){
+  const node=document.createElement('div');node.className='stop'+(i<idx?' passed':i===idx?' next':'');
+  const label=document.createElement('span');label.textContent=stops[i][2];
+  const time=document.createElement('span');time.textContent=toTime(stops[i][3]);
+  node.append(label,time);container.append(node);
+ }
+ if(map){
+  const segments=railPathSplit(v,current.meters);
+  const approximate=v.geometryQuality==='approximate-stop-connectors';
+  if(selectedRouteId!==v.id||!selectedRouteLines){
+   railLayer.clearLayers();
+   selectedRouteId=v.id;
+   selectedRouteLines={
+    future:L.polyline(segments.future,{color:'#728F93',weight:4,opacity:.82,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer),
+    past:L.polyline(segments.past,{color:'#267FAC',weight:5,opacity:.97,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer)
+   };
+   for(const stop of stops)L.circleMarker([stop[0],stop[1]],{radius:3,fillColor:'#fff',fillOpacity:1,color:'#458578'}).addTo(railLayer).bindTooltip(stop[2]);
+  }else{
+   selectedRouteLines.future.setLatLngs(segments.future);
+   selectedRouteLines.past.setLatLngs(segments.past);
+  }
+ }
+}
+// Camera advances independently of timetable polling and marker redraws.
+function followFrame(timestamp){
+ requestAnimationFrame(followFrame);
+ if(!map||!railDataset||!state.follow||!state.selected||state.station){
+  lastCameraFrame=timestamp;return;
+ }
+ if(timestamp-lastCameraFrame<30)return;
+ const dt=Math.min(90,Math.max(1,timestamp-lastCameraFrame||33));
+ lastCameraFrame=timestamp;
+ const p=railAt(state.selected,Date.now()/1000).pos,c=map.getCenter();
+ const currentMarker=markers.get(state.selected.id);
+ if(currentMarker)currentMarker.setLatLng(p);
+ const d=map.distance(c,p);if(d<1.4)return;
+ // Exponential damping prevents jerks on 100 ms marker and 15 s data updates.
+ const alpha=1-Math.exp(-dt/270);
+ map.panTo([c.lat+(p[0]-c.lat)*alpha,c.lng+(p[1]-c.lng)*alpha],{animate:false,noMoveStart:true});
+}
+function tickReal(){
+ const now=Date.now(),epoch=now/1000;
+ $('clock').textContent=stockholmTime(now).display;
+ if(now-realLastList>15000){
+  realActive=activeRailTrips(railDataset,epoch,500);realLastList=now;showRealList();
+  if(state.selected&&!realActive.some(v=>v.id===state.selected.id))clearReal();
+ }
+ if(!map||now-realLastDraw<90)return;realLastDraw=now;
+ const selected=state.selected;
+ const showing=realActive.filter(v=>state.filter==='all'||state.filter===v.mode);
+ const seen=new Set(showing.map(v=>v.id));
+ for(const [id,m] of markers)if(!seen.has(id)){map.removeLayer(m);markers.delete(id)}
+ const bounds=map.getBounds().pad(.12);
+ let drawn=0;
+ for(const v of showing){
+  const p=railAt(v,epoch).pos;
+  const selectedHere=selected?.id===v.id;
+  let marker=markers.get(v.id);
+  if(!bounds.contains(p)&&!selectedHere){
+   if(marker){map.removeLayer(marker);markers.delete(v.id)}
+   continue;
+  }
+  // Keep the selected train even when crowded, prevent excessive DOM markers.
+  if(drawn>=280&&!selectedHere){
+   if(marker){map.removeLayer(marker);markers.delete(v.id)}continue;
+  }
+  drawn++;
+  if(!marker){
+   marker=L.marker(p,{icon:miniRailIcon(v,selectedHere),keyboard:false,riseOnHover:true}).addTo(map);
+   marker.on('click',()=>selectReal(v));markers.set(v.id,marker);
+   marker._railStyle=selectedHere?'selected':'normal';
+  }else marker.setLatLng(p);
+  const markerStyle=selectedHere?'selected':selected?'dimmed':'normal';
+  if(marker._railStyle!==markerStyle){
+   marker._railStyle=markerStyle;
+   marker.setOpacity(markerStyle==='dimmed'?.27:1);
+   marker.setIcon(miniRailIcon(v,selectedHere));
+   marker.setZIndexOffset(selectedHere?1100:0);
+  }
+ }
+ if(selected&&now-lastRouteUpdate>1400){showRealDetail();lastRouteUpdate=now}
+}
+
+async function initializeReal(){
+ const data=await loadRailTimetable();
+ if(!data)return;
+ railDataset=data;
+ state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
+ $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
+ const label=document.querySelector('.map-note strong');if(label)label.textContent=data.type==='historical-weekday-simulation'?'HISTORICAL RAIL · NO KEY':'GTFS · SCHEDULED';
+ const hint=document.querySelector('.map-note span');if(hint)hint.textContent=data.type==='historical-weekday-simulation'?'Historischer Fahrplan (Archiv '+(data.archiveSource||'')+'), wöchentlich simuliert · durchgezogene OSM-Routen geprüft, gestrichelte angenähert':'Planerade positioner på verifierade GTFS-linjer · ingen GPS';
+ const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Rail timetable';
+ realLastList=0;tickReal();
+}
 function tick(){
+ if(railDataset){tickReal();return}
  const now=stockholmTime();$('clock').textContent=now.display;
  if(map){
   const visible=visibleVehicles(),shown=new Set(visible.map(v=>v.id));
@@ -165,9 +341,9 @@ function start(){
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
  $('home').onclick=()=>{clearSelected();map?.flyTo([59.334,18.058],11,{duration:1.1})};
- $('tab-trains').onclick=clearSelected;$('tab-station').onclick=showStation;
+ $('tab-trains').onclick=clearSelected;
  $('clear').onclick=clearSelected;
  $('follow').onclick=()=>{state.follow=!state.follow;updateFollow()};
- tick();setInterval(tick,100);
+ tick();setInterval(tick,100);requestAnimationFrame(followFrame);loadPhotoCatalog().then(()=>{lastPhotoVehicleId=null;if(state.selected&&railDataset)showVerifiedPhoto(state.selected)});initializeReal();
 }
 start();
