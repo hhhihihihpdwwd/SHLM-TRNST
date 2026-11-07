@@ -2,11 +2,11 @@
 <html lang="sv">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stockholm Rail — Rail Preview 03</title>
+<title>Stockholm Rail — Rail Preview 04</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="./src/style.css?v=rail-preview-03">
+<link rel="stylesheet" href="./src/style.css?v=rail-preview-04">
 </head>
 <body>
 <div class="app">
@@ -20,11 +20,11 @@
    <div id="map" aria-label="Karte von Stockholm"></div>
    <div id="map-fallback" class="map-fallback" hidden>Kartenkacheln derzeit nicht verfügbar. Fahrzeugliste und Simulation bleiben nutzbar.</div>
    <div class="map-top"><div class="mode-switch"><button data-filter="all" class="active">Alla</button><button data-filter="metro">Tunnelbana</button><button data-filter="commuter">Pendeltåg</button><button data-filter="rail">Regional & fjärr</button></div><button id="satellite" class="outlined">◫ Satellit</button></div>
-   <div class="map-bottom"><div class="map-note"><strong>RAIL PREVIEW 03</strong><span>Exempeltrafik · inte livepositioner eller verifierad spårgeometri</span></div><button id="home" class="outlined">↗ Översikt</button></div>
+   <div class="map-bottom"><div class="map-note"><strong>RAIL PREVIEW 04</strong><span>Exempeltrafik · inte livepositioner eller verifierad spårgeometri</span></div><button id="home" class="outlined">↗ Översikt</button></div>
   </section>
   <aside class="sidebar">
    <div class="sidebar-heading"><div><span class="eyebrow">NETWORK / STOCKHOLM</span><h1>Rail overview</h1><p>Välj ett tåg för att utforska dess färd.</p></div></div>
-   <div class="tabs"><button class="tab active" id="tab-trains">Fordon</button><button class="tab" id="tab-station">Centralstation</button></div>
+   <div class="tabs"><button class="tab active" id="tab-trains">Fordon</button></div>
    <div id="vehicle-list" class="vehicle-list"></div>
    <div id="selected-detail" hidden>
     <div class="detail-top"><div><span class="eyebrow">VALT FORDON</span><h2 id="train-heading"></h2><div class="detail-sub" id="train-sub"></div></div><button id="clear" class="close-btn">✕</button></div>
@@ -39,5 +39,5 @@
  </main>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="./src/app.js?v=rail-preview-03"></script>
+<script type="module" src="./src/app.js?v=rail-preview-04"></script>
 </body></html>
