@@ -286,6 +286,6 @@ function start(){
  $('tab-trains').onclick=clearSelected;$('tab-station').onclick=showStation;
  $('clear').onclick=clearSelected;
  $('follow').onclick=()=>{state.follow=!state.follow;updateFollow()};
- tick();setInterval(tick,100);loadPhotoCatalog().then(()=>{if(state.selected&&railDataset)showVerifiedPhoto(state.selected)});initializeReal();
+ tick();setInterval(tick,100);loadPhotoCatalog().then(()=>{lastPhotoVehicleId=null;if(state.selected&&railDataset)showVerifiedPhoto(state.selected)});initializeReal();
 }
 start();
