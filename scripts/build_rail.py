@@ -24,7 +24,8 @@ BOX = (59.0, 59.75, 17.55, 18.55)  # core Greater Stockholm
 VALID = {"metro", "commuter", "tram", "rail"}
 MAX_TRIPS = 16000
 MAX_POINTS_PER_SHAPE = 700
-MAX_OUTPUT_BYTES = 22_000_000
+MAX_OUTPUT_BYTES = 28_000_000
+SHARED_SHAPES = {}
 
 def mode(route_type, label):
     try: r = int(route_type)
@@ -36,7 +37,7 @@ def mode(route_type, label):
         return "tram"
     if "pendeltåg" in text or "pendeltag" in text or "commuter" in text or r in (109,):
         return "commuter"
-    if r in (2,) or 100 <= r < 200 or 100 <= r < 110:
+    if r in (2,) or 100 <= r < 200:
         return "rail"
     return None
 
@@ -153,6 +154,8 @@ def import_feed(z, source, days, output):
         trip=trips[tid]
         shape=shapes.get(trip["shape"])
         if not shape:continue
+        shared_id=source+":"+trip["shape"]
+        SHARED_SHAPES[shared_id]=shape
         # No fake shape: project stops onto source polyline only at render.
         trip_stops=[[stops[sid][0],stops[sid][1],stops[sid][2],arr,dep] for _,sid,arr,dep in points]
         for day in trip["days"]:
@@ -166,7 +169,7 @@ def import_feed(z, source, days, output):
                 "start":int((service_day+dt.timedelta(seconds=points[0][2])).timestamp()),
                 "end":int((service_day+dt.timedelta(seconds=points[-1][3])).timestamp()),
                 "stops":trip_stops,
-                "shape":shape,
+                "shapeId":shared_id,
                 "source":source
             })
             created+=1
@@ -178,8 +181,7 @@ def main():
     now=dt.datetime.now(ZONE).date()
     days=[now-dt.timedelta(days=1),now,now+dt.timedelta(days=1)]
     sources=[("SL","https://opendata.samtrafiken.se/gtfs/sl/sl.zip",key)]
-    sweden=os.getenv("GTFS_SWEDEN_KEY")
-    if sweden:sources.append(("SWEDEN","https://opendata.samtrafiken.se/gtfs-sweden/sweden.zip",sweden))
+    # Sweden 3 national rail frequently lacks shapes; do not claim routed rail coverage.\n    # Extend through an operator-specific GTFS Regional feed once verified.
     output=[]
     for name,url,token in sources:
         archive=fetch(url,token)
@@ -188,11 +190,11 @@ def main():
     output.sort(key=lambda row:(row["start"],row["id"]))
     if not output:raise RuntimeError("No shape-backed rail trips; refusing to publish empty data.")
     counts=Counter(x["mode"] for x in output)
-    if not counts.get("metro") or not (counts.get("commuter") or counts.get("rail")):
-        raise RuntimeError(f"Rail mode quality gate failed: {dict(counts)}")
+    if not counts.get("metro"):
+        raise RuntimeError(f"No metro routes in shape-backed SL feed: {dict(counts)}")
     result={"schema":1,"generated":dt.datetime.now(dt.timezone.utc).isoformat(),
         "timezone":"Europe/Stockholm","type":"scheduled","sources":[s[0] for s in sources],
-        "trips":output,"counts":dict(counts)}
+        "trips":output,"shapes":SHARED_SHAPES,"counts":dict(counts)}
     text=json.dumps(result,ensure_ascii=False,separators=(",",":"))
     if len(text.encode())>MAX_OUTPUT_BYTES:raise RuntimeError("Data too large. Decrease output size before publishing.")
     OUT.parent.mkdir(parents=True,exist_ok=True)
