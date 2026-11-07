@@ -14,7 +14,7 @@ function setupMap(){
 // No API key required. A failed basemap is replaced rather than left blank.
 const BASEMAPS={
   standard:[
-    {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',credit:'&copy; OpenStreetMap contributors'},
+    {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',credit:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'},
     {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',credit:'Tiles &copy; Esri'}
   ],
   satellite:[
