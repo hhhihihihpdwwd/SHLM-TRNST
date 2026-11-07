@@ -15,6 +15,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import urllib.request
 import zipfile
 from zoneinfo import ZoneInfo
@@ -26,7 +27,7 @@ URL="https://data.samtrafiken.se/trafiklab/gtfs-sverige-2/2026/11/sweden-2026110
 SOURCE_START=dt.date(2026,11,9) # archived reference week Monday-Sunday
 BOX=(59.0,59.80,17.45,18.65)
 LIMIT=9000
-LIMIT_PER_MODE={"metro":3100,"commuter":2500,"rail":2300,"tram":1100}
+LIMIT_PER_MODE={"metro":2800,"commuter":2300,"rail":2400,"tram":1500}
 MAX_OUTPUT=32_000_000
 
 def records(z,name):
@@ -46,13 +47,26 @@ def clock(s):
 def in_box(p):
     return BOX[0]<=p[0]<=BOX[1] and BOX[2]<=p[1]<=BOX[3]
 
-def mode(route_type,label):
+TRAM_NAMES=("tvärbanan","tvarbanan","nockebybanan","lidingöbanan","lidingobanan",
+            "spårväg city","sparvag city","spårvagn","spårväg","tram","spårvägen")
+LOCAL_NAMES=("roslagsbanan","saltsjöbanan","saltsjobanan")
+def mode(route_type,label,short="",agency=""):
     try:r=int(route_type)
     except (ValueError,TypeError):r=-1
     t=label.casefold()
+    num=short.strip()
+    sl=("sl" in agency.casefold() or "stockholms lokaltrafik" in agency.casefold())
+    # Prioritise the explicitly named SL tram/light-rail systems: GTFS Sverige 2
+    # can encode some urban lines as general railway instead of tram.
+    if any(k in t for k in TRAM_NAMES):
+        return "tram"
+    if any(k in t for k in LOCAL_NAMES):
+        return "tram" # grouped as local light rail in the existing tram filter
+    if sl and num in {"7","12","21","22","30","31"} and r in (0,2,100,109,900,901):
+        return "tram"
     if r==1 or 400<=r<500 or "tunnelbana" in t:return "metro"
     if "pendel" in t or "x60" in t or "commuter" in t or r==109:return "commuter"
-    if r==0 or 900<=r<1000 or "spårvagn" in t or "spårväg" in t or "roslagsbanan" in t or "saltsjöbanan" in t:return "tram"
+    if r==0 or 900<=r<1000:return "tram"
     if r==2 or 100<=r<400:return "rail"
     return None
 
@@ -94,7 +108,7 @@ def build(z,now=None):
         agency=agencies.get(r.get("agency_id"),"")
         short=r.get("route_short_name","")
         long=r.get("route_long_name","")
-        m=mode(r.get("route_type")," ".join((short,long,agency)))
+        m=mode(r.get("route_type")," ".join((short,long,agency)),short,agency)
         if m:routes[r["route_id"]]={"line":short,"agency":agency,"mode":m,"name":long}
     stops={}
     for r in records(z,"stops.txt"):
