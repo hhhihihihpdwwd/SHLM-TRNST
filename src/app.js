@@ -2,6 +2,7 @@ import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js
 import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
 import {loadPhotoCatalog,photoForVehicle} from './photos.js';
+import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 const $=id=>document.getElementById(id);
 const state={filter:'all',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
@@ -149,15 +150,16 @@ function showVerifiedPhoto(v){
 }
 // A compact transport pictogram; unlike the old large dot it stays readable
 // at low zoom and never rebuilds for every animation frame.
+// The original Stockholm Transit vehicle-front photo sprites are restored here.
+// Small sizes keep the network legible even with hundreds of rail vehicles.
 function miniRailIcon(v,chosen=false){
- const color=realColor(v),size=chosen?19:15;
- const body=v.mode==='tram'
-   ?'<path d="M4 5.5h12v7H4z" fill="none" stroke="white" stroke-width="1.5"/><path d="M7 14l-2 2m8-2l2 2M7 4l3-2 13-2" stroke="white" stroke-width="1.3" fill="none"/><circle cx="7" cy="10" r="1" fill="white"/><circle cx="13" cy="10" r="1" fill="white"/>'
-   :'<rect x="4.5" y="3" width="11" height="11" rx="2.5" fill="none" stroke="white" stroke-width="1.5"/><path d="M7 6h6M7 9h6M8 14l-2 3m6-3l2 3" stroke="white" stroke-width="1.3" stroke-linecap="round"/>';
- const svg='<svg aria-hidden="true" viewBox="0 0 20 20" width="13" height="13" xmlns="http://www.w3.org/2000/svg">'+body+'</svg>';
- return L.divIcon({className:'rail-mini-icon'+(chosen?' is-selected':''),
-    html:'<span class="rail-mini-body" style="background:'+color+'">'+svg+'</span>',
-    iconSize:[size,size],iconAnchor:[size/2,size/2]});
+  const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
+    v.mode==='commuter'?'commuter':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
+  const img=vehicleFrontSprites[imageKey]||vehicleFrontSprites.rail;
+  const size=chosen?27:19;
+  const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
+  return L.divIcon({className:'rail-photo-icon'+(chosen?' is-selected':''),
+    html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#4C9876',rail:'#C89D52'};
 function realColor(v){return railColors[v.mode]||'#537F85'}
