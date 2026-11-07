@@ -11,7 +11,8 @@ test('original transport-front images available as embedded WebP data',()=>{
  }
 });
 test('markers reuse original images and remain compact',()=>{
- assert(app.includes("vehicleFrontSprites[imageKey]"));
+ assert(app.includes("originalSpriteUrl(imageKey)"));
+ assert(app.includes("URL.createObjectURL"));
  assert(app.includes("chosen?27:19"));
  assert(app.includes("rail-photo-marker"));
  assert(!html.includes('id="tab-station"'));
