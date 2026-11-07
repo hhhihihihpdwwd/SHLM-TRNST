@@ -44,9 +44,9 @@ def mode(route_type, label):
 def read_rows(z, name):
     try:
         with z.open(name) as file:
-            return list(csv.DictReader(io.TextIOWrapper(file, encoding="utf-8-sig")))
+            yield from csv.DictReader(io.TextIOWrapper(file, encoding="utf-8-sig"))
     except KeyError:
-        return []
+        return
 
 def active_services(z, days):
     active = {d: set() for d in days}
