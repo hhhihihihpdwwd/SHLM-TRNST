@@ -51,9 +51,9 @@ def mode(route_type,label):
     except (ValueError,TypeError):r=-1
     t=label.casefold()
     if r==1 or 400<=r<500 or "tunnelbana" in t:return "metro"
-    if "pendeltåg" in t or "pendeltag" in t or r==109:return "commuter"
+    if "pendel" in t or "x60" in t or "commuter" in t or r==109:return "commuter"
     if r==0 or 900<=r<1000 or "spårvagn" in t or "spårväg" in t or "roslagsbanan" in t or "saltsjöbanan" in t:return "tram"
-    if r==2 or 100<=r<200:return "rail"
+    if r==2 or 100<=r<400:return "rail"
     return None
 
 def service_calendar(z,dates):
