@@ -157,7 +157,7 @@ function showRealList(){
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.line||v.mode.slice(0,2).toUpperCase();
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
-  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.agency+' · Tidtabell, ingen GPS';
+  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · simulerat':v.agency+' · Tidtabell, ingen GPS';
   t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
  }
  list.append(frag);
@@ -183,7 +183,7 @@ function showRealDetail(){
  const stops=v.stops,first=stops[0][3],base=v.start-first;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
- $('train-sub').textContent='GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · ungefärlig färdväg · ingen GPS':'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
  $('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);
@@ -200,8 +200,9 @@ function showRealDetail(){
  if(map){
   railLayer.clearLayers();
   const segments=railPathSplit(v,current.meters);
-  L.polyline(segments.future,{color:'#728F93',weight:4,opacity:.82}).addTo(railLayer);
-  L.polyline(segments.past,{color:'#267FAC',weight:5,opacity:.97}).addTo(railLayer);
+  const approximate=v.geometryQuality==='approximate-stop-connectors';
+  L.polyline(segments.future,{color:'#728F93',weight:4,opacity:.82,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer);
+  L.polyline(segments.past,{color:'#267FAC',weight:5,opacity:.97,...(approximate?{dashArray:'6 7'}:{})}).addTo(railLayer);
   for(const stop of stops)L.circleMarker([stop[0],stop[1]],{radius:3,fillColor:'#fff',fillOpacity:1,color:'#458578'}).addTo(railLayer).bindTooltip(stop[2]);
  }
 }
@@ -241,8 +242,8 @@ async function initializeReal(){
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent='GTFS · SCHEDULED';
- const hint=document.querySelector('.map-note span');if(hint)hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
+ const label=document.querySelector('.map-note strong');if(label)label.textContent=data.type==='historical-weekday-simulation'?'HISTORICAL RAIL · NO KEY':'GTFS · SCHEDULED';
+ const hint=document.querySelector('.map-note span');if(hint)hint.textContent=data.type==='historical-weekday-simulation'?'Historischer Fahrplan (Archiv '+(data.archiveSource||'')+'), wöchentlich simuliert · gestrichelte Strecken sind angenähert':'Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Rail timetable';
  realLastList=0;tickReal();
 }
