@@ -130,8 +130,10 @@ function showStation(){
 }
 
 let railDataset=null,realActive=[],realLastList=0,realLastDraw=0;
-let photoSelection=0;
+let photoSelection=0,lastPhotoVehicleId=null;
 function showVerifiedPhoto(v){
+ if(lastPhotoVehicleId===v.id)return;
+ lastPhotoVehicleId=v.id;
  const token=++photoSelection,el=document.querySelector('.image-placeholder');
  if(!el)return;
  const pic=photoForVehicle(v);el.replaceChildren();
@@ -161,6 +163,7 @@ function showRealList(){
  list.append(frag);
 }
 function selectReal(v){
+ lastPhotoVehicleId=null;
  state.selected=v;state.station=false;state.follow=false;
  $('vehicle-list').hidden=true;$('station-view').hidden=true;$('selected-detail').hidden=false;
  $('tab-trains').classList.add('active');$('tab-station').classList.remove('active');
@@ -168,6 +171,7 @@ function selectReal(v){
  const p=railAt(v,Date.now()/1000).pos;if(map)map.flyTo(p,12,{duration:1});
 }
 function clearReal(){
+ lastPhotoVehicleId=null;
  state.selected=null;state.follow=false;railLayer?.clearLayers();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;$('station-view').hidden=true;
  $('tab-trains').classList.add('active');$('tab-station').classList.remove('active');
