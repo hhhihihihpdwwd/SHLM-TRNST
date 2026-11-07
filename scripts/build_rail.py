@@ -87,6 +87,8 @@ def simplified_shape(pts):
 
 def fetch(url, api_key):
     """Trafiklab negotiates compression. Never log the signed download URL."""
+    api_key = api_key.strip()
+    if not api_key: raise RuntimeError("GTFS Regional SL API key is empty")
     signed_url = url + ("&" if "?" in url else "?") + urllib.parse.urlencode({"key": api_key})
     request = urllib.request.Request(signed_url, headers={
         "User-Agent": "StockholmRail/0.3 (GTFS Regional SL)",
@@ -102,7 +104,9 @@ def fetch(url, api_key):
         # contain the API key. Only the status and endpoint path are safe.
         raise RuntimeError(
             f"GTFS Regional SL download failed: HTTP {exc.code}. "
-            "Check that GTFS_SL_KEY has access to GTFS Regional Static data."
+            "The SL endpoint is confirmed by Trafiklab. Verify GTFS_SL_KEY belongs to "
+            "GTFS Regional Static data (not Realtime or Sweden 3), and recopy "
+            "the key without spaces/punctuation into GitHub Actions secrets."
         ) from None
     if len(blob) > 150_000_000:
         raise RuntimeError("GTFS download exceeds 150 MB compressed")
@@ -202,7 +206,7 @@ def import_feed(z, source, days, output):
     return created
 
 def main():
-    key=os.getenv("GTFS_SL_KEY")
+    key=os.getenv("GTFS_SL_KEY", "").strip()
     if not key:raise SystemExit("GTFS_SL_KEY required. Add it as GitHub Actions secret, never commit it.")
     now=dt.datetime.now(ZONE).date()
     days=[now-dt.timedelta(days=1),now,now+dt.timedelta(days=1)]
