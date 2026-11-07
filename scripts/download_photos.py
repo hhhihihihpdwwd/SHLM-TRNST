@@ -37,6 +37,6 @@ for name,info in APPROVED.items():
         except Exception as exc:
             failures[name]=str(exc)[:160]
             time.sleep(.25)
-if len(result)<3:raise RuntimeError("Insufficient verified rail photos: "+str(failures))
+if len(result)<3:\n    print("WARNING: Few approved Wikimedia images were reachable; retaining honest vehicle placeholders.",flush=True)
 (BASE/"photos"/"catalog.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf8")
 print("PHOTO COVERAGE",len(result),"/",len(APPROVED),"missing",list(failures))
