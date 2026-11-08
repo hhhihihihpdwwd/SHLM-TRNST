@@ -1,7 +1,7 @@
 name: Stockholm Rail - Data Integration Checks
 on:
   push:
-    branches: [feature/nockeby-lidingo-01]
+    branches: [fix/localtram-visible-markers-01]
   pull_request:
     branches: [main]
   workflow_dispatch:
