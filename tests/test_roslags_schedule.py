@@ -22,7 +22,7 @@ class RoslagsScheduleTests(unittest.TestCase):
  def test_infrequent_line29_without_exact_noon_train_is_not_discarded(self):
     # A genuine GTFS line 29 departure at 10:00 and another at 16:00,
     # with no train exactly 12:47. This must NOT fabricate a noon train.
-    trips=[sample(line,SATURDAY,h) for line in ("27","28") for h in (12,13)]
+    trips=[sample(line,SATURDAY,h,30) for line in ("27","28") for h in (12,13)]
     trips += [sample("29",SATURDAY,h) for h in (10,16)]
     data={"trips":trips,"shapes":{"example":[[59.34,18.07],[59.5,18.2]]}}
     with patch.object(roslags.archive,"build",return_value=data) as build:
@@ -34,7 +34,7 @@ class RoslagsScheduleTests(unittest.TestCase):
     noon=roslags.clock_at(SUNDAY,12)
     self.assertFalse(any(t["start"]<=noon<=t["end"] for t in line29))
  def test_missing_historical_line29_still_blocks_release(self):
-    data={"trips":[sample(line,SATURDAY,12) for line in ("27","28")],
+    data={"trips":[sample(line,SATURDAY,12,30) for line in ("27","28")],
           "shapes":{"example":[[59.34,18.07],[59.5,18.2]]}}
     with patch.object(roslags.archive,"build",return_value=data):
        with self.assertRaisesRegex(ValueError,"Roslagsbanan 29"):
