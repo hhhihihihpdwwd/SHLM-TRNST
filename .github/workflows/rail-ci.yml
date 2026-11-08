@@ -49,3 +49,20 @@ jobs:
           assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
           print('PASS:',d['counts'],'Verified metro lines:',d['metroLines'])
           PY
+      - name: Verify approved locally optimized commuter and metro train photos
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python -u scripts/download_photos.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          photos=json.load(open('photos/catalog.json'))
+          assert 'commuter_x60' in photos, 'Pendeltåg vehicle photo missing'
+          assert any(p in photos for p in ('metro_c20_blue','metro_c30')), 'Blue/red metro vehicle image missing'
+          assert 'metro_c20_green' in photos, 'Green metro vehicle photo missing'
+          for entry in photos.values():
+              local=Path(entry['path'])
+              assert local.is_file() and local.stat().st_size>2500
+          print('Verified approved vehicle images:',len(photos))
+          PY
+
