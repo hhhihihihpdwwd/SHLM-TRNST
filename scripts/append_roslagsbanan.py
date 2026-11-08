@@ -14,7 +14,7 @@ ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT/"data"/"rail.json"
 ARCHIVE=ROOT/"data"/"roslags_candidates.json"
 RELATIONS={"27":11151437,"28":11151439,"29":11151441}
-ENDS={"27":("kårsta","ormsta"),"28":("österskär",),"29":("näsbypark",)}
+ENDS={"27":("kårsta","ormsta","lindholmen"),"28":("österskär","åkersberga"),"29":("näsbypark",)}
 MAX_STOP_ERROR=420
 MAX_TOTAL=65_000_000
 MAX_ADDED=2000
@@ -87,6 +87,7 @@ def integrate(base,archive,provider=osm_shapes):
     additions=[]
     new_shapes={}
     full_kårsta=collections.Counter()
+    full_österskär=collections.Counter()
     report=collections.defaultdict(collections.Counter)
     rejected=collections.Counter()
     for (line,stops),trips in sorted(patterns.items(),key=lambda x:-len(x[1])):
@@ -118,6 +119,8 @@ def integrate(base,archive,provider=osm_shapes):
             report[line][d]+=1
             if line=="27" and any("kårsta" in name(n) for n in (stops[0],stops[-1])):
                 full_kårsta[d]+=1
+            if line=="28" and any("österskär" in name(n) for n in (stops[0],stops[-1])):
+                full_österskär[d]+=1
         print("ROSLAG VERIFIED",line,d,stops[0],"→",stops[-1],"N",len(trips),flush=True)
     counts={line:{"out":report[line]["out"],"back":report[line]["back"]}
             for line in RELATIONS}
@@ -127,6 +130,9 @@ def integrate(base,archive,provider=osm_shapes):
     print("ROSLAG KÅRSTA FULL-TERMINAL",dict(full_kårsta),flush=True)
     if full_kårsta["out"]<1 or full_kårsta["back"]<1:
         raise ValueError("Roslagsbanan 27 missing the full Kårsta terminus in one direction")
+    print("ROSLAG ÖSTERSKÄR FULL-TERMINAL",dict(full_österskär),flush=True)
+    if full_österskär["out"]<1 or full_österskär["back"]<1:
+        raise ValueError("Roslagsbanan 28 missing full Österskär terminus in one direction")
     if len(additions)>MAX_ADDED:raise ValueError("Roslagsbanan over trip size budget; no silent truncation")
     base["trips"].extend(additions)
     base["shapes"].update(new_shapes)
