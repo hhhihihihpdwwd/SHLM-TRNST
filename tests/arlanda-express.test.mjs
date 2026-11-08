@@ -6,10 +6,10 @@ const v=[{mode:'commuter',line:'41'},{mode:'metro',line:'14'}, {mode:'tram',line
 {mode:'tram',line:'12'},{mode:'tram',line:'21'},{mode:'tram',line:'7'},
 {mode:'localrail',line:'27'},{mode:'localrail',line:'28'},{mode:'localrail',line:'29'},
 {mode:'saltsjo',line:'25'},{mode:'saltsjo',line:'26'},
-{mode:'express',line:'Arlanda Express',agency:'Arlanda Express'}];
+{mode:'express',line:'AX',agency:'Arlanda Express'}];
 test('Express filter exclusive and eight prior mode filters preserved',()=>{
  const lines=f=>v.filter(x=>matchesRailFilter(x,f)).map(x=>x.line);
- assert.deepEqual(lines('arlanda'),['Arlanda Express']);
+ assert.deepEqual(lines('arlanda'),['AX']);
  assert.deepEqual(lines('saltsjo'),['25','26']);
  assert.deepEqual(lines('roslags'),['27','28','29']);
  assert.deepEqual(lines('tram'),['30']);
