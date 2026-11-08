@@ -91,6 +91,60 @@ def read_regional_osm(url):
    if attempt==0:time.sleep(1)
  raise RuntimeError("OSM regional request failed: "+url+" : "+repr(last))
 
+OVERPASS_ENDPOINTS=(
+ "https://overpass.kumi.systems/api/interpreter",
+ "https://overpass-api.de/api/interpreter"
+)
+OVERPASS_RELATION_CACHE=None
+
+def discover_regional_osm_relations():
+ """Fallback to OSM relation metadata instead of relying on route-name search.
+
+ Fetches only relation IDs and tags (no enormous rail way download).
+ The geometry is still fetched from OSM and must pass every stop check.
+ """
+ global OVERPASS_RELATION_CACHE
+ if OVERPASS_RELATION_CACHE is not None:return OVERPASS_RELATION_CACHE
+ query='[out:json][timeout:90];relation["route"="train"](57.3,14.0,61.5,19.8);out tags;'
+ last=None
+ for base_url in OVERPASS_ENDPOINTS:
+  try:
+   payload=urllib.parse.urlencode({"data":query}).encode("utf8")
+   req=urllib.request.Request(base_url,data=payload,headers={
+      "User-Agent":"StockholmRail/0.7 (OSM train route relation audit)",
+      "Content-Type":"application/x-www-form-urlencoded"})
+   with urllib.request.urlopen(req,timeout=105) as response:
+    raw=response.read(OSM_RESPONSE_BYTES+1)
+   if len(raw)>OSM_RESPONSE_BYTES:raise ValueError("Overpass relation list too large")
+   obj=json.loads(raw)
+   elements=obj.get("elements",[])
+   if not isinstance(elements,list):raise ValueError("Invalid Overpass result")
+   selected={}
+   for e in elements:
+    tags=e.get("tags") or {}
+    if e.get("type")!="relation" or tags.get("route")!="train":continue
+    rid=e.get("id")
+    if not isinstance(rid,int):continue
+    selected[rid]={"id":rid,"name":tags.get("name",""),
+      "from":tags.get("from",""),"to":tags.get("to",""),
+      "operator":tags.get("operator",""),"network":tags.get("network","")}
+   OVERPASS_RELATION_CACHE=selected
+   print("MÄLARTÅG OVERPASS RELATION INVENTORY",len(selected),flush=True)
+   return selected
+  except (urllib.error.URLError,TimeoutError,OSError,ValueError) as exc:
+   last=exc
+   print("MÄLARTÅG OVERPASS RELATION REQUEST FAILED",base_url,repr(exc)[:160],flush=True)
+ raise RuntimeError("OSM Overpass relation discovery unavailable: "+repr(last))
+
+def corridor_relation_match(corridor,item):
+ """Selection for later strict geometrical check; never marks a relation valid."""
+ names=" ".join(str(item.get(k,"")) for k in ("name","from","to","operator","network"))
+ names=norm(names)
+ if "mälartåg" in names or "mälardalstrafik" in names or "malartag" in names:return True
+ anchors=CORRIDORS[corridor]
+ hits=sum(a in names for a in anchors)
+ return hits>=2
+
 def relation_shapes(corridor,first,last,reader=None):
  """Search public OSM train relations. Validate every result geometrically.
 
@@ -129,6 +183,20 @@ def relation_shapes(corridor,first,last,reader=None):
     else:
      found[rid]=item
   if len(found)>=MAX_OSM_LOOKUPS:break
+ if not found and reader is read_regional_osm:
+  # The OSM route-search endpoint can return zero relations for regional
+  # rail services even if OSM has relevant train relations.
+  try:
+   inventory=discover_regional_osm_relations()
+   matched={rid:item for rid,item in inventory.items()
+            if corridor_relation_match(corridor,item)}
+   print("MÄLARTÅG OVERPASS CORRIDOR",corridor,
+         "candidate_relations",len(matched),flush=True)
+   found.update(dict(list(matched.items())[:MAX_OSM_LOOKUPS]))
+   diagnostics["overpass_matches"]=len(matched)
+  except RuntimeError as exc:
+   diagnostics["overpass_error"]+=1
+   print("MÄLARTÅG OVERPASS FALLBACK FAILED",corridor,str(exc),flush=True)
  geometries=[]
  for rid,item in list(found.items())[:MAX_OSM_LOOKUPS]:
   try:
