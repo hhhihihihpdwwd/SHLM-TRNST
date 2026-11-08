@@ -19,12 +19,15 @@ test('markers reuse original images and remain compact',()=>{
 });
 test('only shape-verified Pendeltåg, Tunnelbana, Tvärbanan; no fake fallback',()=>{
  const engine=readFileSync(new URL('../src/rail-data.js',import.meta.url),'utf8');
- assert(engine.includes("!['commuter','metro','tram','localrail','saltsjo','express'].includes(trip.mode)"));
+ assert(engine.includes("!['commuter','metro','tram','localrail','saltsjo','express','regional'].includes(trip.mode)"));
+ assert(engine.includes("trip.geometryQuality!=='verified-osm-relation'"));
+
  assert(engine.includes("trip.geometryQuality!=='verified-osm-relation'"));
  assert(app.includes('const approximate=false'));
  assert(html.includes('data-filter="metro"'));
  assert(html.includes('data-filter="tram"'));
  const photos=readFileSync(new URL('../src/photos.js',import.meta.url),'utf8');
  assert(photos.includes("'tram_a35'"));
+ assert(photos.includes("'rail_malartag'"));
  assert(!html.includes('data-filter="rail"'));
 });
