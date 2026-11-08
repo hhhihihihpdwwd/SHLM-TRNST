@@ -120,10 +120,12 @@ jobs:
           for(const hour of [8,12,16,20]){
             const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
             const visible=activeRailTrips(d,at,3000).filter(v=>v.mode==='tram'&&v.line==='7');
-            const outward=visible.filter(v=>v.stops[0][2].toLowerCase().startsWith('t-centralen'));
-            const returnTrips=visible.filter(v=>v.stops[0][2].toLowerCase().startsWith('waldemarsudde'));
+            const outward=visible.filter(v=>/t-centralen|sergels torg/i.test(v.stops[0][2]));
+            const returnTrips=visible.filter(v=>/waldemarsudde/i.test(v.stops[0][2]));
             console.log('CITY7 VISIBLE AT',hour,visible.length,'directions',outward.length,returnTrips.length);
             if(visible.length<1)throw new Error('City7 invisible in map at '+hour);
+            if([12,16].includes(hour) && (!outward.length||!returnTrips.length))
+              throw new Error('City7 missing a visible direction at '+hour);
           }
           for(const [day,modes] of Object.entries(counts)){
             for(const hour of [8,12,17,21]){
