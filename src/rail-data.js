@@ -8,7 +8,7 @@ export async function loadRailTimetable(){
   if(!response.ok)return null;
   const data=await response.json();
   if(data.schema!==1||!Array.isArray(data.trips)||!data.shapes||!data.trips.length)return null;
-  if(!data.counts?.metro)return null;
+  if(data.type!=='historical-pendeltag-verified-rail'||!data.strictGeometry||!data.counts?.commuter)return null;
   return data;
  }catch(e){console.warn('Timetable unavailable; demo mode remains active',e);return null}
 }
