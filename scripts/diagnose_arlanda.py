@@ -46,4 +46,16 @@ def run():
    for record in data.get("routes",[])[:20]:
     print("ARLANDA OSM RESULT",q,"id",record.get("id"),"type",record.get("type"),"ref",record.get("ref"),"name",record.get("name"),flush=True)
   except Exception as e:print("ARLANDA OSM SEARCH ERROR",q,str(e),flush=True)
+ for rid in (1966855,):
+  for kind in ("route_master","route"):
+   try:
+    response=read_json(BASE+kind+"/"+str(rid))
+    print("ARLANDA PINNED OSM",kind,rid,"keys",list(response),"routes",len(response.get("routes",[])),flush=True)
+    for record in response.get("routes",[])[:8]:
+     geom=record.get("geojson") or {}
+     features=geom.get("features",[])
+     print("ARLANDA PINNED CHILD",record.get("id"),record.get("name"),"features",len(features),"first",str(features[:1])[:200],flush=True)
+    geo=response.get("geojson") or {}
+    print("ARLANDA PINNED MAIN GEOJSON",kind,len(geo.get("features",[])),flush=True)
+   except Exception as ex:print("ARLANDA PINNED ERROR",kind,str(ex),flush=True)
 if __name__=="__main__":run()
