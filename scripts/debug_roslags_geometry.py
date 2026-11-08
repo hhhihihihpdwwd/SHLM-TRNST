@@ -44,6 +44,7 @@ def inspect():
           "tramLines":{"7":1},"metroLines":{"13":1}}
     result=integrate(base,ds)
     output=Path(__file__).resolve().parents[1]/"data"/"roslags-smoke.json"
+    output.parent.mkdir(parents=True,exist_ok=True)
     output.write_text(json.dumps(result,ensure_ascii=False,separators=(",",":")),encoding="utf8")
     print("ROSLAG FAST SMOKE DATASET WRITTEN",result["roslagsLines"],flush=True)
 if __name__=="__main__":inspect()
