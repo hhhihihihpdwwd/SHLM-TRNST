@@ -21,7 +21,7 @@ def fixture():
         z.writestr("stops.txt","stop_id,stop_name,stop_lat,stop_lon\n"
                    +"a,A,59.33,18.04\n"+"b,B,59.34,18.05\n")
         z.writestr("calendar.txt","service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n"
-                   +"s,0,0,0,0,0,1,0,20261104,20261110\n")
+                   +"s,0,0,0,0,1,0,0,20261104,20261110\n")
         rows=["trip_id,route_id,service_id,trip_headsign"]
         times=["trip_id,arrival_time,departure_time,stop_id,stop_sequence"]
         for line in ("7","12","21"):
@@ -48,7 +48,7 @@ class TramArchiveTests(unittest.TestCase):
             self.assertTrue(any(t["line"]==line and
                 t["start"]<=int(dt.datetime(2026,11,7,12,47,tzinfo=archive.ZONE).timestamp())<=t["end"]
                 for t in raw["trips"]))
-    def test_sunday_proxy_keeps_prior_day_departures_for_local_lines(self):
+    def test_identical_friday_service_is_repeated_on_sunday(self):
         sunday=dt.date(2026,11,8)
         old=tvar.LINES
         try:
@@ -60,5 +60,5 @@ class TramArchiveTests(unittest.TestCase):
         sunday_trips=[t for t in result["trips"] if t["serviceDay"]=="2026-11-08"]
         self.assertGreater(len(sunday_trips),0)
         self.assertEqual({t["line"] for t in sunday_trips},{"12","21"})
-        self.assertTrue(all(t.get("timetableProxy") for t in sunday_trips))
+        self.assertTrue(all(t.get("archiveDay")=="2026-11-06" for t in sunday_trips))
 if __name__=="__main__":unittest.main()
