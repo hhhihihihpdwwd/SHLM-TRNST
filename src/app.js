@@ -276,7 +276,7 @@ function tickReal(){
  }
  if(!map||now-realLastDraw<90)return;realLastDraw=now;
  const selected=state.selected;
- const showing=realActive.filter(v=>state.filter==='all'||state.filter===v.mode);
+ const showing=realActive.filter(v=>matchesRailFilter(v,state.filter));
  const seen=new Set(showing.map(v=>v.id));
  for(const [id,m] of markers)if(!seen.has(id)){map.removeLayer(m);markers.delete(id)}
  const bounds=map.getBounds().pad(.12);
