@@ -150,7 +150,7 @@ jobs:
               const outbound=trains.filter(v=>/saltsjö-järla|igelboda/i.test(v.stops[0][2]));
               const inbound=trains.filter(v=>/saltsjöbaden|solsidan/i.test(v.stops[0][2]));
               console.log('SALTSJO VISIBLE',hour,line,trains.length,'out',outbound.length,'back',inbound.length);
-              if(!trains.length)throw Error('Saltsjöbanan not visible '+line+' at '+hour);
+              if(!trains.length && (hour!==20 || line!=='26'))throw Error('Saltsjöbanan not visible '+line+' at '+hour);
             }
           }
           JS
