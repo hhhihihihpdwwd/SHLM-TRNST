@@ -21,35 +21,11 @@ def build_candidates(gtfs,now):
     original=archive.SOURCE_START
     try:
         archive.SOURCE_START=REF_START
-        dataset=archive.build(gtfs,now=now)
+        dataset=archive.build(gtfs,now=now,tram_lines=LINES)
     finally:
         archive.SOURCE_START=original
     selected=[t for t in dataset["trips"] if str(t.get("line","")).strip() in LINES
               and t.get("mode")=="tram"]
-    # Source archive can omit or undercount Sunday Saltsjöbanan journeys.
-    # The private simulation can instead mirror the actual historic Saturday
-    # timetable for that one line while preserving all stop-time differences.
-    if now.weekday()==6:
-        saturday=now-dt.timedelta(days=1)
-        shift=clock_at(now,0,0)-clock_at(saturday,0,0)
-        for line in sorted(LINES):
-            todays=[t for t in selected if t["line"]==line and t["serviceDay"]==now.isoformat()]
-            noon=clock_at(now,12)
-            if sum(t["start"]<=noon<=t["end"] for t in todays)>=1:continue
-            earlier=[t for t in selected if t["line"]==line
-                     and t["serviceDay"]==saturday.isoformat()]
-            before=clock_at(saturday,12)
-            if sum(t["start"]<=before<=t["end"] for t in earlier)<1:
-                raise ValueError("No complete archived Saturday service for Saltsjöbanan "+line)
-            selected=[t for t in selected if not (t["line"]==line
-                      and t["serviceDay"]==now.isoformat())]
-            selected.extend({**t,"id":"SALTSJO-SUNDAY-PROXY:"+t["id"],
-                "serviceDay":now.isoformat(),"start":t["start"]+shift,
-                "end":t["end"]+shift,
-                "timetableProxy":"Historical Saturday service repeated on Sunday",
-                "source":"Historical Saturday GTFS used for private Sunday simulation"}
-                for t in earlier)
-            print("SALTSJO SUNDAY SIMULATION",line,len(earlier),"archived Saturday trips",flush=True)
     dataset["trips"]=selected
     dataset["shapes"]={k:v for k,v in dataset["shapes"].items()
                        if k in {t["shapeId"] for t in selected}}
