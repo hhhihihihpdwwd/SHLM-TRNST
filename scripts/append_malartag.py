@@ -9,6 +9,9 @@ import collections
 import copy
 import json
 import urllib.parse
+import urllib.request
+import urllib.error
+import time
 from pathlib import Path
 from build_malartag_candidates import CORRIDORS,norm,contains_station
 from refine_osm_routes import BASE,read_json,project_stops,choose_directional_shape
@@ -19,6 +22,8 @@ CANDIDATES=ROOT/"data"/"malartag_candidates.json"
 STABLE_SCOPE="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda"
 MAX_ERROR=650
 MAX_OSM_LOOKUPS=120
+OSM_RESPONSE_BYTES=18_000_000
+OSM_TIMEOUT_SECONDS=40
 MAX_FILE=105_000_000
 
 def geometry_large(geojson):
@@ -62,36 +67,79 @@ def geometry_large(geojson):
   result=[result[round(i*step)] for i in range(9000)]
  return result if all(57.3<p[0]<61.5 and 14.0<p[1]<19.8 for p in result) else None
 
-def relation_shapes(corridor,first,last,reader=read_json):
+def read_regional_osm(url):
+ """Separate large-route HTTP fetch; local lines retain their original limits.
+
+ A failed request is reported, never treated as an empty valid rail route.
+ """
+ last=None
+ for attempt in range(2):
+  try:
+   req=urllib.request.Request(url,headers={
+    "User-Agent":"StockholmRail/0.6 (regional rail geometry verification)",
+    "Accept":"application/json","Accept-Encoding":"identity"})
+   with urllib.request.urlopen(req,timeout=OSM_TIMEOUT_SECONDS) as response:
+    raw=response.read(OSM_RESPONSE_BYTES+1)
+   if len(raw)>OSM_RESPONSE_BYTES:raise ValueError("regional OSM relation exceeds 18MB limit")
+   return json.loads(raw)
+  except (urllib.error.URLError,TimeoutError,OSError,ValueError) as exc:
+   last=exc
+   if attempt==0:time.sleep(1)
+ raise RuntimeError("OSM regional request failed: "+url+" : "+repr(last))
+
+def relation_shapes(corridor,first,last,reader=None):
  """Search public OSM train relations. Validate every result geometrically.
 
  A route relation must include all rails; rejected short/truncated relations
  cannot be silently supplemented with straight-line connectors.
  """
- found={};queries=[first,last,*CORRIDORS[corridor]]
+ if reader is None:reader=read_regional_osm
+ found={}
+ diagnostics=collections.Counter()
+ # Operator/network search is much more precise than generic station names.
+ queries=["Mälartåg","Mälardalstrafik",first,last,*CORRIDORS[corridor]]
  for term in dict.fromkeys(queries):
   if len(term.strip())<4:continue
   q=urllib.parse.urlencode({"q":term,"mode":"train",
      "south":57.4,"west":14.0,"north":61.2,"east":19.6})
   try:
    obj=reader(BASE+"search?"+q)
-  except (OSError,ValueError,TimeoutError) as ex:
-   print("MÄLARTÅG OSM SEARCH",corridor,term,type(ex).__name__,flush=True)
+   diagnostics["search_success"]+=1
+  except (OSError,ValueError,TimeoutError,RuntimeError) as ex:
+   diagnostics["search_error"]+=1
+   print("MÄLARTÅG OSM SEARCH FAILED",corridor,term,str(ex)[:160],flush=True)
    continue
   for item in obj.get("routes",[]):
-   if item.get("type")=="route_master":
-    continue
    rid=item.get("id")
-   if isinstance(rid,int):found[rid]=item
-  if len(found)>=60:break
+   if isinstance(rid,int):
+    if item.get("type")=="route_master":
+     try:
+      master=reader(BASE+"route_master/"+str(rid))
+      diagnostics["master_success"]+=1
+      for sub in master.get("routes",[]):
+       subid=sub.get("id")
+       if isinstance(subid,int):found[subid]=sub
+     except (OSError,ValueError,TimeoutError,RuntimeError) as ex:
+      diagnostics["master_error"]+=1
+      print("MÄLARTÅG OSM MASTER FAILED",rid,str(ex)[:120],flush=True)
+    else:
+     found[rid]=item
+  if len(found)>=MAX_OSM_LOOKUPS:break
  geometries=[]
- for rid in list(found)[:MAX_OSM_LOOKUPS]:
+ for rid,item in list(found.items())[:MAX_OSM_LOOKUPS]:
   try:
-   obj=reader(BASE+"route/"+str(rid))
-   shape=geometry_large(obj.get("geojson"))
+   if item.get("geojson"):
+    shape=geometry_large(item["geojson"])
+   else:
+    obj=reader(BASE+"route/"+str(rid))
+    shape=geometry_large(obj.get("geojson"))
    if shape and len(shape)>5:geometries.append((str(rid),shape))
-  except (OSError,ValueError,TimeoutError,KeyError):continue
- print("MÄLARTÅG OSM CANDIDATES",corridor,len(geometries),flush=True)
+   else:diagnostics["invalid_or_disconnected_geometry"]+=1
+  except (OSError,ValueError,TimeoutError,RuntimeError,KeyError) as ex:
+   diagnostics["route_download_error"]+=1
+   print("MÄLARTÅG OSM ROUTE FAILED",rid,str(ex)[:140],flush=True)
+ print("MÄLARTÅG OSM REPORT",corridor,"relations",len(found),"usable_shapes",
+       len(geometries),"diagnostics",dict(diagnostics),flush=True)
  return geometries
 
 def direction_of(trip):
