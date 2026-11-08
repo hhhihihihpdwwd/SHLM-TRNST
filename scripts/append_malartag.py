@@ -11,7 +11,7 @@ import json
 import urllib.parse
 from pathlib import Path
 from build_malartag_candidates import CORRIDORS,norm
-from refine_osm_routes import BASE,read_json,geometry_from_geojson,project_stops,choose_directional_shape
+from refine_osm_routes import BASE,read_json,project_stops,choose_directional_shape
 
 ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT/"data"/"rail.json"
@@ -19,6 +19,22 @@ CANDIDATES=ROOT/"data"/"malartag_candidates.json"
 STABLE_SCOPE="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda"
 MAX_ERROR=650
 MAX_FILE=105_000_000
+
+def geometry_large(geojson):
+ """Regional rail coordinates may extend far outside Stockholm's original bounding box."""
+ if not isinstance(geojson,dict):return None
+ shapes=[f.get("geometry",{}).get("coordinates",[]) for f in geojson.get("features",[])
+         if f.get("geometry",{}).get("type")=="LineString"]
+ if len(shapes)!=1:return None # Multiple disconnected components must NOT be stitched.
+ coords=shapes[0]
+ if len(coords)<2:return None
+ if len(coords)>6000:
+  step=(len(coords)-1)/5999
+  coords=[coords[round(i*step)] for i in range(6000)]
+ try:
+  shape=[[round(float(x[1]),6),round(float(x[0]),6)] for x in coords]
+ except (IndexError,TypeError,ValueError):return None
+ return shape if all(57.3<p[0]<61.5 and 14.0<p[1]<19.8 for p in shape) else None
 
 def relation_shapes(corridor,first,last,reader=read_json):
  """Search public OSM train relations. Validate every result geometrically.
@@ -46,7 +62,7 @@ def relation_shapes(corridor,first,last,reader=read_json):
  for rid in list(found)[:100]:
   try:
    obj=reader(BASE+"route/"+str(rid))
-   shape=geometry_from_geojson(obj.get("geojson"))
+   shape=geometry_large(obj.get("geojson"))
    if shape and len(shape)>5:geometries.append((str(rid),shape))
   except (OSError,ValueError,TimeoutError,KeyError):continue
  print("MÄLARTÅG OSM CANDIDATES",corridor,len(geometries),flush=True)
