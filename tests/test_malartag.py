@@ -29,7 +29,7 @@ class MalartagTests(unittest.TestCase):
       "mode":"rail","stops":[[p[0],p[1],label,i*600,i*600] for i,(p,label) in enumerate(zip(coords,labels))]})
   def provider(corridor,first,last):return [(corridor,shape[corridor])]
   return data,{"trips":entries},provider
- def test_immutable_nine_systems_and_all_five_directions(self):
+ def test_immutable_nine_systems_and_all_four_directions(self):
   base,archive,provider=self.make_fixture()
   old=copy.deepcopy(base)
   result=integrate(base,archive,provider)
@@ -51,11 +51,10 @@ class MalartagTests(unittest.TestCase):
    return provider(corridor,first,last)
   with self.assertRaisesRegex(ValueError,"uven"):
    integrate(base,archive,wrong)
- def test_all_five_corridors_against_real_station_patterns(self):
+ def test_all_four_corridors_against_real_station_patterns(self):
   cases={
    "orebro-uppsala":["Örebro Centralstation","Eskilstuna C","Stockholm Centralstation","Uppsala Centralstation"],
    "nykoping":["Norrköping Centralstation","Nyköping C","Stockholm Centralstation"],
-   "hallsberg":["Hallsberg station","Katrineholm Central","Stockholm Centralstation"],
    "uven":["Linköping Centralstation","Norrköping Centralstation","Eskilstuna C","Västerås Centralstation","Sala Resecentrum","Uppsala Centralstation"],
    "gavle":["Uppsala Centralstation","Tierp station","Gävle Centralstation"],
   }
@@ -64,6 +63,7 @@ class MalartagTests(unittest.TestCase):
     self.assertEqual(corridor_for(names),corridor)
     self.assertEqual(corridor_for(list(reversed(names))),corridor)
   self.assertIsNone(corridor_for(["Stockholm Centralstation","Uppsala Centralstation"]))
+  self.assertIsNone(corridor_for(["Stockholm Centralstation","Katrineholm Centralstation","Hallsberg station"]))
  def test_osm_multiline_rejects_disconnected_rail(self):
   def make(parts):
    return {"features":[{"geometry":{"type":"LineString","coordinates":p}} for p in parts]}
@@ -89,18 +89,6 @@ class MalartagTests(unittest.TestCase):
    result=mal.relation_shapes("gavle","Uppsala","Gävle")
   self.assertEqual(len(result),1)
   self.assertEqual(result[0][0],"876")
- def test_hallsberg_segment_relations_are_discoverable_without_two_termini(self):
-  # Some train OSM relations cover only an intermediate section of a
-  # through service. The next GTFS + geometry checks still decide validity.
-  self.assertTrue(mal.corridor_relation_match("hallsberg",{
-    "name":"Katrineholm - Flen","from":"Katrineholm","to":"Flen",
-    "operator":"SJ"}))
-  self.assertTrue(mal.corridor_relation_match("hallsberg",{
-    "name":"Hallsberg - Vingåker","from":"Hallsberg","to":"Vingåker"}))
-  self.assertFalse(mal.corridor_relation_match("hallsberg",{
-    "name":"Stockholm - Uppsala","from":"Stockholm","to":"Uppsala"}))
-  self.assertFalse(mal.corridor_relation_match("hallsberg",{
-    "name":"SJ long distance","operator":"SJ"}))
  def test_overpass_rejects_unrelated_relations(self):
   self.assertFalse(mal.corridor_relation_match("gavle",{"name":"Stockholm - Malmö",
        "operator":"SJ","from":"Stockholm","to":"Malmö"}))
