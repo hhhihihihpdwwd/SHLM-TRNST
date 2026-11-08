@@ -10,7 +10,7 @@ import copy
 import json
 import urllib.parse
 from pathlib import Path
-from build_malartag_candidates import CORRIDORS,norm
+from build_malartag_candidates import CORRIDORS,norm,contains_station
 from refine_osm_routes import BASE,read_json,project_stops,choose_directional_shape
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -18,6 +18,7 @@ DATA=ROOT/"data"/"rail.json"
 CANDIDATES=ROOT/"data"/"malartag_candidates.json"
 STABLE_SCOPE="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda"
 MAX_ERROR=650
+MAX_OSM_LOOKUPS=120
 MAX_FILE=105_000_000
 
 def geometry_large(geojson):
@@ -59,7 +60,7 @@ def relation_shapes(corridor,first,last,reader=read_json):
    if isinstance(rid,int):found[rid]=item
   if len(found)>=60:break
  geometries=[]
- for rid in list(found)[:100]:
+ for rid in list(found)[:MAX_OSM_LOOKUPS]:
   try:
    obj=reader(BASE+"route/"+str(rid))
    shape=geometry_large(obj.get("geojson"))
@@ -69,14 +70,15 @@ def relation_shapes(corridor,first,last,reader=read_json):
  return geometries
 
 def direction_of(trip):
- names=[norm(s[2]) for s in trip["stops"]]
- # Direction is chronological ordering along the signed official corridor axis.
+ # Determine direction from every scheduled station, not only named termini.
+ # A short-turn service may begin/end at a stop missing from corridor anchors.
  anchors=CORRIDORS[trip["corridor"]]
- first=next((i for i,a in enumerate(anchors) if any(a in n for n in names[:1])),None)
- last=next((i for i,a in enumerate(anchors) if any(a in n for n in names[-1:])),None)
- if first is None or last is None or first==last:
-  return None
- return "forward" if first<last else "reverse"
+ found=[]
+ for stop in trip["stops"]:
+  positions=[i for i,name in enumerate(anchors) if contains_station(stop[2],name)]
+  if len(positions)==1:found.append(positions[0])
+ if len(found)<2 or found[0]==found[-1]:return None
+ return "forward" if found[0]<found[-1] else "reverse"
 
 def integrate(base,archive,provider=relation_shapes):
  if base.get("scope")!=STABLE_SCOPE:
