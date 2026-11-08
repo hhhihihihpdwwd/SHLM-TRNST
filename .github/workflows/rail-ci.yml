@@ -15,7 +15,27 @@ jobs:
           node-version: '22'
       - name: Compile and unit-test the new rail engine
         run: |
-          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/download_photos.py
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/build_pendeltag.py scripts/download_photos.py
           for file in src/*.js; do node --check "$file"; done
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
+  pendeltag-real-data:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test real public GTFS archive and strict OSM track coverage
+        run: python -u scripts/build_pendeltag.py
+      - name: Report verified routes
+        run: |
+          python - <<'PY'
+          import json
+          dataset=json.load(open('data/rail.json'))
+          print('PENDELTAG QUALITY:',dataset['qualityReport'])
+          assert dataset['counts']['commuter']>=12
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in dataset['trips'])
+          PY
