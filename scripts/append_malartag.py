@@ -122,7 +122,7 @@ def integrate(base,archive,provider=relation_shapes):
   first,last=stopnames[0],stopnames[-1]
   direction=direction_of(group[0])
   if direction is None:continue
-  key=(corridor,norm(first),norm(last))
+  key=corridor
   if key not in cache:
    cache[key]=provider(corridor,first,last)
   winner=choose_directional_shape(group[0]["stops"],cache[key],MAX_ERROR)
