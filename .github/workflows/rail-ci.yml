@@ -17,7 +17,7 @@ jobs:
           node-version: '22'
       - name: Compile and unit-test the new rail engine
         run: |
-          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/download_photos.py
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/download_photos.py
           for file in src/*.js; do node --check "$file"; done
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
@@ -41,6 +41,8 @@ jobs:
         run: python -u scripts/append_tunnelbana.py
       - name: Save verified Pendeltåg and Metro baseline
         run: cp data/rail.json data/rail-baseline.json
+      - name: Build Tvärbanan service days from archive November 4-10 (separate from baseline)
+        run: python -u scripts/build_tvarbanan_candidates.py
       - name: Add verified Tvärbanan 30 and 31
         run: python -u scripts/append_tvarbanan.py
       - name: Confirm no Pendeltåg/Tunnelbana regression and both tram routes
@@ -73,7 +75,13 @@ jobs:
             counts[day][mode]=(counts[day][mode]||0)+1;
           }
           console.log('GTFS SERVICE DAY TOTALS',JSON.stringify(counts));
-          const stockholmOffset=3600;
+          // Sunday 2026-11-08 was blank in Preview 01 despite hundreds
+          // of imported trams. A visible, positionable noon service is mandatory.
+          const sunday=Date.parse('2026-11-08T12:47:00+01:00')/1000;
+          const noon=activeRailTrips(d,sunday,1000).filter(v=>v.mode==='tram');
+          console.log('SUNDAY NOON TVÄRBANAN RENDERABLE',noon.length);
+          if(noon.length<2)throw new Error('No Sunday noon Tvärbanan services — refuse deploy');
+
           for(const [day,modes] of Object.entries(counts)){
             for(const hour of [8,12,17,21]){
               const dt=new Date(day+'T'+String(hour).padStart(2,'0')+':00:00+01:00');
