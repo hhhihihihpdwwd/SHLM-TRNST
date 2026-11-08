@@ -1,5 +1,7 @@
 name: Stockholm Rail - Data Integration Checks
 on:
+  push:
+    branches: [feature/tunnelbana-isolated-01]
   pull_request:
     branches: [main]
   workflow_dispatch:
