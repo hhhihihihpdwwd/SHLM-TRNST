@@ -24,7 +24,7 @@ def name(s):
 
 def direction(line,first,last):
     a,b=name(first),name(last)
-    def is_central(x):return x.startswith("stockholms östra") or x.startswith("östra station")
+    def is_central(x):return x.startswith("stockholms östra") or x=="östra" or x.startswith("östra station")
     def is_outer(x):return any(x.startswith(c) for c in ENDS[line])
     if is_central(a) and is_outer(b):return "out"
     if is_outer(a) and is_central(b):return "back"
