@@ -1,7 +1,7 @@
 name: Stockholm Rail - Data Integration Checks
 on:
   push:
-    branches: [fix/localtram-visible-markers-01]
+    branches: [feature/sparvag-city-07]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
           node-version: '22'
       - name: Compile and unit-test the new rail engine
         run: |
-          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/download_photos.py
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/download_photos.py
           for file in src/*.js; do node --check "$file"; done
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
@@ -51,14 +51,26 @@ jobs:
         run: python -u scripts/build_local_tram_candidates.py
       - name: Add verified bidirectional line 12 and 21 OSM geometries
         run: python -u scripts/append_local_trams.py
-      - name: Confirm no Pendeltåg/Tunnelbana/Tvärbanan regressions and four tram routes
+      - name: Freeze entire STABLE 02 dataset for byte-exact comparison
+        run: cp data/rail.json data/stable02-snapshot.json
+      - name: Import City 7 historical GTFS timetable
+        run: python -u scripts/build_sparvag_city_candidates.py
+      - name: Append only verified Spårväg City line 7 both directions
+        run: python -u scripts/append_sparvag_city.py
+      - name: Confirm no previous service or geometry changed and City7 validated
         run: |
           python - <<'PY'
           import json
           d=json.load(open('data/rail.json'))
-          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram'
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7'
+          unchanged=json.load(open('data/stable02-snapshot.json'))
+          assert d['trips'][:len(unchanged['trips'])]==unchanged['trips']
+          assert all(d['shapes'][k]==v for k,v in unchanged['shapes'].items())
+          assert all(d['counts'][mode]==unchanged['counts'][mode] for mode in ('commuter','metro'))
+          assert all(d['tramLines'][line]==unchanged['tramLines'][line] for line in ('12','21','30','31'))
+          assert d['city7Directions']['out']>0 and d['city7Directions']['back']>0
           assert set(d['metroLines'])=={'10','11','13','14','17','18','19'}
-          assert set(d['tramLines'])=={'30','31','12','21'}
+          assert set(d['tramLines'])=={'30','31','12','21','7'}
           assert all(d['tramLines'][k]>0 for k in ('30','31'))
           stable=json.load(open('data/stable-three-mode.json'))
           assert d['trips'][:len(stable['trips'])]==stable['trips']
@@ -73,7 +85,7 @@ jobs:
           assert d['counts']['commuter']==baseline['counts']['commuter']
           assert d['counts']['metro']==baseline['counts']['metro']
           assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
-          print('PASS FIVE RAIL SYSTEMS:',d['counts'],'Tram lines:',d['tramLines'])
+          print('PASS SIX RAIL SYSTEMS:',d['counts'],'City7 directions:',d['city7Directions'])
           PY
       - name: Assert reverse-direction trains and Uppsala return journeys
         run: python -u scripts/audit_rail_directions.py
@@ -103,6 +115,16 @@ jobs:
             if(!visible.length)throw Error('Empty-map regression on local line '+line);
           }
 
+          // Test actual renderable City 7 markers at multiple times, not merely
+          // historical trip counts (the previous local-tram bug).
+          for(const hour of [8,12,16,20]){
+            const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const visible=activeRailTrips(d,at,3000).filter(v=>v.mode==='tram'&&v.line==='7');
+            const outward=visible.filter(v=>v.stops[0][2].toLowerCase().startsWith('t-centralen'));
+            const returnTrips=visible.filter(v=>v.stops[0][2].toLowerCase().startsWith('waldemarsudde'));
+            console.log('CITY7 VISIBLE AT',hour,visible.length,'directions',outward.length,returnTrips.length);
+            if(visible.length<1)throw new Error('City7 invisible in map at '+hour);
+          }
           for(const [day,modes] of Object.entries(counts)){
             for(const hour of [8,12,17,21]){
               const dt=new Date(day+'T'+String(hour).padStart(2,'0')+':00:00+01:00');
@@ -125,6 +147,7 @@ jobs:
           assert 'tram_a35' in photos, 'Tvärbanan A35 vehicle photo missing'
           assert 'tram_nockeby12' in photos, 'Nockebybanan A32 photo missing'
           assert 'tram_lidingo21' in photos, 'Lidingöbanan A36 photo missing'
+          assert 'tram_city7' in photos, 'Spårväg City A35 photo missing'
           assert 'commuter_x60' in photos, 'Pendeltåg vehicle photo missing'
           assert any(p in photos for p in ('metro_c20_blue','metro_c30')), 'Blue/red metro vehicle image missing'
           assert 'metro_c20_green' in photos, 'Green metro vehicle photo missing'
