@@ -277,12 +277,16 @@ jobs:
           assert p.is_file() and p.stat().st_size>2500
           print('APPROVED TVÄRBANAN IMAGE OK:',p)
           PY
+      - name: Audit every pre-existing system including screenshot regression
+        run: node scripts/audit_visibility_all_systems.mjs
       - name: Freeze complete nine-system STABLE 06 before Mälartåg
         run: cp data/rail.json data/stable06-snapshot.json
       - name: Import all five official Mälartåg historical GTFS corridors
         run: python -u scripts/build_malartag_candidates.py
       - name: Require fully verified real OSM rails and both directions on all five
         run: python -u scripts/append_malartag.py
+      - name: Audit all ten modes after Mälartåg append
+        run: node scripts/audit_visibility_all_systems.mjs
       - name: Assert STABLE 06 immutability, five corridors, every stop and vehicle positions
         run: |
           python - <<'PY'
