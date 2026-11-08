@@ -92,6 +92,24 @@ class MalartagTests(unittest.TestCase):
  def test_overpass_rejects_unrelated_relations(self):
   self.assertFalse(mal.corridor_relation_match("gavle",{"name":"Stockholm - Malmö",
        "operator":"SJ","from":"Stockholm","to":"Malmö"}))
+ def test_true_join_of_multiple_osm_rail_relations(self):
+  # Only real endpoints which meet may be concatenated.
+  rails=[
+    ("osm-a",[[59.0,17.0],[59.01,17.01],[59.02,17.02]]),
+    ("osm-b",[[59.02,17.02],[59.03,17.03],[59.04,17.04]]),
+    ("osm-c",[[59.04,17.04],[59.05,17.05],[59.06,17.06]])
+  ]
+  paths=mal.connected_route_combinations(rails)
+  stops=[[59.0,17.0,"A",0,0],[59.03,17.03,"B",600,600],
+         [59.06,17.06,"C",1200,1200]]
+  winner=mal.choose_directional_shape(stops,paths,650)
+  self.assertIsNotNone(winner)
+  self.assertIn("osm-a",winner[0])
+  self.assertIn("osm-c",winner[0])
+ def test_disconnected_osm_relations_cannot_fake_rail(self):
+  pieces=[("first",[[59.0,17.0],[59.02,17.02]]),
+          ("far",[[59.7,18.0],[59.8,18.1]])]
+  self.assertEqual(mal.connected_route_combinations(pieces),[])
  def test_direction(self):
   base,archive,provider=self.make_fixture()
   self.assertEqual(direction_of(archive["trips"][0]),"forward")
