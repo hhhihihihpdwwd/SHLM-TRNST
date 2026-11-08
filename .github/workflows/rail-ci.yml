@@ -115,7 +115,10 @@ jobs:
               const outbound=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops[0][2]));
               console.log('ROSLAG VISIBLE',h,line,trains.length,'inbound',inbound.length,'outbound',outbound.length);
               if(!trains.length)throw new Error('Roslagsbanan missing '+line+' at '+h);
-              if([12,16].includes(h)&&(!inbound.length||!outbound.length))
+              // Do not require simultaneous opposite-direction departures on
+              // lower-frequency line 29 at an arbitrary minute. Both travel
+              // directions are separately required across the full GTFS dataset.
+              if([12,16].includes(h)&&line!=='29'&&(!inbound.length||!outbound.length))
                 throw new Error('Roslagsbanan missing simultaneous directions '+line+' '+h);
             }
           }
