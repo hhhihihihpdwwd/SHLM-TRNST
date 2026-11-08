@@ -69,6 +69,7 @@ def integrate(base,archive,provider=osm_shapes):
         print("ROSLAG OSM LINE",line,"directional tracks",len(candidates[line]),flush=True)
     additions=[]
     new_shapes={}
+    full_kårsta=collections.Counter()
     report=collections.defaultdict(collections.Counter)
     rejected=collections.Counter()
     for (line,stops),trips in sorted(patterns.items(),key=lambda x:-len(x[1])):
@@ -96,12 +97,17 @@ def integrate(base,archive,provider=osm_shapes):
                    "source":trip.get("source","Historical GTFS + real OSM Roslagsbanan tracks")})
             new_shapes[sid]=shape
             report[line][d]+=1
+            if line=="27" and any("kårsta" in name(n) for n in (stops[0],stops[-1])):
+                full_kårsta[d]+=1
         print("ROSLAG VERIFIED",line,d,stops[0],"→",stops[-1],"N",len(trips),flush=True)
     counts={line:{"out":report[line]["out"],"back":report[line]["back"]}
             for line in RELATIONS}
     print("ROSLAG BIDIRECTIONAL FULL TERMINALS",counts,"rejected",dict(rejected),flush=True)
     if any(counts[l][d]<1 for l in RELATIONS for d in ("out","back")):
         raise ValueError("Missing full verified Roslagsbanan 27/28/29 line direction/endpoint: "+str(counts))
+    print("ROSLAG KÅRSTA FULL-TERMINAL",dict(full_kårsta),flush=True)
+    if full_kårsta["out"]<1 or full_kårsta["back"]<1:
+        raise ValueError("Roslagsbanan 27 missing the full Kårsta terminus in one direction")
     if len(additions)>MAX_ADDED:raise ValueError("Roslagsbanan over trip size budget; no silent truncation")
     base["trips"].extend(additions)
     base["shapes"].update(new_shapes)
