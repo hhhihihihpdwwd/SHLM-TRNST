@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 from build_rail_keyless import mode
-from refine_osm_routes import project_stops, pinned_pendeltag_shapes, PENDELTAG_OSM_RELATIONS
+from refine_osm_routes import project_stops, pinned_pendeltag_shapes, PENDELTAG_OSM_RELATIONS, choose_directional_shape
 
 class RailPolishTests(unittest.TestCase):
     def test_tvarbanan_light_rail_is_tram(self):
@@ -34,6 +34,16 @@ class RailPolishTests(unittest.TestCase):
         ]):
             direct=pinned_pendeltag_shapes("43")
         self.assertEqual(len(direct),1)
+
+    def test_osm_reverse_direction_uses_original_track_vertices(self):
+        shape=[[59.30,18.00],[59.31,18.01],[59.32,18.02]]
+        returning=[[59.32,18.02,"C",0,0],[59.31,18.01,"B",100,100],[59.30,18.00,"A",200,200]]
+        original=[[59.30,18.00,"A",0,0],[59.31,18.01,"B",100,100],[59.32,18.02,"C",200,200]]
+        self.assertEqual(choose_directional_shape(original,[("123",shape)],80)[0],"123")
+        backwards=choose_directional_shape(returning,[("123",shape)],80)
+        self.assertEqual(backwards[0],"123:reverse")
+        self.assertEqual(backwards[1],list(reversed(shape)))
+        self.assertIsNotNone(project_stops(returning,backwards[1],80))
 
     def test_osm_route_accepts_correct_stop_alignment(self):
         shape=[[59.30,18.00],[59.31,18.01],[59.32,18.02]]
