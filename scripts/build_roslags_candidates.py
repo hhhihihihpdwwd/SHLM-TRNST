@@ -26,35 +26,6 @@ def build_candidates(gtfs,now):
         archive.SOURCE_START=original
     selected=[t for t in dataset["trips"] if str(t.get("line","")).strip() in LINES
               and t.get("mode")=="tram"]
-    # Source archive can omit or undercount Sunday Roslagsbanan journeys.
-    # The private simulation can instead mirror the actual historic Saturday
-    # timetable for that one line while preserving all stop-time differences.
-    if now.weekday()==6:
-        saturday=now-dt.timedelta(days=1)
-        shift=clock_at(now,0,0)-clock_at(saturday,0,0)
-        for line in sorted(LINES):
-            todays=[t for t in selected if t["line"]==line and t["serviceDay"]==now.isoformat()]
-            noon=clock_at(now,12)
-            if sum(t["start"]<=noon<=t["end"] for t in todays)>=2:continue
-            earlier=[t for t in selected if t["line"]==line
-                     and t["serviceDay"]==saturday.isoformat()]
-            before=clock_at(saturday,12)
-            # Line 29 is less frequent: no train precisely at 12:47 is
-            # not evidence that the historical Saturday service is missing.
-            # Keep the stricter midday check for frequent lines 27/28.
-            if not earlier or (line!="29" and
-                sum(t["start"]<=before<=t["end"] for t in earlier)<1):
-                raise ValueError("No archived Saturday service sufficient for Roslagsbanan "+
-                    line+"; Saturday trips="+str(len(earlier)))
-            selected=[t for t in selected if not (t["line"]==line
-                      and t["serviceDay"]==now.isoformat())]
-            selected.extend({**t,"id":"ROSLAG-SUNDAY-PROXY:"+t["id"],
-                "serviceDay":now.isoformat(),"start":t["start"]+shift,
-                "end":t["end"]+shift,
-                "timetableProxy":"Historical Saturday service repeated on Sunday",
-                "source":"Historical Saturday GTFS used for private Sunday simulation"}
-                for t in earlier)
-            print("ROSLAG SUNDAY SIMULATION",line,len(earlier),"archived Saturday trips",flush=True)
     dataset["trips"]=selected
     dataset["shapes"]={k:v for k,v in dataset["shapes"].items()
                        if k in {t["shapeId"] for t in selected}}
