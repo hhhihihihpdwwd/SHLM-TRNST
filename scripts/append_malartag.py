@@ -142,6 +142,16 @@ def integrate(base,archive,provider=relation_shapes):
    directions[corridor][direction]+=1
  missing=[c for c in CORRIDORS if directions[c]["forward"]<1 or directions[c]["reverse"]<1]
  if missing:raise ValueError("Mälartåg incomplete verified bidirectional OSM/GTFS corridors: "+", ".join(missing))
+ # Require every officially advertised corridor waypoint to occur in an
+ # actually accepted train's scheduled stops. A few accepted partial
+ # services must not be misrepresented as five complete corridors.
+ coverage={}
+ for corridor,anchors in CORRIDORS.items():
+  names=[stop[2] for t in added if t["corridor"]==corridor for stop in t["stops"]]
+  absent=[a for a in anchors if not any(contains_station(name,a) for name in names)]
+  if absent:raise ValueError("Mälartåg incomplete corridor "+corridor+"; stations missing: "+", ".join(absent))
+  coverage[corridor]={"requiredStops":len(anchors),"scheduledStops":len(set(names))}
+ base["malartagCoverage"]=coverage
  base["trips"].extend(added)
  base["shapes"].update(shape_map)
  base["counts"]["regional"]=len(added)
