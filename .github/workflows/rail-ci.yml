@@ -15,7 +15,35 @@ jobs:
           node-version: '22'
       - name: Compile and unit-test the new rail engine
         run: |
-          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/download_photos.py
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/download_photos.py
           for file in src/*.js; do node --check "$file"; done
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
+  verify-full-timetable-without-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build historical SL schedule from free public archive
+        run: |
+          python -u scripts/build_rail_keyless.py
+          cp data/rail.json data/metro_candidates.json
+      - name: Match full-length verified Pendeltåg tracks
+        run: |
+          python -u scripts/refine_osm_routes.py
+          python -u scripts/pendeltag_only.py
+      - name: Append shape-validated Tunnelbana lines 10 11 13 14 17 18 19
+        run: python -u scripts/append_tunnelbana.py
+      - name: Confirm no Pendeltåg regression and all metro routes
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('data/rail.json'))
+          assert d['scope']=='pendeltag-and-tunnelbana'
+          assert set(d['metroLines'])=={'10','11','13','14','17','18','19'}
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
+          print('PASS:',d['counts'],'Verified metro lines:',d['metroLines'])
+          PY
