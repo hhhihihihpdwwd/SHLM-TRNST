@@ -40,6 +40,11 @@ def route_geometries(reader=read_json):
 def terminus(first,last):
     first=first.casefold().strip()
     last=last.casefold().strip()
+    # GTFS archive prefixes terminal names with Stockholm, e.g.
+    # 'Stockholm Waldemarsudde'; keep the exact terminal suffix requirement.
+    def clean(name):
+        return name.removeprefix("stockholm ").strip()
+    first,last=clean(first),clean(last)
     west=("t-centralen","sergels torg")
     east=("waldemarsudde",)
     a=any(first.startswith(t) for t in west)
