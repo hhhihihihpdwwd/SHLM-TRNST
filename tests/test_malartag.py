@@ -100,6 +100,12 @@ class MalartagTests(unittest.TestCase):
     "name":"Örebro - Uppsala","operator":"Mälartåg"}))
   self.assertFalse(mal.corridor_relation_match("orebro-uppsala",{
     "name":"Nyköping - Norrköping","operator":"Mälartåg"}))
+  self.assertTrue(mal.corridor_relation_match("orebro-uppsala",{
+    "name":"Arboga - Köping","operator":"Mälartåg"}))
+  self.assertFalse(mal.corridor_relation_match("orebro-uppsala",{
+    "name":"Norrköping - Nyköping","operator":"Mälartåg"}))
+  self.assertFalse(mal.corridor_relation_match("nykoping",{
+    "name":"Stockholm - Uppsala","operator":"Mälartåg"}))
  def test_overpass_rejects_unrelated_relations(self):
   self.assertFalse(mal.corridor_relation_match("gavle",{"name":"Stockholm - Malmö",
        "operator":"SJ","from":"Stockholm","to":"Malmö"}))
