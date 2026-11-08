@@ -24,6 +24,6 @@ jobs:
           import json
           d=json.load(open('data/rail.json'))
           assert d['counts'].get('commuter',0)>=12
-          assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
+          assert all(t['geometryQuality']=='verified-osm-rail-graph' for t in d['trips'])
           print(d['qualityReport'])
           PY
