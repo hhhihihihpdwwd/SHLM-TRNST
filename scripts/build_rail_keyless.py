@@ -130,7 +130,7 @@ def round_robin_service_days(candidates):
             ordered.extend(item for item in layer if item is not None)
     return ordered
 
-def build(z,now=None):
+def build(z,now=None,tram_lines=None):
     now=now or dt.datetime.now(ZONE).date()
     dates=[SOURCE_START+dt.timedelta(days=i) for i in range(7)]
     wanted_days=service_calendar(z,dates)
@@ -141,6 +141,10 @@ def build(z,now=None):
         short=r.get("route_short_name","")
         long=r.get("route_long_name","")
         m=mode(r.get("route_type")," ".join((short,long,agency)),short,agency)
+        # The tram builders must not first consume the global 1,500-trip
+        # allowance with unrelated tram lines and yesterday's schedules.
+        if tram_lines is not None and not (m=="tram" and short.strip() in tram_lines):
+            continue
         if m:routes[r["route_id"]]={"line":short,"agency":agency,"mode":m,"name":long}
     stops={}
     for r in records(z,"stops.txt"):
