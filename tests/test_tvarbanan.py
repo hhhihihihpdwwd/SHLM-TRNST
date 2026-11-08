@@ -10,14 +10,21 @@ from unittest.mock import patch
 class TvärbananIntegrationTests(unittest.TestCase):
     def fixture(self):
         coords=[[59.30,18.00],[59.31,18.01],[59.32,18.02]]
-        stops=[[p[0],p[1],f'Station {i}',i*180,i*180] for i,p in enumerate(coords)]
+        terminals={"30":("Solna station","Norra Ulvsunda","Sickla station"),
+                   "31":("Bromma flygplats","Norra Ulvsunda","Alviks strand Spårv")}
+        def trip_stops(line,reverse=False):
+            points=list(reversed(coords)) if reverse else coords
+            names=list(reversed(terminals[line])) if reverse else terminals[line]
+            return [[p[0],p[1],name,i*180,i*180] for i,(p,name) in enumerate(zip(points,names))]
         base={"scope":"pendeltag-and-tunnelbana","trips":[
            {"id":"pendeltag","mode":"commuter","line":"41","shapeId":"pendel-shape"},
            {"id":"tunnelbana","mode":"metro","line":"13","shapeId":"metro-shape"}],
            "shapes":{"pendel-shape":coords,"metro-shape":coords},
            "counts":{"commuter":1,"metro":1},"metroLines":{"13":1}}
-        archive={"trips":[{"id":"tram-"+line,"mode":"tram","line":line,"stops":stops,
-                  "shapeId":"approx:"+line} for line in sorted(TVARBANAN)]}
+        archive={"trips":[{"id":"tram-"+line+("-back" if reverse else "-out"),
+                  "mode":"tram","line":line,"stops":trip_stops(line,reverse),
+                  "shapeId":"approx:"+line}
+                  for line in sorted(TVARBANAN) for reverse in (False,True)]}
         return base,archive,coords
 
     def test_two_verified_lines_preserve_previous_services_unchanged(self):
@@ -25,8 +32,8 @@ class TvärbananIntegrationTests(unittest.TestCase):
         original=copy.deepcopy(base)
         output=integrate(base,archive,lambda line:[(line+"-route",coords)])
         self.assertEqual(output["scope"],"pendeltag-tunnelbana-tvarbanan")
-        self.assertEqual(output["counts"]["tram"],2)
-        self.assertEqual(output["tramLines"],{"30":1,"31":1})
+        self.assertEqual(output["counts"]["tram"],4)
+        self.assertEqual(output["tramLines"],{"30":2,"31":2})
         self.assertEqual(output["trips"][:2],original["trips"])
         for name in original["shapes"]:
             self.assertEqual(output["shapes"][name],original["shapes"][name])
@@ -39,16 +46,23 @@ class TvärbananIntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"31"):
             integrate(base,archive,lambda line:[] if line=="31" else [("good",coords)])
 
-    def test_reverse_direction_is_rejected(self):
+    def test_off_rail_geometry_is_rejected(self):
         base,archive,coords=self.fixture()
+        moved=[[p[0]+0.2,p[1]+0.2] for p in coords]
         with self.assertRaisesRegex(ValueError,"Missing verified"):
-            integrate(base,archive,lambda line:[("reverse",list(reversed(coords)))])
+            integrate(base,archive,lambda line:[("wrong-track",moved)])
+
+    def test_both_direction_endpoints_are_required(self):
+        base,archive,coords=self.fixture()
+        archive["trips"]=[x for x in archive["trips"] if not x["id"].endswith("-back")]
+        with self.assertRaisesRegex(ValueError,"terminus-to-terminus"):
+            integrate(base,archive,lambda line:[("good",coords)])
 
     def test_other_trams_are_not_imported(self):
         base,archive,coords=self.fixture()
         archive["trips"].append({**archive["trips"][0],"id":"other","line":"12"})
         output=integrate(base,archive,lambda line:[("good",coords)])
-        self.assertEqual(len(output["trips"]),4)
+        self.assertEqual(len(output["trips"]),6)
 
     def test_documented_osm_relation_ids(self):
         self.assertEqual(TVARBANAN,{"30":241384,"31":11997852})
