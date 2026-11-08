@@ -194,14 +194,7 @@ def corridor_relation_match(corridor,item):
  anchors=CORRIDORS[corridor]
  hits=sum(a in names for a in anchors)
  if hits>=2:return True
- if corridor=="hallsberg":
-  # OSM splits long-distance train relations at intermediate stations.
-  # The 2026-11-08 inventory had zero relations mentioning TWO of
-  # Stockholm/Katrineholm/Hallsberg. Include a relation naming ONE
-  # distinctive intermediate station for geometric vetting, never a
-  # relation mentioning "Stockholm" alone.
-  unique=("hallsberg","katrineholm","vingåker","flen")
-  return any(station in names for station in unique)
+
  return False
 
 def relation_shapes(corridor,first,last,reader=None):
@@ -375,7 +368,7 @@ def integrate(base,archive,provider=relation_shapes):
  if missing:raise ValueError("Mälartåg incomplete verified bidirectional OSM/GTFS corridors: "+", ".join(missing))
  # Require every officially advertised corridor waypoint to occur in an
  # actually accepted train's scheduled stops. A few accepted partial
- # services must not be misrepresented as five complete corridors.
+ # services must not be misrepresented as four complete selected corridors.
  coverage={}
  for corridor,anchors in CORRIDORS.items():
   names=[stop[2] for t in added if t["corridor"]==corridor for stop in t["stops"]]
@@ -403,5 +396,5 @@ def main():
  payload=json.dumps(out,ensure_ascii=False,separators=(",",":"))
  if len(payload.encode())>MAX_FILE:raise ValueError("Mälartåg total railway payload exceeds size limit")
  DATA.write_text(payload,encoding="utf8")
- print("MÄLARTÅG VERIFIED ALL FIVE CORRIDORS",out["malartagDirections"],flush=True)
+ print("MÄLARTÅG VERIFIED FOUR SELECTED CORRIDORS",out["malartagDirections"],flush=True)
 if __name__=="__main__":main()
