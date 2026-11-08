@@ -67,6 +67,10 @@ def mode(route_type,label,short="",agency=""):
         return "tram" # grouped as local light rail in the existing tram filter
     if sl and num in {"7","12","21","22","30","31"} and r in (0,2,100,109,900,901):
         return "tram"
+    # SL's seven current metro line numbers are unambiguous in rail-only GTFS.
+    # Archive variants may encode metro under generic rail type 2.
+    if sl and num in {"10","11","13","14","17","18","19"} and (r in (1,2,100) or 400<=r<500):
+        return "metro"
     if r==1 or 400<=r<500 or "tunnelbana" in t:return "metro"
     if "pendel" in t or "x60" in t or "commuter" in t or r==109:return "commuter"
     if r==0 or 900<=r<1000:return "tram"
