@@ -57,6 +57,8 @@ class RoslagsbananTests(unittest.TestCase):
     def test_osm_relation_ids_and_terminals(self):
         self.assertEqual(RELATIONS,{"27":11151437,"28":11151439,"29":11151441})
         self.assertEqual(direction("27","Stockholms östra","Kårsta station"),"out")
+        self.assertEqual(direction("27","Stockholm Östra station","Kårsta station"),"out")
+        self.assertEqual(direction("29","Näsbypark station","Stockholm Östra station"),"back")
         self.assertEqual(direction("27","Ormsta","Stockholms östra"),"back")
         self.assertEqual(direction("28","Österskär","Stockholms östra"),"back")
         self.assertEqual(direction("29","Stockholms östra","Näsbypark"),"out")
