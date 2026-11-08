@@ -16,3 +16,23 @@ jobs:
           python-version: '3.11'
       - name: Test line 27 28 29 OSM route vertices against GTFS stop positions
         run: python -u scripts/debug_roslags_geometry.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assert Roslagsbanan 27 28 29 actually visible at 08 12 16 20
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const ds=JSON.parse(fs.readFileSync('data/roslags-smoke.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const epoch=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const vehicles=activeRailTrips(ds,epoch,3000);
+            for(const line of ['27','28','29']){
+              const matches=vehicles.filter(t=>t.mode==='localrail'&&String(t.line)===line);
+              const outbound=matches.filter(t=>/(?:stockholms|stockholm) östra/i.test(t.stops[0][2]));
+              const inbound=matches.filter(t=>/(?:stockholms|stockholm) östra/i.test(t.stops.at(-1)[2]));
+              console.log('ROSLAG QUICK VISIBLE',hour,line,matches.length,'out',outbound.length,'back',inbound.length);
+            }
+          }
+          JS
