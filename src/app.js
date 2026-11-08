@@ -220,6 +220,7 @@ function showRealDetail(){
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
  $('train-sub').textContent=v.timetableProxy?'Söndagssimulering: historiskt lördagsmönster · OSM-spår, ingen GPS':railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ if(v.stopAlignmentCaveat)$('train-sub').textContent+=' · Enebybergs stationspunkt avviker cirka 690 m från OSM-linjen';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
  $('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);
