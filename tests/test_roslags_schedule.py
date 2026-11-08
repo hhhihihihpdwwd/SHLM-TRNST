@@ -1,4 +1,4 @@
-"""Regression for less frequent Roslagsbanan 29 services on historical Saturdays."""
+"""Regression: infrequent Roslagsbanan 29 survives unmodified weekday replay."""
 import datetime as dt
 import sys
 import unittest
@@ -29,8 +29,8 @@ class RoslagsScheduleTests(unittest.TestCase):
         out=roslags.build_candidates(None,SUNDAY)
     self.assertEqual(build.call_args.kwargs["tram_lines"],{"27","28","29"})
     line29=[t for t in out["trips"] if t["line"]=="29" and t["serviceDay"]==SUNDAY.isoformat()]
-    self.assertEqual(len(line29),2)
-    self.assertTrue(all(t.get("timetableProxy") for t in line29))
+    self.assertEqual(len(line29),0) # mock contains Saturday data only; never invent Sunday rides
+    self.assertTrue(all(not t.get("timetableProxy") for t in line29))
     noon=roslags.clock_at(SUNDAY,12)
     self.assertFalse(any(t["start"]<=noon<=t["end"] for t in line29))
  def test_missing_historical_line29_still_blocks_release(self):
