@@ -14,7 +14,7 @@ import build_rail_keyless as gtfs
 
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"malartag_candidates.json"
-REF_START=gtfs.SOURCE_START
+REF_START=gtfs.REFERENCE_DAY
 # Official Mälardalstrafik five-corridor definitions, not arbitrary line numbers.
 CORRIDORS={
  "orebro-uppsala":("örebro","eskilstuna","stockholm","uppsala"),
@@ -62,7 +62,7 @@ def corridor_for(names,route_text=""):
  return matches[0] if len(matches)==1 else None
 
 def build(z,now):
- dates=[REF_START+dt.timedelta(days=i) for i in range(7)]
+ dates=[REF_START]
  valid=gtfs.service_calendar(z,dates)
  agencies={r.get("agency_id"):r.get("agency_name","") for r in gtfs.records(z,"agency.txt")}
  routes={}
@@ -104,7 +104,7 @@ def build(z,now):
   if corridor is None:unclassified+=1;continue
   for source_day in days:
    for target in targets:
-    if source_day.weekday()!=target.weekday():continue
+    # Repeat identical archived service for every day of the week.
     zero=dt.datetime.combine(target,dt.time(),gtfs.ZONE)
     first,last=entries[0][2],entries[-1][3]
     if last<=first:continue
