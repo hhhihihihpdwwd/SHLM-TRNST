@@ -14,7 +14,7 @@ import build_rail_keyless as gtfs
 
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"arlanda_candidates.json"
-REF_START=dt.date(2026,11,9)
+REF_START=gtfs.REFERENCE_DAY
 
 def name(s):
     return s.casefold().strip()
@@ -30,7 +30,7 @@ def exact_terminal(stops):
     return None
 
 def build(z,now):
-    dates=[REF_START+dt.timedelta(days=i) for i in range(7)]
+    dates=[REF_START]
     valid=gtfs.service_calendar(z,dates)
     ag={r["agency_id"]:r.get("agency_name","") for r in gtfs.records(z,"agency.txt")}
     routes={}
@@ -78,7 +78,7 @@ def build(z,now):
         train_info,days,head=tids[tid]
         for day in days:
             for target in targets:
-                if target.weekday()!=day.weekday():continue
+                # Repeat the same archived Friday departure every calendar day.
                 begin=dt.datetime.combine(target,dt.time(),gtfs.ZONE)
                 first=stops[0][2];last=stops[-1][3]
                 if last<=first:continue
