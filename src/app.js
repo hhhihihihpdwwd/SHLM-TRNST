@@ -200,6 +200,13 @@ function showRealList(){
   t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
  }
  list.append(frag);
+ if(!frag.childNodes.length && !list.childNodes.length){
+  const empty=document.createElement('div');
+  empty.className='vehicle-sub';
+  empty.style.cssText='padding:18px 4px;line-height:1.6';
+  empty.textContent='Inga verifierade tåg för den valda linjen vid aktuell tid. Historiska tidtabeller kan sakna avgångar; inga tågpositioner hittas på.';
+  list.append(empty);
+ }
 }
 function selectReal(v){
  lastPhotoVehicleId=null;
