@@ -176,6 +176,7 @@ function miniRailIcon(v,chosen=false){
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#E78B35',rail:'#C89D52'};
 function realColor(v){
+ if(v.mode==='localrail')return '#7956A7';
  if(v.mode==='metro'){
   const n=Number(v.line);
   return n===10||n===11?'#3178C4':n===13||n===14?'#CF5364':'#4B997C';
@@ -316,13 +317,13 @@ async function initializeReal(){
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN · LOKALBANOR · SPÅRVÄG CITY';
+ const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN · LOKALBANOR · SPÅRVÄG CITY · ROSLAGSBANAN';
  const hint=document.querySelector('.map-note span');
  if(hint){
    if(data.type==='historical-weekday-simulation'){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
      const total=data.trips.length;
-     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan + '+data.tramLines['7']+' Spårväg City · historisk tidtabell, simulerade positioner';
+     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan + '+data.tramLines['7']+' Spårväg City + '+data.counts.localrail+' Roslagsbanan · historisk tidtabell, simulerade positioner';
    }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  }
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent=railFilterTitle(state.filter);
