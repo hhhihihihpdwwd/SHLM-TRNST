@@ -27,8 +27,10 @@ class PublicHistoricRailTests(unittest.TestCase):
         blob.seek(0)
         with zipfile.ZipFile(blob) as archive:
             data=keyless.build(archive,now=service)
-        self.assertEqual(data["counts"]["metro"],1)
-        self.assertEqual(len(data["trips"]),1)
+        self.assertEqual(data["counts"]["metro"],3)
+        self.assertEqual(len(data["trips"]),3)
+        self.assertEqual({t["serviceDay"] for t in data["trips"]},
+                         {(service+dt.timedelta(days=offset)).isoformat() for offset in (-1,0,1)})
         self.assertEqual(data["type"],"historical-daily-repeating-simulation")
         self.assertEqual(data["referenceDay"],keyless.REFERENCE_DAY.isoformat())
         self.assertEqual(data["simulationTemplateDay"],service.isoformat())
