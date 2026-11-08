@@ -140,7 +140,9 @@ def corridor_relation_match(corridor,item):
  """Selection for later strict geometrical check; never marks a relation valid."""
  names=" ".join(str(item.get(k,"")) for k in ("name","from","to","operator","network"))
  names=norm(names)
- if "mälartåg" in names or "mälardalstrafik" in names or "malartag" in names:return True
+ # A generic operator label is NOT evidence for a particular corridor.
+ # Require at least two identifiable corridor waypoints in the OSM relation
+ # name/from/to. Geometry and ALL GTFS stops must still validate separately.
  anchors=CORRIDORS[corridor]
  hits=sum(a in names for a in anchors)
  return hits>=2
