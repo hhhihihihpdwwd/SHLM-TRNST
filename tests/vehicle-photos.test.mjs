@@ -17,7 +17,12 @@ test('markers reuse original images and remain compact',()=>{
  assert(app.includes("rail-photo-marker"));
  assert(!html.includes('id="tab-station"'));
 });
-test('map route quality is not mislabeled verified when fallback estimated',()=>{
- assert(app.includes("v.geometryQuality==='approximate-stop-connectors'"));
- assert(app.includes("verified-osm-relation"));
+test('only verified Pendeltåg routes are rendered; no fake fallback',()=>{
+ const engine=readFileSync(new URL('../src/rail-data.js',import.meta.url),'utf8');
+ assert(engine.includes("trip.mode!=='commuter'"));
+ assert(engine.includes("trip.geometryQuality!=='verified-osm-relation'"));
+ assert(app.includes('const approximate=false'));
+ assert(!html.includes('data-filter="metro"'));
+ assert(!html.includes('data-filter="tram"'));
+ assert(!html.includes('data-filter="rail"'));
 });
