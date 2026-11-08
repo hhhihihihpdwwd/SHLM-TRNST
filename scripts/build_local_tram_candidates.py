@@ -21,33 +21,6 @@ def build_candidates(gtfs,current):
         result=existing.build_tram_candidates(gtfs,current)
     finally:
         existing.LINES=prior
-    # Replay incomplete Sunday service independently per local-tram line.
-    # The original Tvärbanan candidate builder only checks all trams together,
-    # which could leave line 12 empty while line 21 is available (or vice versa).
-    if current.weekday()==6:
-        sunday=current.isoformat()
-        saturday=current-dt.timedelta(days=1)
-        previous=saturday.isoformat()
-        epoch=int(dt.datetime.combine(current,dt.time(12,47),archive.ZONE).timestamp())
-        saturday_start=dt.datetime.combine(saturday,dt.time(),archive.ZONE)
-        sunday_start=dt.datetime.combine(current,dt.time(),archive.ZONE)
-        shift=int((sunday_start-saturday_start).total_seconds())
-        for line in sorted(LOCAL):
-            visible=[t for t in result["trips"] if t["line"]==line and
-                     t["start"]<=epoch<=t["end"]]
-            if len(visible)>=1:continue
-            earlier=[t for t in result["trips"] if t["line"]==line and
-                     t["serviceDay"]==previous]
-            if not earlier:
-                raise RuntimeError(f"No historical Saturday line {line} service to repeat")
-            result["trips"]=[t for t in result["trips"]
-                             if not (t["line"]==line and t["serviceDay"]==sunday)]
-            result["trips"].extend({**t,"id":"LOCAL-SUNDAY-PROXY:"+t["id"],
-                 "serviceDay":sunday,"start":t["start"]+shift,"end":t["end"]+shift,
-                 "timetableProxy":"Saturday pattern repeated for Sunday",
-                 "source":"Historical Saturday timetable repeated on Sunday (simulation)"}
-                 for t in earlier)
-            print("LOCAL SUNDAY REPLAY",line,len(earlier),"historic Saturday trips",flush=True)
     result["counts"]={"tram":len(result["trips"])}
     return result
 
