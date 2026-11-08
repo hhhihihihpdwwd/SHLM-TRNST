@@ -1,7 +1,7 @@
 name: Stockholm Rail - Data Integration Checks
 on:
   push:
-    branches: [feature/saltsjobanan-01]
+    branches: [feature/arlanda-express-01]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
           node-version: '22'
       - name: Compile and unit-test the new rail engine
         run: |
-          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/build_roslags_candidates.py scripts/append_roslagsbanan.py scripts/build_saltsjo_candidates.py scripts/append_saltsjobanan.py scripts/download_photos.py
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/build_roslags_candidates.py scripts/append_roslagsbanan.py scripts/build_saltsjo_candidates.py scripts/append_saltsjobanan.py scripts/build_arlanda_candidates.py scripts/append_arlanda_express.py scripts/download_photos.py
           for file in src/*.js; do node --check "$file"; done
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
@@ -69,12 +69,28 @@ jobs:
         run: python -u scripts/build_saltsjo_candidates.py
       - name: Append only current 2026 restricted Saltsjöbanan rail services
         run: python -u scripts/append_saltsjobanan.py
+      - name: Freeze proven STABLE 05 8-system trips shapes and counts
+        run: cp data/rail.json data/stable05-snapshot.json
+      - name: Read only genuine Arlanda Express GTFS rail trips
+        run: python -u scripts/build_arlanda_candidates.py
+      - name: Append real Arlanda Express OSM 1966855 both directions
+        run: python -u scripts/append_arlanda_express.py
       - name: Confirm no previous service or geometry changed and City7 validated
         run: |
           python - <<'PY'
           import json
           d=json.load(open('data/rail.json'))
-          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo'
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda'
+          frozen05=json.load(open('data/stable05-snapshot.json'))
+          assert d['trips'][:len(frozen05['trips'])]==frozen05['trips']
+          assert all(d['shapes'][k]==v for k,v in frozen05['shapes'].items())
+          assert all(d['counts'][k]==v for k,v in frozen05['counts'].items())
+          assert d['metroLines']==frozen05['metroLines'] and d['tramLines']==frozen05['tramLines']
+          assert d['roslagsLines']==frozen05['roslagsLines']
+          assert d['saltsjoLines']==frozen05['saltsjoLines']
+          assert d['arlandaDirections']['to-airport']>0 and d['arlandaDirections']['to-city']>0
+          assert all(t['mode']=='express' and t['vehicleModel']=='X3' and len(t['stops'])==3 for t in d['trips'][len(frozen05['trips']):])
+          assert all('arlanda central' not in repr(t['stops']).lower() for t in d['trips'][len(frozen05['trips']):])
           frozen04=json.load(open('data/stable04-snapshot.json'))
           assert d['trips'][:len(frozen04['trips'])]==frozen04['trips']
           assert all(d['shapes'][k]==v for k,v in frozen04['shapes'].items())
@@ -111,7 +127,7 @@ jobs:
           assert d['counts']['commuter']==baseline['counts']['commuter']
           assert d['counts']['metro']==baseline['counts']['metro']
           assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
-          print('PASS EIGHT RAIL SYSTEMS:',d['counts'],'Saltsjöbanan:',d['saltsjoDirections'])
+          print('PASS NINE RAIL SYSTEMS:',d['counts'],'Arlanda Express:',d['arlandaDirections'])
           PY
       - name: Check Roslagsbanan 27 28 29 renderable on map at multiple hours
         run: |
@@ -151,6 +167,27 @@ jobs:
               const inbound=trains.filter(v=>/saltsjöbaden|solsidan/i.test(v.stops[0][2]));
               console.log('SALTSJO VISIBLE',hour,line,trains.length,'out',outbound.length,'back',inbound.length);
               if(!trains.length && (hour!==20 || line!=='26'))throw Error('Saltsjöbanan not visible '+line+' at '+hour);
+            }
+          }
+          JS
+      - name: Assert Arlanda Express X3 genuine on-map positions at four hours and both directions
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './src/rail-data.js';
+          const data=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const active=activeRailTrips(data,at,5000).filter(v=>v.mode==='express');
+            const outward=active.filter(v=>v.stops[0][2]==='Stockholm Centralstation');
+            const returnTrains=active.filter(v=>/Arlanda Norra/i.test(v.stops[0][2]));
+            console.log('ARLANDA X3 ON MAP',hour,active.length,'airport',outward.length,'city',returnTrains.length);
+            if(!active.length||!outward.length||!returnTrains.length)
+              throw Error('No X3 vehicle in both directions at '+hour);
+            for(const v of active){
+              const location=railAt(v,at);
+              if(!Number.isFinite(location.pos?.[0])||!Number.isFinite(location.kmh))
+                throw Error('Arlanda train position/speed invalid');
             }
           }
           JS
@@ -219,6 +256,7 @@ jobs:
           assert 'tram_city7' in photos, 'Spårväg City A35 photo missing'
           assert 'local_x15p' in photos and 'local_x10p' in photos, 'Missing Roslagsbanan train model photos'
           assert 'local_saltsjo' in photos, 'Missing approved Saltsjöbanan train photograph'
+          assert 'rail_arlanda' in photos, 'Missing approved X3 Arlanda Express photo'
           assert 'commuter_x60' in photos, 'Pendeltåg vehicle photo missing'
           assert any(p in photos for p in ('metro_c20_blue','metro_c30')), 'Blue/red metro vehicle image missing'
           assert 'metro_c20_green' in photos, 'Green metro vehicle photo missing'
