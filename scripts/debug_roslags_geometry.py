@@ -36,4 +36,14 @@ def inspect():
                     detailed=[(st[2],round(min(distance(st[:2],point) for point in shape))) for st in stops]
                     print("DIAG TRY",line,rid+suffix,"MATCH",bool(match),"STATION DISTANCES",sampled,flush=True)
                     print("DIAG FULL STATION ERRORS",line,rid+suffix,detailed,flush=True)
+    # Fast independent functional smoke test without rebuilding six old modes.
+    from append_roslagsbanan import integrate
+    import json
+    base={"scope":"pendeltag-tunnelbana-tvarbanan-localtram-city7",
+          "trips":[],"shapes":{},"counts":{"commuter":1,"metro":1,"tram":1},
+          "tramLines":{"7":1},"metroLines":{"13":1}}
+    result=integrate(base,ds)
+    output=Path(__file__).resolve().parents[1]/"data"/"roslags-smoke.json"
+    output.write_text(json.dumps(result,ensure_ascii=False,separators=(",",":")),encoding="utf8")
+    print("ROSLAG FAST SMOKE DATASET WRITTEN",result["roslagsLines"],flush=True)
 if __name__=="__main__":inspect()
