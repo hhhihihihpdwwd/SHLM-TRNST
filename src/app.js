@@ -276,7 +276,7 @@ function tickReal(){
  const now=Date.now(),epoch=now/1000;
  $('clock').textContent=stockholmTime(now).display;
  if(now-realLastList>15000){
-  realActive=activeRailTrips(railDataset,epoch,1000);realLastList=now;showRealList();
+  realActive=activeRailTrips(railDataset,epoch,['malartag','all'].includes(state.filter)?10000:1000);realLastList=now;showRealList();
   if(state.selected&&!realActive.some(v=>v.id===state.selected.id))clearReal();
  }
  if(!map||now-realLastDraw<90)return;realLastDraw=now;
@@ -371,6 +371,7 @@ function start(){
  setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg-, Tunnelbana- och Tvärbanan-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
   state.filter=b.dataset.filter;
+  realLastList=0; // new regional selection must refresh before drawing
   if(state.filter==='malartag'&&map)map.flyTo([59.32,16.55],8,{duration:1.1});
   const heading=document.querySelector('.sidebar-heading h1');
   if(heading)heading.textContent=railFilterTitle(state.filter);
