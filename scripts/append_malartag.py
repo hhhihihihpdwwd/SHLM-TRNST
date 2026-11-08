@@ -22,20 +22,45 @@ MAX_OSM_LOOKUPS=120
 MAX_FILE=105_000_000
 
 def geometry_large(geojson):
- """Regional rail coordinates may extend far outside Stockholm's original bounding box."""
+ """Accept continuous OSM LineStrings, never connect unrelated track segments.
+
+ OSM railway relations often contain multiple way geometries. Stitch ONLY
+ endpoints that genuinely meet (max 25 metres); reject gaps/branches rather
+ than drawing invented rail links.
+ """
+ from refine_osm_routes import distance
  if not isinstance(geojson,dict):return None
- shapes=[f.get("geometry",{}).get("coordinates",[]) for f in geojson.get("features",[])
-         if f.get("geometry",{}).get("type")=="LineString"]
- if len(shapes)!=1:return None # Multiple disconnected components must NOT be stitched.
- coords=shapes[0]
- if len(coords)<2:return None
- if len(coords)>6000:
-  step=(len(coords)-1)/5999
-  coords=[coords[round(i*step)] for i in range(6000)]
- try:
-  shape=[[round(float(x[1]),6),round(float(x[0]),6)] for x in coords]
- except (IndexError,TypeError,ValueError):return None
- return shape if all(57.3<p[0]<61.5 and 14.0<p[1]<19.8 for p in shape) else None
+ chunks=[]
+ for feature in geojson.get("features",[]):
+  g=feature.get("geometry") or {}
+  if g.get("type")=="LineString": sequences=[g.get("coordinates",[])]
+  elif g.get("type")=="MultiLineString":sequences=g.get("coordinates",[])
+  else:continue
+  for coords in sequences:
+   try:
+    segment=[[round(float(x[1]),6),round(float(x[0]),6)] for x in coords]
+   except (IndexError,TypeError,ValueError):return None
+   if len(segment)>1:chunks.append(segment)
+ if not chunks:return None
+ result=chunks.pop(0)
+ while chunks:
+  choices=[]
+  for i,s in enumerate(chunks):
+   for reverse in (False,True):
+    oriented=list(reversed(s)) if reverse else s
+    d=distance(result[-1],oriented[0])
+    if d<=25:choices.append((d,i,reverse,False))
+    d=distance(result[0],oriented[-1])
+    if d<=25:choices.append((d,i,reverse,True))
+  if not choices:return None
+  _,i,reverse,prepend=min(choices)
+  segment=chunks.pop(i)
+  if reverse:segment.reverse()
+  result=segment[:-1]+result if prepend else result+segment[1:]
+ if len(result)>9000:
+  step=(len(result)-1)/8999
+  result=[result[round(i*step)] for i in range(9000)]
+ return result if all(57.3<p[0]<61.5 and 14.0<p[1]<19.8 for p in result) else None
 
 def relation_shapes(corridor,first,last,reader=read_json):
  """Search public OSM train relations. Validate every result geometrically.
