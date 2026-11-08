@@ -17,12 +17,14 @@ test('markers reuse original images and remain compact',()=>{
  assert(app.includes("rail-photo-marker"));
  assert(!html.includes('id="tab-station"'));
 });
-test('only shape-verified Pendeltåg and Tunnelbana; no fake fallback',()=>{
+test('only shape-verified Pendeltåg, Tunnelbana, Tvärbanan; no fake fallback',()=>{
  const engine=readFileSync(new URL('../src/rail-data.js',import.meta.url),'utf8');
- assert(engine.includes("!['commuter','metro'].includes(trip.mode)"));
+ assert(engine.includes("!['commuter','metro','tram'].includes(trip.mode)"));
  assert(engine.includes("trip.geometryQuality!=='verified-osm-relation'"));
  assert(app.includes('const approximate=false'));
  assert(html.includes('data-filter="metro"'));
- assert(!html.includes('data-filter="tram"'));
+ assert(html.includes('data-filter="tram"'));
+ const photos=readFileSync(new URL('../src/photos.js',import.meta.url),'utf8');
+ assert(photos.includes("'tram_a35'"));
  assert(!html.includes('data-filter="rail"'));
 });
