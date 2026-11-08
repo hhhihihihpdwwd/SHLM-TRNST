@@ -15,11 +15,10 @@ import build_rail_keyless as gtfs
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"malartag_candidates.json"
 REF_START=gtfs.REFERENCE_DAY
-# Official Mälardalstrafik five-corridor definitions, not arbitrary line numbers.
+# Four selected historical Mälartåg corridors; Stockholm–Hallsberg explicitly excluded by user request.
 CORRIDORS={
  "orebro-uppsala":("örebro","eskilstuna","stockholm","uppsala"),
  "nykoping":("norrköping","nyköping","stockholm"),
- "hallsberg":("hallsberg","katrineholm","stockholm"),
  "uven":("linköping","norrköping","katrineholm","eskilstuna","västerås","sala","uppsala"),
  "gavle":("uppsala","tierp","gävle"),
 }
@@ -28,7 +27,6 @@ CORRIDORS={
 SIGNATURES={
  "orebro-uppsala":("örebro","arboga","köping"),
  "nykoping":("nyköping","vagnhärad","kolmården"),
- "hallsberg":("hallsberg","vingåker"),
  "uven":("västerås","kvicksund","kolbäck","ransta","heby","morgongåva"),
  "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus"),
 }
