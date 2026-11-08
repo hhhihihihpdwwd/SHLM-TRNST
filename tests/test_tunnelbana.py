@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 from append_tunnelbana import append_metro, METRO_LINES, METRO_MASTERS
+from build_rail_keyless import mode
 
 class MetroIntegrationTest(unittest.TestCase):
     def setup_dataset(self):
@@ -41,6 +42,13 @@ class MetroIntegrationTest(unittest.TestCase):
         base,metro,points=self.setup_dataset()
         with self.assertRaisesRegex(ValueError,"Missing verified Tunnelbana"):
             append_metro(base,metro,lambda line:[("wrong",list(reversed(points)))])
+
+    def test_gtfs_sverige_metro_classification(self):
+        for line in METRO_LINES:
+            self.assertEqual(mode("1","SL metro "+line,line,"SL"),"metro")
+            self.assertEqual(mode("2","SL regional "+line,line,"SL"),"metro")
+        self.assertIsNone(mode("3","Bus 13","13","SL"))
+        self.assertEqual(mode("109","Pendeltåg 41","41","SL"),"commuter")
 
     def test_pinned_real_osm_master_ids(self):
         self.assertEqual(METRO_MASTERS["10"],6286483)
