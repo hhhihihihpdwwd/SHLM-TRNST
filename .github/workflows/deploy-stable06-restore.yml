@@ -1,0 +1,125 @@
+name: Restore Stockholm Rail STABLE 06 (no Malartag)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-stable06-restore.yml
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout immutable nine-system STABLE 06
+        uses: actions/checkout@v4
+        with:
+          ref: a9bca27a51724bcb988cf958f518b420c175fb12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Show original stable commit and confirm no Mälartåg exists
+        run: |
+          git rev-parse HEAD
+          test "$(git rev-parse HEAD)" = "a9bca27a51724bcb988cf958f518b420c175fb12"
+          test ! -f scripts/append_malartag.py
+      - name: Build public historical Stockholm rail timetable (no API key)
+        run: python -u scripts/build_rail_keyless.py
+      - name: Keep immutable snapshot of historic metro timetable candidates
+        run: cp data/rail.json data/metro_candidates.json
+      - name: Improve mapped rail routes where OSM relation matches the stops
+        run: python -u scripts/refine_osm_routes.py
+      - name: Reject unverified tracks and all other transport modes
+        run: python -u scripts/pendeltag_only.py
+      - name: Append all seven shape-verified Tunnelbana lines to Pendeltåg
+        run: python -u scripts/append_tunnelbana.py
+      - name: Preserve tested Pendeltåg and Tunnelbana snapshot
+        run: cp data/rail.json data/rail-baseline.json
+      - name: Import complete weekend Tvärbanan service window separately
+        run: python -u scripts/build_tvarbanan_candidates.py
+      - name: Append only verified Tvärbanan 30 and 31
+        run: python -u scripts/append_tvarbanan.py
+      - name: Freeze complete original STABLE 01 timetable
+        run: cp data/rail.json data/stable-three-mode.json
+      - name: Prepare Nockebybanan and Lidingöbanan historical timetables
+        run: python -u scripts/build_local_tram_candidates.py
+      - name: Append verified bidirectional local trams 12 and 21
+        run: python -u scripts/append_local_trams.py
+      - name: Freeze entire STABLE 02 service and verified track dataset
+        run: cp data/rail.json data/stable02-snapshot.json
+      - name: Build separate historical Spårväg City 7 timetable
+        run: python -u scripts/build_sparvag_city_candidates.py
+      - name: Verify line 7 OSM rails and append both terminal directions
+        run: python -u scripts/append_sparvag_city.py
+      - name: Freeze complete STABLE 03 dataset
+        run: cp data/rail.json data/stable03-snapshot.json
+      - name: Build separate historical Roslagsbanan schedule
+        run: python -u scripts/build_roslags_candidates.py
+      - name: Append OSM-verified lines 27, 28 and 29 both directions
+        run: python -u scripts/append_roslagsbanan.py
+      - name: Freeze entire proven STABLE 04 data
+        run: cp data/rail.json data/stable04-snapshot.json
+      - name: Read only current restricted Saltsjöbanan 25/26 historical railway services
+        run: python -u scripts/build_saltsjo_candidates.py
+      - name: Append verified OSM 25 and 26 only
+        run: python -u scripts/append_saltsjobanan.py
+      - name: Freeze all STABLE 05 established trips and tracks
+        run: cp data/rail.json data/stable05-snapshot.json
+      - name: Build isolated GTFS Arlanda Express X3 historic timetable
+        run: python -u scripts/build_arlanda_candidates.py
+      - name: Append fully OSM-verified route Stockholm C Arlanda Södra Arlanda Norra
+        run: python -u scripts/append_arlanda_express.py
+      - name: Verify nine-system publication without Mälartåg test suite
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('data/rail.json').read_text(encoding='utf8'))
+          expected='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda'
+          assert data.get('scope')==expected, (data.get('scope'),expected)
+          assert data.get('trips') and data.get('shapes')
+          assert not any(t.get('mode')=='regional' or t.get('agency')=='Mälartåg'
+                         or t.get('corridor') for t in data['trips'])
+          assert all(data['counts'].get(k,0)>0 for k in
+                     ('commuter','metro','tram','localrail','saltsjo','express'))
+          assert set(data['metroLines'])=={'10','11','13','14','17','18','19'}
+          assert all(data['arlandaDirections'][d]>0 for d in ('to-airport','to-city'))
+          assert all(data['saltsjoDirections'][line][d]>0
+                     for line in ('25','26') for d in ('out','back'))
+          print('STABLE 06 READY: nine established rail systems, no Mälartåg')
+          print('TRIPS:',len(data['trips']),'MODES:',data['counts'])
+          PY
+      - name: Install photo processing support
+        run: python -m pip install --disable-pip-version-check Pillow
+      - name: Restore approved historical rail photographs
+        run: python -u scripts/download_photos.py
+      - name: Package original stable static website
+        run: |
+          mkdir -p _site/data
+          cp index.html _site/
+          cp -R src photos _site/
+          cp data/rail.json _site/data/rail.json
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Restore original nine-system Stockholm Rail website
+        id: deployment
+        uses: actions/deploy-pages@v4
