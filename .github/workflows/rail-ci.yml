@@ -1,0 +1,113 @@
+name: Stockholm Rail - Data Integration Checks
+on:
+  push:
+    branches: [feature/tvarbanan-isolated-01]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile and unit-test the new rail engine
+        run: |
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/download_photos.py
+          for file in src/*.js; do node --check "$file"; done
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py' -v
+  verify-full-timetable-without-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build historical SL schedule from free public archive
+        run: |
+          python -u scripts/build_rail_keyless.py
+          cp data/rail.json data/metro_candidates.json
+      - name: Match full-length verified Pendeltåg tracks
+        run: |
+          python -u scripts/refine_osm_routes.py
+          python -u scripts/pendeltag_only.py
+      - name: Append shape-validated Tunnelbana lines 10 11 13 14 17 18 19
+        run: python -u scripts/append_tunnelbana.py
+      - name: Save verified Pendeltåg and Metro baseline
+        run: cp data/rail.json data/rail-baseline.json
+      - name: Build Tvärbanan service days from archive November 4-10 (separate from baseline)
+        run: python -u scripts/build_tvarbanan_candidates.py
+      - name: Add verified Tvärbanan 30 and 31
+        run: python -u scripts/append_tvarbanan.py
+      - name: Confirm no Pendeltåg/Tunnelbana regression and both tram routes
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('data/rail.json'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan'
+          assert set(d['metroLines'])=={'10','11','13','14','17','18','19'}
+          assert set(d['tramLines'])=={'30','31'}
+          assert all(d['tramLines'][k]>0 for k in ('30','31'))
+          baseline=json.load(open('data/rail-baseline.json'))
+          assert d['trips'][:len(baseline['trips'])]==baseline['trips']
+          assert all(d['shapes'][k]==v for k,v in baseline['shapes'].items())
+          assert d['counts']['commuter']==baseline['counts']['commuter']
+          assert d['counts']['metro']==baseline['counts']['metro']
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
+          print('PASS THREE MODES:',d['counts'],'Tram lines:',d['tramLines'])
+          PY
+      - name: Diagnose on-screen vehicles per mode and weekday
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const counts={};
+          for(const t of d.trips){
+            const day=t.serviceDay,mode=t.mode;
+            counts[day]??={commuter:0,metro:0,tram:0};
+            counts[day][mode]=(counts[day][mode]||0)+1;
+          }
+          console.log('GTFS SERVICE DAY TOTALS',JSON.stringify(counts));
+          // Sunday 2026-11-08 was blank in Preview 01 despite hundreds
+          // of imported trams. A visible, positionable noon service is mandatory.
+          const sunday=Date.parse('2026-11-08T12:47:00+01:00')/1000;
+          const noon=activeRailTrips(d,sunday,1000).filter(v=>v.mode==='tram');
+          console.log('SUNDAY NOON TVÄRBANAN RENDERABLE',noon.length);
+          if(noon.length<2)throw new Error('No Sunday noon Tvärbanan services — refuse deploy');
+
+          for(const [day,modes] of Object.entries(counts)){
+            for(const hour of [8,12,17,21]){
+              const dt=new Date(day+'T'+String(hour).padStart(2,'0')+':00:00+01:00');
+              const t=dt.getTime()/1000;
+              const raw=d.trips.filter(x=>x.mode==='tram'&&x.start<=t&&x.end>=t);
+              const visible=activeRailTrips(d,t,1000);
+              console.log('VIEWPORT-DATA DIAG',day,hour,'RAW TRAM',raw.length,
+                  'RENDERABLE',JSON.stringify(Object.fromEntries(['commuter','metro','tram'].map(k=>[k,visible.filter(x=>x.mode===k).length]))));
+            }
+          }
+          JS
+      - name: Verify approved locally optimized commuter and metro train photos
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python -u scripts/download_photos.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          photos=json.load(open('photos/catalog.json'))
+          assert 'tram_a35' in photos, 'Tvärbanan A35 vehicle photo missing'
+          assert 'commuter_x60' in photos, 'Pendeltåg vehicle photo missing'
+          assert any(p in photos for p in ('metro_c20_blue','metro_c30')), 'Blue/red metro vehicle image missing'
+          assert 'metro_c20_green' in photos, 'Green metro vehicle photo missing'
+          for entry in photos.values():
+              local=Path(entry['path'])
+              assert local.is_file() and local.stat().st_size>2500
+          print('Verified approved vehicle images:',len(photos))
+          PY
+
