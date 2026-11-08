@@ -371,6 +371,7 @@ function start(){
  setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg-, Tunnelbana- och Tvärbanan-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
   state.filter=b.dataset.filter;
+  if(state.filter==='malartag'&&map)map.flyTo([59.32,16.55],8,{duration:1.1});
   const heading=document.querySelector('.sidebar-heading h1');
   if(heading)heading.textContent=railFilterTitle(state.filter);
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
@@ -378,7 +379,7 @@ function start(){
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
- $('home').onclick=()=>{clearSelected();map?.flyTo([59.334,18.058],11,{duration:1.1})};
+ $('home').onclick=()=>{clearSelected();map?.flyTo(state.filter==='malartag'?[59.32,16.55]:[59.334,18.058],state.filter==='malartag'?8:11,{duration:1.1})};
  $('tab-trains').onclick=clearSelected;
  $('clear').onclick=clearSelected;
  $('follow').onclick=()=>{state.follow=!state.follow;updateFollow()};
