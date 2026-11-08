@@ -9,7 +9,7 @@ Appends to the verified Pendeltåg JSON and does not change its rows or shapes.
 import collections
 import json
 from pathlib import Path
-from refine_osm_routes import read_json, BASE, project_stops, geometry_from_geojson
+from refine_osm_routes import read_json, BASE, project_stops, geometry_from_geojson, choose_directional_shape
 
 ROOT=Path(__file__).resolve().parents[1]
 PENDELTAG=ROOT/"data"/"rail.json"
@@ -58,12 +58,9 @@ def append_metro(base,candidates,provider=shape_candidates):
     appended=[]
     shapes_to_add={}
     verified=collections.Counter()
+    directions=collections.Counter()
     for (line,stations),trips in groups.items():
-        chosen=None
-        for relation,shape in available[line]:
-            if project_stops(trips[0]["stops"],shape,MAX_STOP_ERROR_METERS):
-                chosen=(relation,shape)
-                break
+        chosen=choose_directional_shape(trips[0]["stops"],available[line],MAX_STOP_ERROR_METERS)
         if chosen is None:continue
         relation,shape=chosen
         key="metro-osm:"+line+":"+relation
@@ -74,8 +71,9 @@ def append_metro(base,candidates,provider=shape_candidates):
                     "osmRelation":relation,"source":"GTFS Sverige 2 historical metro"}
             appended.append(cloned)
             verified[line]+=1
+            directions['reversed' if relation.endswith(':reverse') else 'original']+=1
     missing=sorted(METRO_LINES-set(verified))
-    print("METRO COVERAGE",dict(verified),"missing",missing,flush=True)
+    print("METRO COVERAGE",dict(verified),"directions",dict(directions),"missing",missing,flush=True)
     if missing:
         raise ValueError("Missing verified Tunnelbana routes for "+",".join(missing)+
                          "; refusing partial or fabricated metro deployment")
@@ -98,6 +96,7 @@ def append_metro(base,candidates,provider=shape_candidates):
     base["counts"]["metro"]=len(appended)
     base["scope"]="pendeltag-and-tunnelbana"
     base["metroLines"]=dict(verified)
+    base["metroDirections"]=dict(directions)
     base["positionSource"]="historical-timetable-interpolation-not-live-gps"
     original={"trips":base["trips"][:-len(appended)],
               "shapes":{k:v for k,v in base["shapes"].items() if not k.startswith("metro-osm:")}}
