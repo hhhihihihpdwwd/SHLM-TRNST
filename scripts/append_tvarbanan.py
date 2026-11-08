@@ -53,7 +53,17 @@ def integrate(base,archive,provider=route_shapes):
         if not trip.get("stops") or len(trip["stops"])<2:continue
         key=(line,tuple(stop[2] for stop in trip["stops"]))
         by_pattern[key].append(trip)
-    shape_map={line:provider(line) for line in TVARBANAN}
+    # A route_master can expose only one oriented path for bidirectional tram
+    # tracks. Test the reverse orientation of *the same verified OSM track*
+    # against the entire ordered station list; never invent connecting segments.
+    shape_map={}
+    for line in TVARBANAN:
+        base_shapes=provider(line)
+        variants=[]
+        for relation,shape in base_shapes:
+            variants.append((relation,shape))
+            variants.append((relation+":reverse",list(reversed(shape))))
+        shape_map[line]=variants
     print("TVARBANAN SOURCE PATTERNS",len(by_pattern),
           "OSM ROUTES",{line:len(v) for line,v in shape_map.items()},flush=True)
     additions=[]
@@ -87,6 +97,23 @@ def integrate(base,archive,provider=route_shapes):
             verified[line]+=1
     print("TVARBANAN VERIFIED",dict(verified),"PATTERNS",dict(matched_patterns),
           "REJECTED",dict(rejected),flush=True)
+    required_endpoints={
+       "30":{("solna","sickla"),("sickla","solna")},
+       "31":{("bromma flygplats","alvik"),("alvik","bromma flygplats")}
+    }
+    passed=collections.defaultdict(set)
+    for trip in additions:
+        first=trip["stops"][0][2].lower()
+        last=trip["stops"][-1][2].lower()
+        if trip["line"]=="30" and {"solna","sickla"} <= {p.split()[0] for p in (first,last)}:
+            passed["30"].add(("solna","sickla") if first.startswith("solna") else ("sickla","solna"))
+        if trip["line"]=="31" and (
+            ("bromma flygplats" in first and "alvik" in last) or
+            ("alvik" in first and "bromma flygplats" in last)):
+            passed["31"].add(("bromma flygplats","alvik") if first.startswith("bromma") else ("alvik","bromma flygplats"))
+    print("TVARBANAN TERMINAL DIRECTIONS",dict(passed),flush=True)
+    if any(not required_endpoints[line].issubset(passed[line]) for line in TVARBANAN):
+        raise ValueError("A complete verified terminus-to-terminus trip is missing in one or more directions")
     if not all(verified.get(line,0)>0 for line in TVARBANAN):
         raise ValueError("Missing verified Tvärbanan line(s): "+
                          ",".join(l for l in TVARBANAN if not verified[l]))
