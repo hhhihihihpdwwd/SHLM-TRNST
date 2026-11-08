@@ -1,0 +1,28 @@
+name: Pendeltåg Dataset Build Verification
+on:
+  push:
+    branches: [feature/pendeltag-only-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download public historical GTFS and match Pendeltåg against OSM
+        run: python -u scripts/build_pendeltag.py
+      - name: Display coverage and strict data checks
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('data/rail.json'))
+          assert d['counts'].get('commuter',0)>=12
+          assert all(t['mode']=='commuter' and t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
+          print('Matched commuter trains:',len(d['trips']))
+          print('Coverage:',d['qualityReport'])
+          PY
