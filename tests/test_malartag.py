@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 from build_malartag_candidates import CORRIDORS,corridor_for
-from append_malartag import integrate,direction_of,STABLE_SCOPE
+from append_malartag import integrate,direction_of,STABLE_SCOPE,geometry_large
 
 class MalartagTests(unittest.TestCase):
  def make_fixture(self):
@@ -49,6 +49,28 @@ class MalartagTests(unittest.TestCase):
    return provider(corridor,first,last)
   with self.assertRaisesRegex(ValueError,"uven"):
    integrate(base,archive,wrong)
+ def test_all_five_corridors_against_real_station_patterns(self):
+  cases={
+   "orebro-uppsala":["Örebro Centralstation","Eskilstuna C","Stockholm Centralstation","Uppsala Centralstation"],
+   "nykoping":["Norrköping Centralstation","Nyköping C","Stockholm Centralstation"],
+   "hallsberg":["Hallsberg station","Katrineholm Central","Stockholm Centralstation"],
+   "uven":["Linköping Centralstation","Norrköping Centralstation","Eskilstuna C","Västerås Centralstation","Sala Resecentrum","Uppsala Centralstation"],
+   "gavle":["Uppsala Centralstation","Tierp station","Gävle Centralstation"],
+  }
+  for corridor,names in cases.items():
+   with self.subTest(corridor=corridor):
+    self.assertEqual(corridor_for(names),corridor)
+    self.assertEqual(corridor_for(list(reversed(names))),corridor)
+  self.assertIsNone(corridor_for(["Stockholm Centralstation","Uppsala Centralstation"]))
+ def test_osm_multiline_rejects_disconnected_rail(self):
+  def make(parts):
+   return {"features":[{"geometry":{"type":"LineString","coordinates":p}} for p in parts]}
+  connected=make([[[18.0000,59.3000],[18.0010,59.3010]],
+                   [[18.0010,59.3010],[18.0020,59.3020]]])
+  self.assertEqual(len(geometry_large(connected)),3)
+  disconnected=make([[[18.0000,59.3000],[18.0010,59.3010]],
+                      [[18.5000,59.7000],[18.5010,59.7010]]])
+  self.assertIsNone(geometry_large(disconnected))
  def test_direction(self):
   base,archive,provider=self.make_fixture()
   self.assertEqual(direction_of(archive["trips"][0]),"forward")
