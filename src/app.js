@@ -174,7 +174,13 @@ function miniRailIcon(v,chosen=false){
     html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#4C9876',rail:'#C89D52'};
-function realColor(v){return railColors[v.mode]||'#537F85'}
+function realColor(v){
+ if(v.mode==='metro'){
+  const n=Number(v.line);
+  return n===10||n===11?'#3178C4':n===13||n===14?'#CF5364':'#4B997C';
+ }
+ return railColors[v.mode]||'#537F85';
+}
 function realTitle(v){return (v.line||v.train||v.mode.toUpperCase())+' · '+(v.destination||'Stockholm')}
 function showRealList(){
  if(!railDataset)return;
@@ -264,7 +270,7 @@ function tickReal(){
  const now=Date.now(),epoch=now/1000;
  $('clock').textContent=stockholmTime(now).display;
  if(now-realLastList>15000){
-  realActive=activeRailTrips(railDataset,epoch,500);realLastList=now;showRealList();
+  realActive=activeRailTrips(railDataset,epoch,800);realLastList=now;showRealList();
   if(state.selected&&!realActive.some(v=>v.id===state.selected.id))clearReal();
  }
  if(!map||now-realLastDraw<90)return;realLastDraw=now;
@@ -305,20 +311,20 @@ function tickReal(){
 
 async function initializeReal(){
  const data=await loadRailTimetable();
- if(!data)return;
+ if(!data){$('vehicle-list').textContent='Verifierade spårdata saknas. Tidigare version är oförändrad.';return;}
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · VERIFIED TRACKS';
+ const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG + TUNNELBANA · OSM';
  const hint=document.querySelector('.map-note span');
  if(hint){
    if(data.type==='historical-weekday-simulation'){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
      const total=data.trips.length;
-     hint.textContent=verified+' geprüfte Pendeltåg-Fahrten · historische Fahrzeiten · Positionen geschätzt, kein GPS';
+     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana-Fahrten · historische Fahrzeiten · geschätzte Positionen';
    }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  }
- const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Pendeltåg';
+ const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent=state.filter==='metro'?'Tunnelbana':state.filter==='commuter'?'Pendeltåg':'Alla tåg';
  realLastList=0;tickReal();
 }
 function tick(){
@@ -356,11 +362,13 @@ function tick(){
  if(state.selected&&time-lastDetailUpdate>1900){lastDetailUpdate=time;refreshSelected()}
 }
 function start(){
- setupMap();$('vehicle-list').textContent='Läser in verifierade pendeltåg…';
+ setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg- och Tunnelbana-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
   state.filter=b.dataset.filter;
+  const heading=document.querySelector('.sidebar-heading h1');
+  if(heading)heading.textContent=state.filter==='metro'?'Tunnelbana':state.filter==='commuter'?'Pendeltåg':'Alla tåg';
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
-  if(state.selected&&state.filter!=='commuter')clearSelected();
+  if(state.selected&&state.filter!=='all'&&state.selected.mode!==state.filter)clearSelected();
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
