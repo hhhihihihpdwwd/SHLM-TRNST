@@ -214,6 +214,39 @@ def relation_shapes(corridor,first,last,reader=None):
        len(geometries),"diagnostics",dict(diagnostics),flush=True)
  return geometries
 
+def connected_route_combinations(sources,max_segments=3,join_metres=25):
+ """Join actual OSM relation track only where endpoints touch physically.
+
+ No line is drawn between disconnected tracks. Each direction is examined
+ later against every GTFS stopping point. Some regional services span more
+ than one mapped OSM route relation.
+ """
+ from refine_osm_routes import distance
+ if not sources:return []
+ output=[]
+ seen=set()
+ def walk(used,shape,labels):
+  if len(used)>1:
+   signature=tuple(labels)
+   if signature not in seen:
+    seen.add(signature)
+    output.append(("+".join(labels),shape))
+  if len(used)>=max_segments:return
+  for i,(rid,segment) in enumerate(sources):
+   if i in used or len(segment)<2:continue
+   # Reverse only existing OSM vertices, never synthesize connectors.
+   for direction,way in (("f",segment),("r",list(reversed(segment)))):
+    if distance(shape[-1],way[0])<=join_metres:
+     # Drop common endpoint only when points are identical; otherwise keep
+     # both actual measured OSM points (gap <=25 m).
+     joined=shape+way[1:] if shape[-1]==way[0] else shape+way
+     walk(used|{i},joined,labels+[str(rid)+":"+direction])
+ for i,(rid,shape) in enumerate(sources):
+  if len(shape)<2:continue
+  walk({i},shape,[str(rid)+":f"])
+  walk({i},list(reversed(shape)),[str(rid)+":r"])
+ return output
+
 def direction_of(trip):
  # Determine direction from every scheduled station, not only named termini.
  # A short-turn service may begin/end at a stop missing from corridor anchors.
@@ -246,6 +279,14 @@ def integrate(base,archive,provider=relation_shapes):
   if key not in cache:
    cache[key]=provider(corridor,first,last)
   winner=choose_directional_shape(group[0]["stops"],cache[key],MAX_ERROR)
+  if not winner and len(cache[key])>1:
+   # A full train may use multiple separately mapped, contiguous OSM
+   # rail relations. Never use station-to-station straight lines.
+   composites=connected_route_combinations(cache[key])
+   winner=choose_directional_shape(group[0]["stops"],composites,MAX_ERROR)
+   if winner:
+    print("MÄLARTÅG VERIFIED CONNECTED OSM ROUTES",corridor,
+          first,last,winner[0],flush=True)
   if not winner:
    print("MÄLARTÅG REJECT incomplete OSM",corridor,first,last,len(group),flush=True)
    continue
