@@ -4,7 +4,7 @@ The currently published Stockholm Rail application remains untouched until the d
 
 ## What is genuinely grounded
 - **Timetable:** public, archived GTFS Sverige 2 historical timetable from Trafiklab/Samtrafiken. No API key. These were real *past* scheduled services; the archive's weekdays are repeated as a simulation of today, **not today's confirmed timetable**.
-- **Track:** OpenStreetMap public-transport train-route geometry, accepted only when every listed stop projects to the actual OSM route in a forward direction within 130 m, and simulated peak speed is plausible.
+- **Track:** OpenStreetMap connected railway-node geometry, accepted only when all listed stops snap within 240 m to a connected OSM railway graph, whose node-by-node path passes a speed sanity check, and simulated peak speed is plausible.
 - **Trains:** exclusively `mode=commuter`; no buses, metro, trams, long-distance services, or invented fallback trains.
 - **Vehicle icons:** original photo-like Pendeltåg train-front sprite, small and rendered from a cached image.
 - **Position:** inferred along track from station departure and arrival times, with dwell, acceleration and deceleration; not actual GPS.
