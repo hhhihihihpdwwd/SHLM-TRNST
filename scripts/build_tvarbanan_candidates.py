@@ -23,6 +23,37 @@ def build_tram_candidates(gtfs,current=None):
     finally:
         archive.SOURCE_START=old
     trips=[t for t in result["trips"] if t["mode"]=="tram" and str(t.get("line","")) in LINES]
+    # Archived Sunday 2026-11-08 has early-morning services but no daytime
+    # Tvärbanan runs. For this PRIVATE representative traffic simulation,
+    # use the complete previous Saturday pattern for Sunday. Do not label it
+    # a real Sunday timetable: each proxy trip carries an explicit provenance.
+    sunday=now if now.weekday()==6 else None
+    if sunday:
+        sunday_date=sunday.isoformat()
+        saturday=sunday-dt.timedelta(days=1)
+        saturday_date=saturday.isoformat()
+        def daytime_count(items,day):
+            # deterministic local noon, independent of CI timezone
+            noon=int(dt.datetime.combine(day,dt.time(12,47),archive.ZONE).timestamp())
+            return sum(x["start"]<=noon<=x["end"] for x in items)
+        sundays=[t for t in trips if t["serviceDay"]==sunday_date]
+        if daytime_count(sundays,sunday)<2:
+            saturday_trips=[t for t in trips if t["serviceDay"]==saturday_date]
+            if daytime_count(saturday_trips,saturday)<2:
+                raise RuntimeError("No complete prior-day tram pattern to simulate Sunday")
+            shift=int((dt.datetime.combine(sunday,dt.time(0),archive.ZONE)-
+                       dt.datetime.combine(saturday,dt.time(0),archive.ZONE)).total_seconds())
+            replay=[{**t,
+                      "id":"SUNDAY-PROXY:"+t["id"],
+                      "serviceDay":sunday_date,
+                      "start":t["start"]+shift,
+                      "end":t["end"]+shift,
+                      "timetableProxy":"Saturday service pattern repeated on Sunday",
+                      "source":"Historical Saturday GTFS timetable used for Sunday private simulation"}
+                    for t in saturday_trips]
+            trips=[t for t in trips if t["serviceDay"]!=sunday_date]+replay
+            print("TVÄRBANAN SUNDAY PROXY",len(replay),"Saturday trips mapped to",
+                  sunday_date,"to replace incomplete Sunday service",flush=True)
     result["trips"]=trips
     result["counts"]={"tram":len(trips)}
     used={t["shapeId"] for t in trips}
