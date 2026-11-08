@@ -1,0 +1,70 @@
+name: Build Stockholm Pendeltåg - Isolated Preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout isolated Pendeltåg version (do not change published version)
+        uses: actions/checkout@v4
+        with:
+          ref: feature/pendeltag-only-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check JavaScript, Python and motion tests
+        run: |
+          set -e
+          for script in src/*.js; do node --check "$script"; done
+          python -m py_compile scripts/build_pendeltag.py scripts/refine_osm_routes.py scripts/build_rail_keyless.py scripts/download_photos.py
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Build historical Pendeltåg timetables matched to exact OSM rail tracks
+        run: python -u scripts/build_pendeltag.py
+      - name: Fail closed if train positions or paths are not verified
+        run: |
+          python - <<'PY'
+          import json
+          obj=json.load(open('data/rail.json'))
+          assert obj['type']=='historical-pendeltag-verified-rail'
+          assert obj['strictGeometry'] and obj['counts']['commuter']>=12
+          assert all(t['mode']=='commuter' and t['geometryQuality']=='verified-osm-relation' for t in obj['trips'])
+          assert all(t['shapeId'] in obj['shapes'] for t in obj['trips'])
+          print('Verified train trips',len(obj['trips']))
+          print('Quality report',obj['qualityReport'])
+          PY
+      - name: Install photo support
+        run: python -m pip install --disable-pip-version-check Pillow
+      - name: Prepare approved commuter photos locally
+        run: python -u scripts/download_photos.py
+      - name: Create publishable site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -R src data photos _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish only if verifiable Pendeltåg data was produced
+        id: deployment
+        uses: actions/deploy-pages@v4
