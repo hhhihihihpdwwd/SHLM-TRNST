@@ -8,7 +8,7 @@ export async function loadRailTimetable(){
   if(!response.ok)return null;
   const data=await response.json();
   if(data.schema!==1||!Array.isArray(data.trips)||!data.shapes||!data.trips.length)return null;
-  if(data.scope!=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags'||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
+  if(data.scope!=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo'||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
   return data;
  }catch(e){console.warn('Verified timetable unavailable; preserving current release',e);return null}
 }
@@ -70,7 +70,7 @@ export function activeRailTrips(dataset,epoch,limit=900){
  if(!dataset)return [];
  const candidates=[];
  for(const trip of dataset.trips){
-  if(!['commuter','metro','tram','localrail'].includes(trip.mode)||trip.geometryQuality!=='verified-osm-relation')continue;
+  if(!['commuter','metro','tram','localrail','saltsjo'].includes(trip.mode)||trip.geometryQuality!=='verified-osm-relation')continue;
   if(epoch<trip.start-60||epoch>trip.end+80)continue;
   const geom=geometry(trip.shapeId,dataset.shapes);
   if(!geom)continue;
