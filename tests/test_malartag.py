@@ -89,6 +89,17 @@ class MalartagTests(unittest.TestCase):
    result=mal.relation_shapes("gavle","Uppsala","Gävle")
   self.assertEqual(len(result),1)
   self.assertEqual(result[0][0],"876")
+ def test_unique_intermediate_station_relations_not_lost(self):
+  # Regression for CI #42521294282: Nykoping had zero candidates
+  # because route relations need not list two corridor terminals.
+  self.assertTrue(mal.corridor_relation_match("nykoping",{
+    "name":"Nyköping - Vagnhärad", "operator":"SJ"}))
+  self.assertTrue(mal.corridor_relation_match("orebro-uppsala",{
+    "name":"Arboga - Köping", "operator":"SJ"}))
+  self.assertFalse(mal.corridor_relation_match("nykoping",{
+    "name":"Örebro - Uppsala","operator":"Mälartåg"}))
+  self.assertFalse(mal.corridor_relation_match("orebro-uppsala",{
+    "name":"Nyköping - Norrköping","operator":"Mälartåg"}))
  def test_overpass_rejects_unrelated_relations(self):
   self.assertFalse(mal.corridor_relation_match("gavle",{"name":"Stockholm - Malmö",
        "operator":"SJ","from":"Stockholm","to":"Malmö"}))
