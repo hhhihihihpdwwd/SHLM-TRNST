@@ -194,8 +194,15 @@ def corridor_relation_match(corridor,item):
  anchors=CORRIDORS[corridor]
  hits=sum(a in names for a in anchors)
  if hits>=2:return True
-
- return False
+ # An OSM train relation may name only one distinctive intermediate station.
+ # Matching is a discovery hint, never geometry approval.
+ hints={
+  "orebro-uppsala":("örebro","arboga","köping"),
+  "nykoping":("nyköping","vagnhärad","kolmården"),
+  "uven":("västerås","kvicksund","kolbäck","ransta","heby","morgongåva"),
+  "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus")
+ }
+ return any(station in names for station in hints[corridor])
 
 def relation_shapes(corridor,first,last,reader=None):
  """Search public OSM train relations. Validate every result geometrically.
@@ -243,7 +250,7 @@ def relation_shapes(corridor,first,last,reader=None):
    matched={rid:item for rid,item in inventory.items()
             if corridor_relation_match(corridor,item)}
    print("MÄLARTÅG OVERPASS CORRIDOR",corridor,
-         "candidate_relations",len(matched),flush=True)
+         "candidate_relations",len(matched),"relation_ids",list(matched)[:30],flush=True)
    found.update(dict(list(matched.items())[:MAX_OSM_LOOKUPS]))
    diagnostics["overpass_matches"]=len(matched)
   except RuntimeError as exc:
