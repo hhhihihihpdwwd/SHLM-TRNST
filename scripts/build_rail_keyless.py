@@ -24,7 +24,8 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"rail.json"
 ZONE=ZoneInfo("Europe/Stockholm")
 URL="https://data.samtrafiken.se/trafiklab/gtfs-sverige-2/2026/11/sweden-20261104.zip"
-SOURCE_START=dt.date(2026,11,4) # actual archived window; do not request unsupported Nov 15 Sunday
+SOURCE_START=dt.date(2026,11,4) # historical archive range
+REFERENCE_DAY=dt.date(2026,11,6) # Friday: same archived service every calendar day
 # Geographic stop retention must cover ALL Pendeltåg termini, not just central
 # Stockholm. In particular Uppsala C (59.86 N) and Nynäshamn (58.90 N)
 # were previously truncated by the 59.00..59.80 bounds.
@@ -134,6 +135,7 @@ def build(z,now=None,tram_lines=None):
     now=now or dt.datetime.now(ZONE).date()
     dates=[SOURCE_START+dt.timedelta(days=i) for i in range(7)]
     wanted_days=service_calendar(z,dates)
+    reference_services=wanted_days[REFERENCE_DAY]
     agencies={r.get("agency_id"):r.get("agency_name","") for r in records(z,"agency.txt")}
     routes={}
     for r in records(z,"routes.txt"):
@@ -156,7 +158,7 @@ def build(z,now=None,tram_lines=None):
     for r in records(z,"trips.txt"):
         route=routes.get(r.get("route_id"))
         if not route:continue
-        valid=[day for day in dates if r.get("service_id") in wanted_days[day]]
+        valid=[REFERENCE_DAY] if r.get("service_id") in reference_services else []
         if valid:trips[r["trip_id"]]=(route,r.get("trip_headsign",""),r.get("trip_short_name",""),valid)
     times=collections.defaultdict(list)
     for r in records(z,"stop_times.txt"):
@@ -170,10 +172,9 @@ def build(z,now=None,tram_lines=None):
         try:order=int(r.get("stop_sequence",0))
         except ValueError:order=0
         times[tid].append((order,point,arrive if arrive is not None else depart,depart if depart is not None else arrive))
-    # Repeat the historic reference weekday for each of yesterday/today/tomorrow.
+    # One fixed Friday timetable is repeated on every day, including weekends.
     target_dates=[now-dt.timedelta(days=1),now,now+dt.timedelta(days=1)]
-    targets=collections.defaultdict(list)
-    for day in target_dates:targets[day.weekday()].append(day)
+    targets={REFERENCE_DAY.weekday():target_dates}
     entries=[]
     shape_library={}
     counts=collections.Counter()
@@ -221,10 +222,11 @@ def build(z,now=None,tram_lines=None):
         "schema":1,
         "generated":dt.datetime.now(dt.timezone.utc).isoformat(),
         "timezone":"Europe/Stockholm",
-        "type":"historical-weekday-simulation",
+        "type":"historical-daily-repeating-simulation",
+        "referenceDay":REFERENCE_DAY.isoformat(),
         "geometryQuality":"approximate-stop-connectors",
         "archiveSource":"2026-11-04",
-        "description":"Historischer Wochenfahrplan; gefahrene Strecken sind schematische Verbindungen zwischen Haltestellen, keine Schienen-Trassen",
+        "description":"Historischer Freitagsfahrplan täglich wiederholt; keine Live-Daten. Fahrwege werden nur nach OSM-Verifikation veröffentlicht.",
         "sources":["GTFS Sverige 2 public historical archive"],
         "counts":dict(counts),"shapes":shape_library,"trips":entries
     }
