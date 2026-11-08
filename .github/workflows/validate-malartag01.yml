@@ -332,8 +332,22 @@ jobs:
           }
           if(daily.filter(n=>n>0).length<3)
             throw Error('Mälartåg is absent at most tested time windows');
+          // A legitimate low-frequency corridor may not be running precisely
+          // at minute :47. Audit the entire day in fifteen-minute windows.
+          for(let h=5;h<=23;h++){
+            for(const minute of [0,15,30,45]){
+              const stamp=Date.parse('2026-11-08T'+String(h).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00+01:00')/1000;
+              const trains=activeRailTrips(data,stamp,10000).filter(t=>matchesRailFilter(t,'malartag'));
+              for(const trip of trains){
+                const point=railAt(trip,stamp);
+                if(!point.pos.every(Number.isFinite))throw Error('Invalid regional position');
+                seen.add(trip.corridor);
+              }
+            }
+          }
+          console.log('MÄLARTÅG CORRIDORS ACTUALLY VISIBLE DURING DAY',Array.from(seen));
           for(const c of corridors)if(!seen.has(c))
-            throw Error('No visible Mälartåg on '+c+' during sampled hours');
+            throw Error('No map-renderable Mälartåg on corridor '+c+' during full-day scan');
           JS
       - name: Verify model-correct locally licensed ER1 photo
         run: |
