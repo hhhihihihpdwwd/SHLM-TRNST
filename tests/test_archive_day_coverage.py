@@ -18,16 +18,21 @@ class DayCoverageTests(unittest.TestCase):
   for mode in modes:
    for day in (yesterday,today,tomorrow):
     for n in range(3500):
-     candidates.append((mode,str(n),[(0,0,1)],{},mode,str(n),day,day))
+     hour=n%24
+     line=str(n%7)
+     candidates.append((mode,str(n),[(0,0,hour*3600)],{"line":line},mode,str(n),day,day))
   ordered=round_robin_service_days(candidates)
   capped=Counter()
   seen=Counter()
+  evening=Counter()
   for row in ordered:
    mode=row[0]
    if capped[mode]>=LIMIT_PER_MODE[mode]:continue
    capped[mode]+=1
    seen[(mode,row[6])]+=1
+   if (row[2][0][2]//3600)>=19:evening[(mode,row[6])]+=1
   for mode in modes:
    for day in (yesterday,today,tomorrow):
     self.assertGreater(seen[(mode,day)],0,(mode,day))
+    self.assertGreater(evening[(mode,day)],0,("evening starvation",mode,day))
 if __name__=="__main__":unittest.main()
