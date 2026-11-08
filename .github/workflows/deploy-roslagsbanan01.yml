@@ -169,8 +169,8 @@ jobs:
             const active=activeRailTrips(d,epoch,3500);
             for(const line of ['27','28','29']){
               const trains=active.filter(v=>v.mode==='localrail'&&v.line===line);
-              const inward=trains.filter(v=>/stockholms östra/i.test(v.destination));
-              const outward=trains.filter(v=>!/stockholms östra/i.test(v.destination));
+              const inward=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops.at(-1)[2]));
+              const outward=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops[0][2]));
               console.log('ROSLAG ON MAP',hour,line,trains.length,'in',inward.length,'out',outward.length);
               if(!trains.length)throw Error('No map-visible Roslagsbanan '+line+' at '+hour);
               if([12,16].includes(hour) && (!inward.length || !outward.length))
