@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: stockholm-rail-pages
+  group: stockholm-rail-malartag-validation
   cancel-in-progress: false
 jobs:
   build:
