@@ -224,6 +224,7 @@ def build(z,now=None,tram_lines=None):
         "timezone":"Europe/Stockholm",
         "type":"historical-daily-repeating-simulation",
         "referenceDay":REFERENCE_DAY.isoformat(),
+        "simulationTemplateDay":now.isoformat(),
         "geometryQuality":"approximate-stop-connectors",
         "archiveSource":"2026-11-04",
         "description":"Historischer Freitagsfahrplan täglich wiederholt; keine Live-Daten. Fahrwege werden nur nach OSM-Verifikation veröffentlicht.",
