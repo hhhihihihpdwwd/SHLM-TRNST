@@ -145,7 +145,16 @@ def corridor_relation_match(corridor,item):
  # name/from/to. Geometry and ALL GTFS stops must still validate separately.
  anchors=CORRIDORS[corridor]
  hits=sum(a in names for a in anchors)
- return hits>=2
+ if hits>=2:return True
+ if corridor=="hallsberg":
+  # OSM splits long-distance train relations at intermediate stations.
+  # The 2026-11-08 inventory had zero relations mentioning TWO of
+  # Stockholm/Katrineholm/Hallsberg. Include a relation naming ONE
+  # distinctive intermediate station for geometric vetting, never a
+  # relation mentioning "Stockholm" alone.
+  unique=("hallsberg","katrineholm","vingåker","flen")
+  return any(station in names for station in unique)
+ return False
 
 def relation_shapes(corridor,first,last,reader=None):
  """Search public OSM train relations. Validate every result geometrically.
