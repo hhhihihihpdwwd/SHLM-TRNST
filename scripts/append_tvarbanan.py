@@ -97,6 +97,9 @@ def integrate(base,archive,provider=route_shapes):
             verified[line]+=1
     print("TVARBANAN VERIFIED",dict(verified),"PATTERNS",dict(matched_patterns),
           "REJECTED",dict(rejected),flush=True)
+    if not all(verified.get(line,0)>0 for line in TVARBANAN):
+        raise ValueError("Missing verified Tvärbanan line(s): "+
+                         ",".join(l for l in TVARBANAN if not verified[l]))
     required_endpoints={
        "30":{("solna","sickla"),("sickla","solna")},
        "31":{("bromma flygplats","alvik"),("alvik","bromma flygplats")}
@@ -114,9 +117,6 @@ def integrate(base,archive,provider=route_shapes):
     print("TVARBANAN TERMINAL DIRECTIONS",dict(passed),flush=True)
     if any(not required_endpoints[line].issubset(passed[line]) for line in TVARBANAN):
         raise ValueError("A complete verified terminus-to-terminus trip is missing in one or more directions")
-    if not all(verified.get(line,0)>0 for line in TVARBANAN):
-        raise ValueError("Missing verified Tvärbanan line(s): "+
-                         ",".join(l for l in TVARBANAN if not verified[l]))
     if len(additions)>MAX_TRAM_TRIPS:
         # Preserve both lines: no accidental favouritism if archival service is dense.
         per_line=collections.defaultdict(list)
