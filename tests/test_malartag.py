@@ -38,7 +38,7 @@ class MalartagTests(unittest.TestCase):
   for key in old["counts"]:self.assertEqual(result["counts"][key],old["counts"][key])
   for corridor in CORRIDORS:
    self.assertEqual(result["malartagDirections"][corridor],{"forward":1,"reverse":1})
-  self.assertEqual(result["counts"]["regional"],10)
+  self.assertEqual(result["counts"]["regional"],2*len(CORRIDORS))
  def test_absent_direction_blocks_release(self):
   base,archive,provider=self.make_fixture()
   archive["trips"]=[v for v in archive["trips"] if v["id"]!="gavleTrue"]
@@ -75,7 +75,7 @@ class MalartagTests(unittest.TestCase):
   self.assertIsNone(geometry_large(disconnected))
  def test_overpass_relations_recovered_when_standard_search_returns_zero(self):
   # The real 2026-11-08 build had 738 GTFS rides, but route-name search
-  # reported zero OSM relations in all five corridors.
+  # originally reported zero OSM relations for every considered corridor.
   route={"id":876,"name":"Mälartåg Uppsala - Gävle","from":"Uppsala","to":"Gävle"}
   geometry={"type":"FeatureCollection","features":[{"geometry":{
     "type":"LineString","coordinates":[[17.65,59.86],[17.67,59.88],[17.70,59.91],
