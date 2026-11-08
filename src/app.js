@@ -3,6 +3,7 @@ import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
 import {loadPhotoCatalog,photoForVehicle} from './photos.js';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
+import {matchesRailFilter,railFilterTitle} from './rail-filter.js';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
@@ -54,7 +55,7 @@ function scheduledStops(v,clock){
  return v.stops.map(s=>({...s,t:base+s.t}));
 }
 function vehicleAt(v,now){const stops=scheduledStops(v,now);return {...v,stops,pg:tripProgress(stops,now.seconds)}}
-function visibleVehicles(){return services.filter(v=>state.filter==='all'||v.mode===state.filter)}
+function visibleVehicles(){return services.filter(v=>matchesRailFilter(v,state.filter))}
 function makeVehicleButton(v){
  const btn=document.createElement('button');btn.className='vehicle'+(state.selected?.id!==v.id&&state.selected?' muted':'');
  const badge=document.createElement('span');badge.className='line-pill';badge.style.background=v.color;badge.textContent=v.line;
@@ -186,7 +187,7 @@ function showRealList(){
  if(!railDataset)return;
  const list=$('vehicle-list');list.innerHTML='';
  const frag=document.createDocumentFragment();
- for(const v of realActive.filter(v=>state.filter==='all'||v.mode===state.filter).slice(0,90)){
+ for(const v of realActive.filter(v=>matchesRailFilter(v,state.filter)).slice(0,90)){
   const btn=document.createElement('button');btn.className='vehicle'+(state.selected&&state.selected.id!==v.id?' muted':'');
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.line||v.mode.slice(0,2).toUpperCase();
   const t=document.createElement('span');
@@ -315,16 +316,16 @@ async function initializeReal(){
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN';
+ const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN · LOKALBANOR';
  const hint=document.querySelector('.map-note span');
  if(hint){
    if(data.type==='historical-weekday-simulation'){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
      const total=data.trips.length;
-     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+data.counts.tram+' Tvärbanan · historisk tidtabell, simulerade positioner';
+     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan · historisk tidtabell, simulerade positioner';
    }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  }
- const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent=state.filter==='metro'?'Tunnelbana':state.filter==='commuter'?'Pendeltåg':state.filter==='tram'?'Tvärbanan':'Alla tåg';
+ const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent=railFilterTitle(state.filter);
  realLastList=0;tickReal();
 }
 function tick(){
@@ -366,9 +367,9 @@ function start(){
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
   state.filter=b.dataset.filter;
   const heading=document.querySelector('.sidebar-heading h1');
-  if(heading)heading.textContent=state.filter==='metro'?'Tunnelbana':state.filter==='commuter'?'Pendeltåg':state.filter==='tram'?'Tvärbanan':'Alla tåg';
+  if(heading)heading.textContent=railFilterTitle(state.filter);
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
-  if(state.selected&&state.filter!=='all'&&state.selected.mode!==state.filter)clearSelected();
+  if(state.selected&&!matchesRailFilter(state.selected,state.filter))clearSelected();
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
