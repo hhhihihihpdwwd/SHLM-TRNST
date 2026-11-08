@@ -27,7 +27,7 @@ def build_tram_candidates(gtfs,current=None):
     # Tvärbanan runs. For this PRIVATE representative traffic simulation,
     # use the complete previous Saturday pattern for Sunday. Do not label it
     # a real Sunday timetable: each proxy trip carries an explicit provenance.
-    sunday=now if now.weekday()==6 else None
+    sunday=current if current and current.weekday()==6 else None
     if sunday:
         sunday_date=sunday.isoformat()
         saturday=sunday-dt.timedelta(days=1)
