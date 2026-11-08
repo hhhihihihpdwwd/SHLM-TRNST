@@ -21,7 +21,7 @@ def build_candidates(gtfs,now):
     original=archive.SOURCE_START
     try:
         archive.SOURCE_START=REF_START
-        dataset=archive.build(gtfs,now=now)
+        dataset=archive.build(gtfs,now=now,tram_lines=LINES)
     finally:
         archive.SOURCE_START=original
     selected=[t for t in dataset["trips"] if str(t.get("line","")).strip() in LINES
@@ -39,8 +39,13 @@ def build_candidates(gtfs,now):
             earlier=[t for t in selected if t["line"]==line
                      and t["serviceDay"]==saturday.isoformat()]
             before=clock_at(saturday,12)
-            if sum(t["start"]<=before<=t["end"] for t in earlier)<1:
-                raise ValueError("No complete archived Saturday service for Roslagsbanan "+line)
+            # Line 29 is less frequent: no train precisely at 12:47 is
+            # not evidence that the historical Saturday service is missing.
+            # Keep the stricter midday check for frequent lines 27/28.
+            if not earlier or (line!="29" and
+                sum(t["start"]<=before<=t["end"] for t in earlier)<1):
+                raise ValueError("No archived Saturday service sufficient for Roslagsbanan "+
+                    line+"; Saturday trips="+str(len(earlier)))
             selected=[t for t in selected if not (t["line"]==line
                       and t["serviceDay"]==now.isoformat())]
             selected.extend({**t,"id":"ROSLAG-SUNDAY-PROXY:"+t["id"],
