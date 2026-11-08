@@ -66,19 +66,58 @@ function atDistance(g,target){
  const i=a,f=(target-cumulative[i-1])/Math.max(.001,cumulative[i]-cumulative[i-1]);
  return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*f,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*f];
 }
+// One historical reference weekday is repeated at the same Swedish LOCAL time
+// on every calendar day. This avoids expiring a static GitHub Pages timetable.
+// No journeys are created beyond existing verified historical trip templates.
+const stockholmDate=new Intl.DateTimeFormat('sv-SE',{
+  timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit'
+});
+const stockholmOffset=new Intl.DateTimeFormat('en-US',{
+  timeZone:'Europe/Stockholm',timeZoneName:'shortOffset'
+});
+function localDate(epoch){return stockholmDate.format(new Date(epoch*1000))}
+function dayPlus(iso,days){
+ const d=new Date(iso+'T12:00:00Z');
+ d.setUTCDate(d.getUTCDate()+days);
+ return d.toISOString().slice(0,10);
+}
+function swedishMidnight(iso){
+ const utc=Date.parse(iso+'T00:00:00Z');
+ const label=stockholmOffset.formatToParts(new Date(utc)).find(x=>x.type==='timeZoneName')?.value||'GMT+1';
+ const m=label.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+ const offset=m?(m[1]==='-'?-1:1)*(Number(m[2])*60+Number(m[3]||0)):60;
+ return utc/1000-offset*60;
+}
+function repeatingRailTrip(trip,sourceDay,targetDay){
+ const delta=swedishMidnight(targetDay)-swedishMidnight(sourceDay);
+ return {...trip,id:trip.id+':DAILY:'+targetDay,
+  serviceDay:targetDay,start:trip.start+delta,end:trip.end+delta,
+  timetableProxy:'Same historical '+(trip.archiveDay||'weekday')+' schedule repeated daily',
+  isLiveGPS:false};
+}
 export function activeRailTrips(dataset,epoch,limit=900){
  if(!dataset)return [];
  const candidates=[];
- for(const trip of dataset.trips){
-  if(!['commuter','metro','tram','localrail','saltsjo','express','regional'].includes(trip.mode)||trip.geometryQuality!=='verified-osm-relation')continue;
-  if(epoch<trip.start-60||epoch>trip.end+80)continue;
-  const geom=geometry(trip.shapeId,dataset.shapes);
-  if(!geom)continue;
-  const track=anchors(trip,geom);
-  if(!track)continue;
-  candidates.push({...trip,_geom:geom,_anchors:track});
-  if(candidates.length>=limit)break;
+ const repeating=dataset.type==='historical-daily-repeating-simulation';
+ const templateDay=dataset.simulationTemplateDay;
+ const today=repeating?localDate(epoch):null;
+ const targetDays=repeating?[dayPlus(today,-1),today]:[null];
+ if(repeating&&!templateDay)return [];
+ for(const source of dataset.trips){
+  if(!['commuter','metro','tram','localrail','saltsjo','express','regional'].includes(source.mode)||source.geometryQuality!=='verified-osm-relation')continue;
+  if(repeating && source.serviceDay!==templateDay)continue;
+  for(const targetDay of targetDays){
+   const trip=repeating?repeatingRailTrip(source,templateDay,targetDay):source;
+   if(epoch<trip.start-60||epoch>trip.end+80)continue;
+   const geom=geometry(trip.shapeId,dataset.shapes);
+   if(!geom)continue;
+   const track=anchors(trip,geom);
+   if(!track)continue;
+   candidates.push({...trip,_geom:geom,_anchors:track});
+   if(candidates.length>=limit)return candidates;
+  }
  }
+
  return candidates;
 }
 export function railAt(trip,epoch){
