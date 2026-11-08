@@ -185,7 +185,7 @@ function realColor(v){
  }
  return railColors[v.mode]||'#537F85';
 }
-function realTitle(v){return (v.line||v.train||v.mode.toUpperCase())+' · '+(v.destination||'Stockholm')}
+function realTitle(v){return (v.mode==='express'?'Arlanda Express':(v.line||v.train||v.mode.toUpperCase()))+' · '+(v.destination||'Stockholm')}
 function showRealList(){
  if(!railDataset)return;
  const list=$('vehicle-list');list.innerHTML='';
