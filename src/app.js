@@ -186,14 +186,14 @@ function realColor(v){
  }
  return railColors[v.mode]||'#537F85';
 }
-function realTitle(v){return (v.mode==='express'?'Arlanda Express':(v.line||v.train||v.mode.toUpperCase()))+' · '+(v.destination||'Stockholm')}
+function realTitle(v){return (v.mode==='express'?'Arlanda Express':v.mode==='regional'?'Mälartåg':(v.line||v.train||v.mode.toUpperCase()))+' · '+(v.destination||'Stockholm')}
 function showRealList(){
  if(!railDataset)return;
  const list=$('vehicle-list');list.innerHTML='';
  const frag=document.createDocumentFragment();
  for(const v of realActive.filter(v=>matchesRailFilter(v,state.filter)).slice(0,90)){
   const btn=document.createElement('button');btn.className='vehicle'+(state.selected&&state.selected.id!==v.id?' muted':'');
-  const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.line||v.mode.slice(0,2).toUpperCase();
+  const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.mode==='regional'?'MT':(v.line||v.mode.slice(0,2).toUpperCase());
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
   const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.timetableProxy?'Söndag simulerad från historiskt lördagsmönster':railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · simulerat':v.agency+' · Tidtabell, ingen GPS';
