@@ -80,19 +80,26 @@ export function activeRailTrips(dataset,epoch,limit=900){
  }
  return candidates;
 }
+// Rail speed and position share ONE deterministic, station-aware motion model.
+// Static historical timetables imply estimated positions, never observed GPS.
 export function railAt(trip,epoch){
  const stops=trip.stops,anchor=trip._anchors,geom=trip._geom;
- const base=trip.start-stops[0][3];
- const seconds=epoch-base;
- let next=0;
- while(next<stops.length-1 && seconds>=stops[next][4])next++;
- let distance=anchor[next];
- if(next>0 && seconds<stops[next][3]){
-  const prev=next-1,a=stops[prev][4],b=stops[next][3];
-  const factor=Math.min(1,Math.max(0,(seconds-a)/Math.max(1,b-a)));
-  distance=anchor[prev]+(anchor[next]-anchor[prev])*factor;
+ const base=trip.start-stops[0][3],seconds=epoch-base;
+ if(seconds<=stops[0][4])return {pos:atDistance(geom,anchor[0]),next:0,meters:anchor[0],kmh:0,atStop:true};
+ for(let i=1;i<stops.length;i++){
+  const depart=stops[i-1][4],arrive=stops[i][3],nextDepart=stops[i][4];
+  if(seconds<arrive){
+   const travel=Math.max(1,arrive-depart);
+   const progress=Math.max(0,Math.min(1,(seconds-depart)/travel));
+   const smooth=progress*progress*(3-2*progress);
+   const segment=Math.max(0,anchor[i]-anchor[i-1]);
+   const distance=anchor[i-1]+segment*smooth;
+   const speed=segment*(6*progress*(1-progress))/travel*3.6;
+   return {pos:atDistance(geom,distance),next:i,meters:distance,kmh:Math.round(speed),atStop:false};
+  }
+  if(seconds<=nextDepart)return {pos:atDistance(geom,anchor[i]),next:i,meters:anchor[i],kmh:0,atStop:true};
  }
- return {pos:atDistance(geom,distance),next,meters:distance};
+ return {pos:atDistance(geom,anchor.at(-1)),next:stops.length-1,meters:anchor.at(-1),kmh:0,atStop:true};
 }
 export function railPathSplit(trip,meters){
  const g=trip._geom,a=trip._anchors[0],b=trip._anchors.at(-1),progress=Math.min(b,Math.max(a,meters));
