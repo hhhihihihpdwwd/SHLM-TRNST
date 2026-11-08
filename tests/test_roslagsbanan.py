@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
-from append_roslagsbanan import integrate,direction,RELATIONS
+from append_roslagsbanan import integrate,direction,RELATIONS,verified_match
 
 class RoslagsbananTests(unittest.TestCase):
     def fixture(self):
@@ -53,6 +53,19 @@ class RoslagsbananTests(unittest.TestCase):
         displaced=[[p[0]+.2,p[1]+.2] for p in shape]
         with self.assertRaisesRegex(ValueError,"Missing full verified"):
             integrate(base,source,lambda line:[("bad",displaced)])
+
+    def test_only_enebyberg_may_be_roughly_690m_from_osm_route(self):
+        shape=[[59.30,18.00],[59.34,18.04],[59.40,18.08]]
+        stops=[[59.30,18.00,"Stockholm Östra station",0,0],
+               [59.34,18.051,"Enebyberg station",120,120],
+               [59.40,18.08,"Roslags Näsby",240,240]]
+        self.assertTrue(verified_match(stops,shape))
+        wrong=[x.copy() for x in stops]
+        wrong[1][2]="Unrelated station"
+        self.assertFalse(verified_match(wrong,shape))
+        distant=[x.copy() for x in stops]
+        distant[1][1]=18.07
+        self.assertFalse(verified_match(distant,shape))
 
     def test_osm_relation_ids_and_terminals(self):
         self.assertEqual(RELATIONS,{"27":11151437,"28":11151439,"29":11151441})
