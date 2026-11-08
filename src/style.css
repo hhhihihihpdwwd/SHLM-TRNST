@@ -11,3 +11,11 @@
 .rail-photo-icon{background:transparent!important;border:0!important;pointer-events:auto}
 .rail-photo-marker{width:19px;height:19px;display:block;object-fit:contain;filter:drop-shadow(0 1px 2px #21343b77);user-select:none}
 .rail-photo-icon.is-selected .rail-photo-marker{width:27px;height:27px;filter:drop-shadow(0 0 3px #f5cf6e) drop-shadow(0 2px 3px #13242e80)}
+
+/* The Pendeltåg-focused layout: speed, occupancy, photo and next stop. */
+.speed-panel{display:flex;align-items:center;justify-content:space-between;background:#f1f6f4;border:1px solid #e2ece7;margin:11px 25px 0;padding:14px 16px;border-radius:11px}
+.speed-panel>div{display:flex;flex-direction:column;gap:4px}
+.speed-panel small{font-size:9px;font-weight:800;letter-spacing:.14em;color:#6e9387}
+.speed-panel strong{font-size:27px;color:#25484d;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.speed-unit{font-size:12px;font-weight:600;color:#6d8780}
+#motion-status{font-size:9px;color:#80a397;font-weight:800;letter-spacing:.08em}
