@@ -68,9 +68,11 @@ def integrate(base,archive,provider=route_shapes):
                 winner=(relation,shape)
                 break
         if not winner:
+            print("TRAM PATTERN REJECTED",line,"FROM",stations[0],"TO",stations[-1],"N",len(trips),flush=True)
             rejected[line]+=len(trips)
             continue
         relation,shape=winner
+        print("TRAM PATTERN VERIFIED",line,"FROM",stations[0],"TO",stations[-1],"N",len(trips),"OSM",relation,flush=True)
         matched_patterns[line]+=1
         shape_id="tvarbanan-osm:"+line+":"+relation
         for trip in trips:
