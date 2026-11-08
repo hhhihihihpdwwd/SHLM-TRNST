@@ -81,19 +81,17 @@ function dayPlus(iso,days){
  d.setUTCDate(d.getUTCDate()+days);
  return d.toISOString().slice(0,10);
 }
+const swedishMidnightCache=new Map();
 function swedishMidnight(iso){
+ if(swedishMidnightCache.has(iso))return swedishMidnightCache.get(iso);
  const utc=Date.parse(iso+'T00:00:00Z');
  const label=stockholmOffset.formatToParts(new Date(utc)).find(x=>x.type==='timeZoneName')?.value||'GMT+1';
  const m=label.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
  const offset=m?(m[1]==='-'?-1:1)*(Number(m[2])*60+Number(m[3]||0)):60;
- return utc/1000-offset*60;
-}
-function repeatingRailTrip(trip,sourceDay,targetDay){
- const delta=swedishMidnight(targetDay)-swedishMidnight(sourceDay);
- return {...trip,id:trip.id+':DAILY:'+targetDay,
-  serviceDay:targetDay,start:trip.start+delta,end:trip.end+delta,
-  timetableProxy:'Same historical '+(trip.archiveDay||'weekday')+' schedule repeated daily',
-  isLiveGPS:false};
+ const seconds=utc/1000-offset*60;
+ if(swedishMidnightCache.size>20)swedishMidnightCache.clear();
+ swedishMidnightCache.set(iso,seconds);
+ return seconds;
 }
 export function activeRailTrips(dataset,epoch,limit=900){
  if(!dataset)return [];
@@ -103,12 +101,17 @@ export function activeRailTrips(dataset,epoch,limit=900){
  const today=repeating?localDate(epoch):null;
  const targetDays=repeating?[dayPlus(today,-1),today]:[null];
  if(repeating&&!templateDay)return [];
+ const shifts=repeating?targetDays.map(day=>swedishMidnight(day)-swedishMidnight(templateDay)):[0];
  for(const source of dataset.trips){
   if(!['commuter','metro','tram','localrail','saltsjo','express','regional'].includes(source.mode)||source.geometryQuality!=='verified-osm-relation')continue;
   if(repeating && source.serviceDay!==templateDay)continue;
-  for(const targetDay of targetDays){
-   const trip=repeating?repeatingRailTrip(source,templateDay,targetDay):source;
-   if(epoch<trip.start-60||epoch>trip.end+80)continue;
+  for(let index=0;index<targetDays.length;index++){
+   const delta=shifts[index];
+   if(epoch<source.start+delta-60||epoch>source.end+delta+80)continue;
+   const targetDay=targetDays[index];
+   const trip=repeating?{...source,id:source.id+':DAILY:'+targetDay,
+    serviceDay:targetDay,start:source.start+delta,end:source.end+delta,
+    timetableProxy:'Same historical weekday service repeated daily',isLiveGPS:false}:source;
    const geom=geometry(trip.shapeId,dataset.shapes);
    if(!geom)continue;
    const track=anchors(trip,geom);
