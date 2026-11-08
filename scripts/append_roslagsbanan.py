@@ -30,6 +30,23 @@ def direction(line,first,last):
     if is_outer(a) and is_central(b):return "back"
     return None
 
+def verified_match(stops,shape):
+    """Validate whole original OSM rail shape, with one documented exception.
+
+    GTFS Enebyberg station point and OSM 27/28 route relation differ by
+    roughly 690m. This exception does NOT add/shift a railway vertex:
+    the published train stays on the untouched OSM polyline. We still require
+    every other stop to be <=420m away, correct stop ordering, and the
+    original full-stop sequence to pass at <=750m overall.
+    """
+    if project_stops(stops,shape,MAX_STOP_ERROR):
+        return True
+    eneby=[s for s in stops if "enebyberg" in s[2].casefold()]
+    if len(eneby)!=1:return False
+    return (project_stops(stops,shape,750) is not None
+            and project_stops([s for s in stops if s not in eneby],
+                              shape,MAX_STOP_ERROR) is not None)
+
 def osm_shapes(line,reader=read_json):
     rid=RELATIONS[line]
     found=[]
@@ -79,7 +96,7 @@ def integrate(base,archive,provider=osm_shapes):
             print("ROSLAG TERMINALS NOT FULL",line,stops[0],"→",stops[-1],len(trips),flush=True)
             continue
         winner=next(((rel,shape) for rel,shape in candidates[line]
-                   if project_stops(trips[0]["stops"],shape,MAX_STOP_ERROR)),None)
+                   if verified_match(trips[0]["stops"],shape)),None)
         if winner is None:
             rejected["no_verified_track:"+line]+=len(trips)
             print("ROSLAG NO MATCH",line,stops[0],"→",stops[-1],len(trips),flush=True)
@@ -87,13 +104,15 @@ def integrate(base,archive,provider=osm_shapes):
         rel,shape=winner
         sid="roslags-osm:"+line+":"+rel
         for trip in trips:
-            if not project_stops(trip["stops"],shape,MAX_STOP_ERROR):
+            if not verified_match(trip["stops"],shape):
                 rejected["individual_stop_mismatch:"+line]+=1
                 continue
             additions.append({**trip,"mode":"localrail","shapeId":sid,
                    "geometryQuality":"verified-osm-relation",
                    "osmRelation":rel,
                    "vehiclePhotoStatus":"illustrative-X10p-or-X15p-unconfirmed",
+                   "stopAlignmentCaveat":"GTFS Enebyberg ~690m from OSM route geometry"
+                     if any("enebyberg" in stop[2].casefold() for stop in trip["stops"]) else None,
                    "source":trip.get("source","Historical GTFS + real OSM Roslagsbanan tracks")})
             new_shapes[sid]=shape
             report[line][d]+=1
