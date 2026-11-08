@@ -60,6 +60,31 @@ jobs:
           assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
           print('PASS THREE MODES:',d['counts'],'Tram lines:',d['tramLines'])
           PY
+      - name: Diagnose on-screen vehicles per mode and weekday
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const counts={};
+          for(const t of d.trips){
+            const day=t.serviceDay,mode=t.mode;
+            counts[day]??={commuter:0,metro:0,tram:0};
+            counts[day][mode]=(counts[day][mode]||0)+1;
+          }
+          console.log('GTFS SERVICE DAY TOTALS',JSON.stringify(counts));
+          const stockholmOffset=3600;
+          for(const [day,modes] of Object.entries(counts)){
+            for(const hour of [8,12,17,21]){
+              const dt=new Date(day+'T'+String(hour).padStart(2,'0')+':00:00+01:00');
+              const t=dt.getTime()/1000;
+              const raw=d.trips.filter(x=>x.mode==='tram'&&x.start<=t&&x.end>=t);
+              const visible=activeRailTrips(d,t,1000);
+              console.log('VIEWPORT-DATA DIAG',day,hour,'RAW TRAM',raw.length,
+                  'RENDERABLE',JSON.stringify(Object.fromEntries(['commuter','metro','tram'].map(k=>[k,visible.filter(x=>x.mode===k).length]))));
+            }
+          }
+          JS
       - name: Verify approved locally optimized commuter and metro train photos
         run: |
           python -m pip install --disable-pip-version-check Pillow
