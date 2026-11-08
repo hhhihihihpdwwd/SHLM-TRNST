@@ -24,7 +24,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"rail.json"
 ZONE=ZoneInfo("Europe/Stockholm")
 URL="https://data.samtrafiken.se/trafiklab/gtfs-sverige-2/2026/11/sweden-20261104.zip"
-SOURCE_START=dt.date(2026,11,9) # archived reference week Monday-Sunday
+SOURCE_START=dt.date(2026,11,4) # actual archived window; do not request unsupported Nov 15 Sunday
 # Geographic stop retention must cover ALL Pendeltåg termini, not just central
 # Stockholm. In particular Uppsala C (59.86 N) and Nynäshamn (58.90 N)
 # were previously truncated by the 59.00..59.80 bounds.
@@ -105,6 +105,29 @@ def fetch_archive(url=URL):
         raise RuntimeError("Historical archive unavailable or too large")
     return zipfile.ZipFile(io.BytesIO(raw))
 
+def round_robin_service_days(candidates):
+    """Interleave target dates within each mode before per-mode caps apply.
+
+    Rows use (mode, trip_id, stops, route, head, short, target, source_day).
+    Deterministic and fair even if one day has far more departures than another.
+    """
+    buckets=collections.defaultdict(list)
+    for row in candidates:
+        buckets[(row[0],row[6].isoformat())].append(row)
+    for bucket in buckets.values():
+        bucket.sort(key=lambda row:(row[2][0][2],row[1]))
+    ordered=[]
+    for mode in sorted({mode for mode,_ in buckets}):
+        dates=sorted(d for m,d in buckets if m==mode)
+        for entries in zip_longest_nonempty([buckets[(mode,d)] for d in dates]):
+            ordered.extend(entries)
+    return ordered
+
+def zip_longest_nonempty(days):
+    from itertools import zip_longest
+    for row in zip_longest(*days,fillvalue=None):
+        yield [item for item in row if item is not None]
+
 def build(z,now=None):
     now=now or dt.datetime.now(ZONE).date()
     dates=[SOURCE_START+dt.timedelta(days=i) for i in range(7)]
@@ -157,8 +180,10 @@ def build(z,now=None):
             for service_day in valid:
                 for target in targets.get(service_day.weekday(),[]):
                     candidates.append((route["mode"],tid,stop_list,route,head,short,target,service_day))
-    # Fair interleaving by mode, rather than letting buses/rail fill the first N rows.
-    candidates.sort(key=lambda row:(row[0],row[6].isoformat(),row[2][0][2],row[1]))
+    # Prevent the three-day cap from consuming all trains from yesterday.
+    # The old mode->date ordering could create thousands of archived trains
+    # but ZERO active trains today, including a blank Tunnelbana at 20:06.
+    candidates=round_robin_service_days(candidates)
     for category,tid,stop_list,route,head,short,target,source_day in candidates:
         if counts[category]>=LIMIT_PER_MODE[category] or len(entries)>=LIMIT:continue
         # Consecutive stops connected only schematically; no actual tracks inferred.
