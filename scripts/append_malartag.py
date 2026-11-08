@@ -8,6 +8,7 @@ OSM railway route relation. Fail closed if any official corridor/direction lacks
 import collections
 import copy
 import json
+import re
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -185,24 +186,24 @@ def discover_regional_osm_relations():
  raise RuntimeError("OSM Overpass relation discovery unavailable: "+repr(last))
 
 def corridor_relation_match(corridor,item):
- """Selection for later strict geometrical check; never marks a relation valid."""
- names=" ".join(str(item.get(k,"")) for k in ("name","from","to","operator","network"))
- names=norm(names)
- # A generic operator label is NOT evidence for a particular corridor.
- # Require at least two identifiable corridor waypoints in the OSM relation
- # name/from/to. Geometry and ALL GTFS stops must still validate separately.
+ """Select train relation candidates by whole place names, never substrings.
+
+ 'Köping' must not match Nyköping or Norrköping. Operator metadata is
+ intentionally excluded from the place-name test. This is only discovery;
+ full OSM geometry and GTFS stop ordering remain mandatory.
+ """
+ names=norm(" ".join(str(item.get(k,"")) for k in ("name","from","to")))
+ def has_place(place):
+  return re.search(r"(?<!\\w)"+re.escape(norm(place))+r"(?!\\w)",names) is not None
  anchors=CORRIDORS[corridor]
- hits=sum(a in names for a in anchors)
- if hits>=2:return True
- # An OSM train relation may name only one distinctive intermediate station.
- # Matching is a discovery hint, never geometry approval.
+ if sum(has_place(a) for a in anchors)>=2:return True
  hints={
   "orebro-uppsala":("örebro","arboga","köping"),
   "nykoping":("nyköping","vagnhärad","kolmården"),
   "uven":("västerås","kvicksund","kolbäck","ransta","heby","morgongåva"),
   "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus")
  }
- return any(station in names for station in hints[corridor])
+ return any(has_place(station) for station in hints[corridor])
 
 def relation_shapes(corridor,first,last,reader=None):
  """Search public OSM train relations. Validate every result geometrically.
