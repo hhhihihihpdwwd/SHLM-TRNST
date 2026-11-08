@@ -73,6 +73,8 @@ class RoslagsbananTests(unittest.TestCase):
         self.assertEqual(direction("27","Stockholm Östra station","Kårsta station"),"out")
         self.assertEqual(direction("29","Näsbypark station","Stockholm Östra station"),"back")
         self.assertEqual(direction("27","Ormsta","Stockholms östra"),"back")
+        self.assertEqual(direction("27","Lindholmen station","Stockholm Östra station"),"back")
+        self.assertEqual(direction("28","Stockholm Östra station","Åkersberga station"),"out")
         self.assertEqual(direction("28","Österskär","Stockholms östra"),"back")
         self.assertEqual(direction("29","Stockholms östra","Näsbypark"),"out")
         self.assertIsNone(direction("29","Roslags Näsby","Näsbypark"))
