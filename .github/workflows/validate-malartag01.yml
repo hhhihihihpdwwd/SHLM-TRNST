@@ -215,13 +215,26 @@ jobs:
               const inward=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops.at(-1)[2]));
               const outward=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops[0][2]));
               console.log('ROSLAG ON MAP',hour,line,trains.length,'in',inward.length,'out',outward.length);
-              if(!trains.length)throw Error('No map-visible Roslagsbanan '+line+' at '+hour);
+              if(line!=='29'&&!trains.length)throw Error('No map-visible Roslagsbanan '+line+' at '+hour);
               // Line 29 is lower-frequency; verify both directions across full
               // archive separately rather than simultaneous at a single minute.
               if([12,16].includes(hour) && line!=='29' && (!inward.length || !outward.length))
                 throw Error('Missing a Roslagsbanan direction for '+line+' at '+hour);
             }
           }
+          // Sparse line 29: scan actual train positions for the whole day.
+          const seen={in:0,out:0};
+          for(let hour=5;hour<=23;hour++){
+            for(const minute of [0,15,30,45]){
+              const epoch=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00+01:00')/1000;
+              for(const train of activeRailTrips(d,epoch,6000).filter(v=>v.mode==='localrail'&&v.line==='29')){
+                if(/(?:stockholm|stockholms) östra/i.test(train.stops.at(-1)[2]))seen.in++;
+                if(/(?:stockholm|stockholms) östra/i.test(train.stops[0][2]))seen.out++;
+              }
+            }
+          }
+          console.log('ROSLAG 29 FULL-DAY MAP VISIBILITY',seen);
+          if(!seen.in||!seen.out)throw Error('Roslagsbanan 29 lacks map-renderable bidirectional historical trains during day');
           JS
       - name: Confirm Saltsjöbanan map-visible vehicles at four Sunday hours
         run: |
@@ -287,6 +300,8 @@ jobs:
         run: python -u scripts/append_malartag.py
       - name: Audit all ten modes after Mälartåg append
         run: node scripts/audit_visibility_all_systems.mjs
+      - name: Assert identical Monday-Sunday rail traffic with correctly reduced night service
+        run: node scripts/audit_daily_repeat.mjs
       - name: Assert STABLE 06 immutability, five corridors, every stop and vehicle positions
         run: |
           python - <<'PY'
