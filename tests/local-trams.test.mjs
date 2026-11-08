@@ -31,3 +31,15 @@ test('local vehicle photos and UI elements are present; movement and follow engi
  for(const functionName of ['followFrame','railPathSplit','showRealDetail','switchTiles','occupancy'])
    assert(app.includes(functionName));
 });
+
+test('map markers and sidebar share exactly the same line-aware filter',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ assert.match(app,/for\(const v of realActive\.filter\(v=>matchesRailFilter\(v,state\.filter\)\)\.slice\(0,90\)\)/);
+ assert.match(app,/const showing=realActive\.filter\(v=>matchesRailFilter\(v,state\.filter\)\)/);
+ assert(!app.includes("state.filter==='all'||state.filter===v.mode"));
+ for(const f of ['nockeby','lidingo']){
+   const selected=vehicles.filter(v=>matchesRailFilter(v,f));
+   assert.equal(selected.length,1);
+   assert.equal(selected[0].line,f==='nockeby'?'12':'21');
+ }
+});
