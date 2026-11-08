@@ -122,6 +122,24 @@ class MalartagTests(unittest.TestCase):
   pieces=[("first",[[59.0,17.0],[59.02,17.02]]),
           ("far",[[59.7,18.0],[59.8,18.1]])]
   self.assertEqual(mal.connected_route_combinations(pieces),[])
+ def test_branched_relation_recovers_only_real_osm_member_segments(self):
+  # The Hallsberg inventory returned 2 OSM relations but their original
+  # all-or-nothing reconstruction rejected both. Preserve verified pieces.
+  geo={"type":"FeatureCollection","features":[
+   {"geometry":{"type":"LineString","coordinates":[[17.00,59.00],[17.01,59.01],[17.02,59.02]]}},
+   {"geometry":{"type":"LineString","coordinates":[[17.02,59.02],[17.03,59.03],[17.04,59.04]]}},
+   {"geometry":{"type":"LineString","coordinates":[[17.02,59.02],[17.02,59.06],[17.03,59.07]]}}
+  ]}
+  result=mal.geometry_components(geo)
+  self.assertGreaterEqual(len(result),2)
+  self.assertTrue(any(len(part)>=5 for part in result))
+  disconnected={"type":"FeatureCollection","features":[
+   {"geometry":{"type":"LineString","coordinates":[[17.0,59.0],[17.01,59.01]]}},
+   {"geometry":{"type":"LineString","coordinates":[[18.0,60.0],[18.01,60.01]]}}
+  ]}
+  pieces=mal.geometry_components(disconnected)
+  self.assertEqual(len(pieces),2)
+  self.assertFalse(any(len(p)==4 for p in pieces))
  def test_direction(self):
   base,archive,provider=self.make_fixture()
   self.assertEqual(direction_of(archive["trips"][0]),"forward")
