@@ -136,8 +136,12 @@ jobs:
           for(const hour of [8,12,16,20]){
             const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
             const line7=activeRailTrips(d,at,3000).filter(t=>t.mode==='tram'&&String(t.line)==='7');
-            console.log('CITY7 MAP VISIBLE',hour,line7.length);
+            const outward=line7.filter(t=>/t-centralen|sergels torg/i.test(t.stops[0][2]));
+            const returning=line7.filter(t=>/waldemarsudde/i.test(t.stops[0][2]));
+            console.log('CITY7 MAP VISIBLE',hour,line7.length,'out',outward.length,'return',returning.length);
             if(!line7.length)throw new Error('No visible City7 trains at '+hour);
+            if([12,16].includes(hour) && (!outward.length || !returning.length))
+              throw new Error('Missing City7 travel direction at '+hour);
           }
           JS
       - name: Verify both network directions and full Uppsala return route
