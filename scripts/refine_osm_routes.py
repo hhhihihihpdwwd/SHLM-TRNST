@@ -119,9 +119,10 @@ def get_shape(relation):
 def enrich(dataset):
     trips=dataset["trips"]
     # Prioritise tram, where accurate rails make the largest visual difference.
-    mode_priority={"tram":0,"metro":1,"commuter":2,"rail":3}
+    mode_priority={"commuter":0,"tram":1,"metro":2,"rail":3}
     patterns=collections.defaultdict(list)
     for trip in trips:
+        if trip.get('mode')!='commuter':continue
         line=str(trip.get("line","")).strip()
         if not line or len(line)>6:continue
         key=(trip["mode"],line,trip["stops"][0][2],trip["stops"][-1][2])
