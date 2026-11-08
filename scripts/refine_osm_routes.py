@@ -164,6 +164,22 @@ def pinned_pendeltag_shapes(line):
     except (urllib.error.URLError,TimeoutError,ValueError,KeyError):
         return []
 
+
+def choose_directional_shape(stops,source_shapes,limit):
+    """Prefer real direction-specific OSM relation, reverse only as fallback.
+
+    Reversing an existing OSM rail geometry never creates new segments.
+    The full ordered GTFS stops must still validate monotonically.
+    """
+    for relation,shape in source_shapes:
+        if project_stops(stops,shape,limit):
+            return relation,shape
+    for relation,shape in source_shapes:
+        backwards=list(reversed(shape))
+        if project_stops(stops,backwards,limit):
+            return str(relation)+":reverse",backwards
+    return None
+
 def enrich(dataset):
     trips=dataset["trips"]
     patterns=collections.defaultdict(list)
@@ -176,6 +192,7 @@ def enrich(dataset):
     ordered=sorted(patterns.items(),key=lambda item:-len(item[1]))
     shape_cache={}
     successful=collections.Counter()
+    directions=collections.Counter()
     diagnostics=collections.Counter()
     # Fetch each documented OSM corridor once, not once per trip.
     for line in sorted({key[0] for key in patterns}):
@@ -197,15 +214,7 @@ def enrich(dataset):
         if not shapes:
             diagnostics["no_osm_geometry"]+=len(group)
             continue
-        winner=None
-        best_error=float("inf")
-        for relation_id,geom in shapes:
-            matched=project_stops(group[0]["stops"],geom,MATCH_LIMIT["commuter"])
-            if matched:
-                # Prefer the route with the closest overall station alignment.
-                err=abs(matched[-1]-matched[0]-sum(distance(a[:2],b[:2]) for a,b in zip(group[0]["stops"],group[0]["stops"][1:])))
-                if err<best_error:
-                    winner=(relation_id,geom);best_error=err
+        winner=choose_directional_shape(group[0]["stops"],shapes,MATCH_LIMIT["commuter"])
         if not winner:
             diagnostics["stop_alignment_failed"]+=len(group)
             continue
@@ -218,6 +227,7 @@ def enrich(dataset):
                 trip["geometryQuality"]="verified-osm-relation"
                 trip["osmRelation"]=rid
                 successful["commuter"]+=1
+                directions["reversed" if rid.endswith(":reverse") else "original"]+=1
             else:
                 diagnostics["individual_stop_mismatch"]+=1
     dataset["routeRefinement"]={
@@ -225,6 +235,7 @@ def enrich(dataset):
         "verifiedTrips":dict(successful),
         "estimatedTrips":len(trips)-sum(successful.values()),
         "diagnostics":dict(diagnostics),
+        "orientationCounts":dict(directions),
         "patterns":len(patterns),
     }
     return dataset
