@@ -2,11 +2,11 @@
 <html lang="sv">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stockholm Rail — Pendeltåg Focus 01</title>
+<title>Stockholm Rail — Rail Metro 01</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="./src/style.css?v=pendeltag-focus-01">
+<link rel="stylesheet" href="./src/style.css?v=rail-metro-01">
 </head>
 <body>
 <div class="app">
@@ -19,8 +19,8 @@
   <section class="map-section">
    <div id="map" aria-label="Karte von Stockholm"></div>
    <div id="map-fallback" class="map-fallback" hidden>Kartenkacheln derzeit nicht verfügbar. Fahrzeugliste und Simulation bleiben nutzbar.</div>
-   <div class="map-top"><div class="mode-switch"><button data-filter="commuter" class="active">Pendeltåg</button></div><button id="satellite" class="outlined">◫ Satellit</button></div>
-   <div class="map-bottom"><div class="map-note"><strong>PENDELTÅG FOCUS 01</strong><span>Historiskt veckoschema · simulerad position · verifierad spårgeometri</span></div><button id="home" class="outlined">↗ Översikt</button></div>
+   <div class="map-top"><div class="mode-switch"><button data-filter="commuter" class="active">Pendeltåg</button><button data-filter="metro">Tunnelbana</button><button data-filter="all">Alla tåg</button></div><button id="satellite" class="outlined">◫ Satellit</button></div>
+   <div class="map-bottom"><div class="map-note"><strong>RAIL METRO 01</strong><span>Historiskt veckoschema · simulerad position · verifierad spårgeometri</span></div><button id="home" class="outlined">↗ Översikt</button></div>
   </section>
   <aside class="sidebar">
    <div class="sidebar-heading"><div><span class="eyebrow">NETWORK / STOCKHOLM</span><h1>Pendeltåg</h1><p>Välj ett tåg för att utforska dess färd.</p></div></div>
@@ -39,5 +39,5 @@
  </main>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="./src/app.js?v=pendeltag-focus-01"></script>
+<script type="module" src="./src/app.js?v=rail-metro-01"></script>
 </body></html>
