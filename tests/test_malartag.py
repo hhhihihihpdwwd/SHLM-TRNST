@@ -89,6 +89,18 @@ class MalartagTests(unittest.TestCase):
    result=mal.relation_shapes("gavle","Uppsala","Gävle")
   self.assertEqual(len(result),1)
   self.assertEqual(result[0][0],"876")
+ def test_hallsberg_segment_relations_are_discoverable_without_two_termini(self):
+  # Some train OSM relations cover only an intermediate section of a
+  # through service. The next GTFS + geometry checks still decide validity.
+  self.assertTrue(mal.corridor_relation_match("hallsberg",{
+    "name":"Katrineholm - Flen","from":"Katrineholm","to":"Flen",
+    "operator":"SJ"}))
+  self.assertTrue(mal.corridor_relation_match("hallsberg",{
+    "name":"Hallsberg - Vingåker","from":"Hallsberg","to":"Vingåker"}))
+  self.assertFalse(mal.corridor_relation_match("hallsberg",{
+    "name":"Stockholm - Uppsala","from":"Stockholm","to":"Uppsala"}))
+  self.assertFalse(mal.corridor_relation_match("hallsberg",{
+    "name":"SJ long distance","operator":"SJ"}))
  def test_overpass_rejects_unrelated_relations(self):
   self.assertFalse(mal.corridor_relation_match("gavle",{"name":"Stockholm - Malmö",
        "operator":"SJ","from":"Stockholm","to":"Malmö"}))
