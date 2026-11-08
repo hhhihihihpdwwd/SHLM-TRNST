@@ -28,24 +28,6 @@ def build_candidates(gtfs,current):
     finally:
         shared.LINES=previous
     trips=[t for t in result["trips"] if t.get("mode")=="tram" and str(t.get("line",""))==LINE]
-    if current.weekday()==6:
-        date=current.isoformat()
-        saturday=current-dt.timedelta(days=1)
-        prev=saturday.isoformat()
-        today=[t for t in trips if t.get("serviceDay")==date]
-        if visible_at(today,current)<2:
-            source=[t for t in trips if t.get("serviceDay")==prev]
-            if visible_at(source,saturday)<2:
-                raise RuntimeError("No sufficient historical Saturday line 7 service for Sunday simulation")
-            diff=int((dt.datetime.combine(current,dt.time(),archive.ZONE)-
-                      dt.datetime.combine(saturday,dt.time(),archive.ZONE)).total_seconds())
-            replay=[{**t,"id":"CITY7-SUNDAY-PROXY:"+t["id"],
-                     "serviceDay":date,"start":t["start"]+diff,"end":t["end"]+diff,
-                     "timetableProxy":"Historical Saturday pattern repeated on Sunday",
-                     "source":"Private Sunday simulation, NOT current live SL timetable"}
-                    for t in source]
-            trips=[t for t in trips if t.get("serviceDay")!=date]+replay
-            print("SPÅRVÄG CITY SUNDAY HISTORICAL PROXY",len(replay),flush=True)
     result["trips"]=trips
     result["counts"]={"tram":len(trips)}
     result["shapes"]={k:v for k,v in result["shapes"].items()
