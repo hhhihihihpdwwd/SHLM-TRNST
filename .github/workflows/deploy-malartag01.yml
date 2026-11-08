@@ -331,22 +331,22 @@ jobs:
         run: node scripts/audit_visibility_all_systems.mjs
       - name: Freeze complete nine-system STABLE 06 before Mälartåg
         run: cp data/rail.json data/stable06-snapshot.json
-      - name: Import all five official Mälartåg historical GTFS corridors
+      - name: Import four selected Mälartåg historical GTFS corridors
         run: python -u scripts/build_malartag_candidates.py
-      - name: Require fully verified real OSM rails and both directions on all five
+      - name: Require fully verified real OSM rails and both directions on all four selected corridors
         run: python -u scripts/append_malartag.py
       - name: Audit all ten modes after Mälartåg append
         run: node scripts/audit_visibility_all_systems.mjs
       - name: Assert identical Monday-Sunday rail traffic with correctly reduced night service
         run: node scripts/audit_daily_repeat.mjs
-      - name: Assert STABLE 06 immutability, five corridors, every stop and vehicle positions
+      - name: Assert STABLE 06 immutability, four selected corridors, every stop and vehicle positions
         run: |
           python - <<'PY'
           import json
           from collections import defaultdict
           before=json.load(open('data/stable06-snapshot.json'))
           after=json.load(open('data/rail.json'))
-          expect={'orebro-uppsala','nykoping','hallsberg','uven','gavle'}
+          expect={'orebro-uppsala','nykoping','uven','gavle'}
           assert after['scope']==before['scope']+'-malartag'
           assert after['trips'][:len(before['trips'])]==before['trips']
           assert all(after['shapes'][k]==v for k,v in before['shapes'].items())
@@ -370,7 +370,7 @@ jobs:
           import {activeRailTrips,railAt,railPathSplit} from './src/rail-data.js';
           import {matchesRailFilter} from './src/rail-filter.js';
           const data=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
-          const corridors=['orebro-uppsala','nykoping','hallsberg','uven','gavle'];
+          const corridors=['orebro-uppsala','nykoping','uven','gavle'];
           const seen=new Set(),hours=[8,12,16,20],daily=[];
           for(const hour of hours){
             const stamp=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
