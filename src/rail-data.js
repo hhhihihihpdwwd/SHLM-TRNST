@@ -8,9 +8,9 @@ export async function loadRailTimetable(){
   if(!response.ok)return null;
   const data=await response.json();
   if(data.schema!==1||!Array.isArray(data.trips)||!data.shapes||!data.trips.length)return null;
-  if(data.scope!=='pendeltag-only'||!data.counts?.commuter)return null;
+  if(data.scope!=='pendeltag-and-tunnelbana'||!data.counts?.commuter||!data.counts?.metro)return null;
   return data;
- }catch(e){console.warn('Timetable unavailable; demo mode remains active',e);return null}
+ }catch(e){console.warn('Verified timetable unavailable; preserving current release',e);return null}
 }
 function dist(a,b){
  const k=Math.PI/180,R=6371000,dl=(b[1]-a[1])*k,dp=(b[0]-a[0])*k;
@@ -70,7 +70,7 @@ export function activeRailTrips(dataset,epoch,limit=900){
  if(!dataset)return [];
  const candidates=[];
  for(const trip of dataset.trips){
-  if(trip.mode!=='commuter'||trip.geometryQuality!=='verified-osm-relation')continue;
+  if(!['commuter','metro'].includes(trip.mode)||trip.geometryQuality!=='verified-osm-relation')continue;
   if(epoch<trip.start-60||epoch>trip.end+80)continue;
   const geom=geometry(trip.shapeId,dataset.shapes);
   if(!geom)continue;
