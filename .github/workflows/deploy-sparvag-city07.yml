@@ -1,0 +1,185 @@
+name: Deploy Stockholm Rail - Sparvag City 07
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout new rail engine (leave stable main untouched)
+        uses: actions/checkout@v4
+        with:
+          ref: feature/sparvag-city-07
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify code before downloading anything
+        run: |
+          for file in src/*.js; do node --check "$file"; done
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/download_photos.py
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Assert sidebar and map both select lines 12 and 21
+        run: |
+          npm test
+          grep -F "const showing=realActive.filter(v=>matchesRailFilter(v,state.filter));" src/app.js
+      - name: Build public historical Stockholm rail timetable (no API key)
+        run: python -u scripts/build_rail_keyless.py
+      - name: Keep immutable snapshot of historic metro timetable candidates
+        run: cp data/rail.json data/metro_candidates.json
+      - name: Improve mapped rail routes where OSM relation matches the stops
+        run: python -u scripts/refine_osm_routes.py
+      - name: Reject unverified tracks and all other transport modes
+        run: python -u scripts/pendeltag_only.py
+      - name: Append all seven shape-verified Tunnelbana lines to Pendeltåg
+        run: python -u scripts/append_tunnelbana.py
+      - name: Preserve tested Pendeltåg and Tunnelbana snapshot
+        run: cp data/rail.json data/rail-baseline.json
+      - name: Import complete weekend Tvärbanan service window separately
+        run: python -u scripts/build_tvarbanan_candidates.py
+      - name: Append only verified Tvärbanan 30 and 31
+        run: python -u scripts/append_tvarbanan.py
+      - name: Freeze complete original STABLE 01 timetable
+        run: cp data/rail.json data/stable-three-mode.json
+      - name: Prepare Nockebybanan and Lidingöbanan historical timetables
+        run: python -u scripts/build_local_tram_candidates.py
+      - name: Append verified bidirectional local trams 12 and 21
+        run: python -u scripts/append_local_trams.py
+      - name: Freeze entire STABLE 02 service and verified track dataset
+        run: cp data/rail.json data/stable02-snapshot.json
+      - name: Build separate historical Spårväg City 7 timetable
+        run: python -u scripts/build_sparvag_city_candidates.py
+      - name: Verify line 7 OSM rails and append both terminal directions
+        run: python -u scripts/append_sparvag_city.py
+      - name: Verify historical services and explicitly approximate geometry
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('data/rail.json'))
+          assert x['schema']==1 and x['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7'
+          frozen=json.load(open('data/stable02-snapshot.json'))
+          assert x['trips'][:len(frozen['trips'])]==frozen['trips']
+          assert all(x['shapes'][k]==v for k,v in frozen['shapes'].items())
+          assert all(x['counts'][kind]==frozen['counts'][kind] for kind in ('commuter','metro'))
+          assert all(x['tramLines'][line]==frozen['tramLines'][line] for line in ('12','21','30','31'))
+          assert x['city7Directions']['out']>0 and x['city7Directions']['back']>0
+          assert x['trips'] and x['shapes']
+          assert x['counts'].get('commuter',0)>0 and x['counts'].get('metro',0)>0
+          before=json.load(open('data/rail-baseline.json'))
+          assert x['trips'][:len(before['trips'])]==before['trips']
+          assert all(x['shapes'][key]==shape for key,shape in before['shapes'].items())
+          assert all(x['counts'][mode]==before['counts'][mode] for mode in ('commuter','metro'))
+          assert set(x['tramLines'])=={'30','31','12','21','7'} and all(x['tramLines'][line]>0 for line in ('30','31','12','21'))
+          stable=json.load(open('data/stable-three-mode.json'))
+          assert x['trips'][:len(stable['trips'])]==stable['trips']
+          assert all(x['shapes'][k]==v for k,v in stable['shapes'].items())
+          assert all(x['counts'][mode]==stable['counts'][mode] for mode in ('commuter','metro'))
+          assert all(x['tramLines'][line]==stable['tramLines'][line] for line in ('30','31'))
+          for line in ('12','21'):
+              directions=x['localTramDirections'][line]
+              assert directions['out']>0 and directions['back']>0
+          metro={'10','11','13','14','17','18','19'}
+          assert set(x['metroLines'])==metro, 'Incomplete metro line coverage'
+          assert all(t['mode'] in ('commuter','metro','tram') and t['geometryQuality']=='verified-osm-relation'
+              and t['shapeId'] in x['shapes'] for t in x['trips'])
+          uppsala=[t for t in x['trips'] if t['mode']=='commuter'
+                   and 'uppsala' in t.get('destination','').lower()]
+          assert uppsala and all('uppsala' in t['stops'][-1][2].lower()
+                   and t['stops'][-1][0]>=59.8 for t in uppsala)
+          print('UNMODIFIED COMMUTER TRIP COUNT:',x['counts']['commuter'])
+          print('VERIFIED METRO ROUTES:',x['metroLines'])
+          print('VERIFIED LOCAL TRAMWAYS:',x['tramLines'])
+          print('NOTE: ARCHIVED WEEKDAY TIMES, NOT LIVE GPS')
+          PY
+      - name: Verify Tvärbanan exists and is renderable at Sunday midday
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const noon=Date.parse('2026-11-08T12:47:00+01:00')/1000;
+          const trams=activeRailTrips(d,noon,1000).filter(x=>x.mode==='tram');
+          console.log('SUNDAY NOON VISIBLE TVÄRBANAN:',trams.length,
+            trams.map(x=>x.line+':'+x.destination).slice(0,12));
+          if(trams.length<2)throw Error('No visible Tvärbanan services at Sunday noon');
+          JS
+      - name: Refuse the empty-map regression at Sunday 12:47 for BOTH new lines
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const midday=Date.parse('2026-11-08T12:47:00+01:00')/1000;
+          const visible=activeRailTrips(d,midday,2000);
+          for(const line of ['12','21']){
+            const vehicles=visible.filter(t=>t.mode==='tram'&&t.line===line);
+            console.log('SUNDAY LOCAL RAIL LINE',line,'RENDERABLE',vehicles.length);
+            if(!vehicles.length)throw Error('No visible historical trains for line '+line);
+          }
+          JS
+      - name: Verify City 7 renderable in four Sunday time windows
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const line7=activeRailTrips(d,at,3000).filter(t=>t.mode==='tram'&&String(t.line)==='7');
+            console.log('CITY7 MAP VISIBLE',hour,line7.length);
+            if(!line7.length)throw new Error('No visible City7 trains at '+hour);
+          }
+          JS
+      - name: Verify both network directions and full Uppsala return route
+        run: python -u scripts/audit_rail_directions.py
+      - name: Install photo processing library
+        run: python -m pip install --disable-pip-version-check Pillow
+      - name: Prepare local approved rail photos
+        run: python -u scripts/download_photos.py
+      - name: Confirm local approved Tvärbanan photos
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          catalog=json.load(open('photos/catalog.json'))
+          assert 'tram_a35' in catalog, 'Approved A35 Tvärbanan photograph missing'
+          assert 'tram_nockeby12' in catalog and 'tram_lidingo21' in catalog and 'tram_city7' in catalog
+          for key in ('tram_nockeby12','tram_lidingo21','tram_city7'):
+              f=Path(catalog[key]['path'])
+              assert f.is_file() and f.stat().st_size>2500, f'Missing {key} photo'
+          p=Path(catalog['tram_a35']['path'])
+          assert p.is_file() and p.stat().st_size>2500
+          print('APPROVED TVÄRBANAN IMAGE OK:',p)
+          PY
+      - name: Package static preview
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -R src photos _site/
+          mkdir -p _site/data
+          cp data/rail.json _site/data/rail.json
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish only successfully verified rail preview
+        id: deployment
+        uses: actions/deploy-pages@v4
