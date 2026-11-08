@@ -37,6 +37,8 @@ def create(data):
     # Override the general-purpose matcher: focus only on Pendeltåg and
     # use conservative railway geometry tolerance.
     osm.MATCH_LIMIT["commuter"]=MAX_TRACK_ERROR_M
+    osm.MAX_LOOKUPS=28
+    osm.MAX_FETCHES=50
     verified=osm.enrich(data)
     accepted=[]
     for trip in verified["trips"]:
