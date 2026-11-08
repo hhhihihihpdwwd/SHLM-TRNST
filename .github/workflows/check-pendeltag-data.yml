@@ -1,0 +1,29 @@
+name: Validate Pendeltåg Data (no deployment)
+on:
+  push:
+    paths: [.github/workflows/check-pendeltag-data.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/pendeltag-only-v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build public timetable and match verified railway routes
+        run: python -u scripts/build_pendeltag.py
+      - name: Report valid trains and line coverage
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('data/rail.json'))
+          assert d['counts'].get('commuter',0)>=12
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
+          print(d['qualityReport'])
+          PY
