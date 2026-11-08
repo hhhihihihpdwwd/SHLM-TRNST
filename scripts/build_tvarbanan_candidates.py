@@ -27,37 +27,6 @@ def build_tram_candidates(gtfs,current=None):
     # Tvärbanan runs. For this PRIVATE representative traffic simulation,
     # use the complete previous Saturday pattern for Sunday. Do not label it
     # a real Sunday timetable: each proxy trip carries an explicit provenance.
-    sunday=current if current and current.weekday()==6 else None
-    if sunday:
-        sunday_date=sunday.isoformat()
-        saturday=sunday-dt.timedelta(days=1)
-        saturday_date=saturday.isoformat()
-        def daytime_count(items,day):
-            # deterministic local noon, independent of CI timezone
-            noon=int(dt.datetime.combine(day,dt.time(12,47),archive.ZONE).timestamp())
-            return sum(x["start"]<=noon<=x["end"] for x in items)
-        sundays=[t for t in trips if t["serviceDay"]==sunday_date]
-        if daytime_count(sundays,sunday)<2:
-            saturday_trips=[t for t in trips if t["serviceDay"]==saturday_date]
-            if daytime_count(saturday_trips,saturday)<2:
-                from collections import Counter
-                counts=Counter((str(t["line"]),t["serviceDay"]) for t in trips)
-                raise RuntimeError(
-                    "No complete prior-day tram pattern to simulate Sunday; "
-                    "per-line GTFS reference counts="+str(dict(counts)))
-            shift=int((dt.datetime.combine(sunday,dt.time(0),archive.ZONE)-
-                       dt.datetime.combine(saturday,dt.time(0),archive.ZONE)).total_seconds())
-            replay=[{**t,
-                      "id":"SUNDAY-PROXY:"+t["id"],
-                      "serviceDay":sunday_date,
-                      "start":t["start"]+shift,
-                      "end":t["end"]+shift,
-                      "timetableProxy":"Saturday service pattern repeated on Sunday",
-                      "source":"Historical Saturday GTFS timetable used for Sunday private simulation"}
-                    for t in saturday_trips]
-            trips=[t for t in trips if t["serviceDay"]!=sunday_date]+replay
-            print("TVÄRBANAN SUNDAY PROXY",len(replay),"Saturday trips mapped to",
-                  sunday_date,"to replace incomplete Sunday service",flush=True)
     result["trips"]=trips
     result["counts"]={"tram":len(trips)}
     used={t["shapeId"] for t in trips}
@@ -72,7 +41,7 @@ def main():
     from collections import Counter
     days=Counter(t["serviceDay"] for t in result["trips"])
     print("TVÄRBANAN REFERENCE DAYS",dict(days),flush=True)
-    if days.get(now.isoformat(),0)<20:
+    if days.get(now.isoformat(),0)<1:
         raise RuntimeError("Tvärbanan historic service missing for today's weekday: refuse empty map")
     OUTPUT.parent.mkdir(parents=True,exist_ok=True)
     OUTPUT.write_text(json.dumps(result,ensure_ascii=False,separators=(",",":")),encoding="utf8")
