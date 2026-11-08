@@ -33,5 +33,7 @@ def inspect():
                 for suffix,shape in (("",geom),(":reverse",list(reversed(geom)))):
                     match=project_stops(stops,shape,MAX_STOP_ERROR)
                     sampled=[(st[2],round(min(distance(st[:2],point) for point in shape))) for st in stops[::max(1,len(stops)//8)]]
+                    detailed=[(st[2],round(min(distance(st[:2],point) for point in shape))) for st in stops]
                     print("DIAG TRY",line,rid+suffix,"MATCH",bool(match),"STATION DISTANCES",sampled,flush=True)
+                    print("DIAG FULL STATION ERRORS",line,rid+suffix,detailed,flush=True)
 if __name__=="__main__":inspect()
