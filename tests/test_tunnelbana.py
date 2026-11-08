@@ -38,10 +38,18 @@ class MetroIntegrationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"Missing verified Tunnelbana"):
             append_metro(base,metro,lambda line:[] if line=="19" else [("r"+line,points)])
 
-    def test_reject_wrong_direction(self):
+    def test_accept_reverse_travel_on_same_verified_rails(self):
         base,metro,points=self.setup_dataset()
+        result=append_metro(base,metro,lambda line:[("opposite-osm",list(reversed(points)))])
+        self.assertEqual(result["counts"]["metro"],7)
+        self.assertEqual(result["metroDirections"]["reversed"],7)
+        self.assertTrue(all(t["osmRelation"].endswith(":reverse") for t in result["trips"][1:]))
+
+    def test_reject_off_track_geometry(self):
+        base,metro,points=self.setup_dataset()
+        distant=[[p[0]+0.2,p[1]+0.2] for p in points]
         with self.assertRaisesRegex(ValueError,"Missing verified Tunnelbana"):
-            append_metro(base,metro,lambda line:[("wrong",list(reversed(points)))])
+            append_metro(base,metro,lambda line:[("wrong-tracks",distant)])
 
     def test_gtfs_sverige_metro_classification(self):
         for line in METRO_LINES:
