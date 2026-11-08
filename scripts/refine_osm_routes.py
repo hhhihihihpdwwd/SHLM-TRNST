@@ -116,51 +116,117 @@ def get_shape(relation):
     if len(shape)<2 or not all(58.0<p[0]<61.0 and 16.5<p[1]<20.0 for p in shape):return None
     return shape
 
+# SL Pendeltåg route / route_master IDs from the OpenStreetMap Stockholm
+# public transport mapping inventory. Pinning relations avoids ambiguous search.
+# https://wiki.openstreetmap.org/wiki/Sweden/Public_transport/Storstockholms_lokaltrafik
+PENDELTAG_OSM_RELATIONS={
+    "40":2836163,"41":241413,"42X":8506177,"43":241411,
+    "43X":8518405,"44":8518402,"48":241414,
+}
+
+def geometry_from_geojson(value):
+    if not isinstance(value,dict):return None
+    shapes=[]
+    for feature in value.get("features",[]):
+        geom=feature.get("geometry") or {}
+        if geom.get("type")=="LineString":shapes.append(geom.get("coordinates",[]))
+    if not shapes:return None
+    coords=shapes[0]
+    if len(coords)>1700:
+        step=(len(coords)-1)/1699
+        coords=[coords[round(i*step)] for i in range(1700)]
+    try:
+        shape=[[round(float(c[1]),6),round(float(c[0]),6)] for c in coords]
+    except (IndexError,ValueError,TypeError):return None
+    if len(shape)<2 or not all(58.0<p[0]<61.0 and 16.5<p[1]<20.0 for p in shape):
+        return None
+    return shape
+
+def pinned_pendeltag_shapes(line):
+    """A documented OSM id may be route_master OR a route. Support both."""
+    rid=PENDELTAG_OSM_RELATIONS.get(line.upper())
+    if not rid:return []
+    # Query route_master first; master includes both directions and branches.
+    try:
+        data=read_json(BASE+"route_master/"+str(rid))
+        result=[]
+        for route in data.get("routes",[]):
+            geom=geometry_from_geojson(route.get("geojson"))
+            if geom:
+                result.append((str(route.get("id",rid)),geom))
+        if result:return result
+    except (urllib.error.URLError,TimeoutError,ValueError,KeyError):
+        pass
+    try:
+        data=read_json(BASE+"route/"+str(rid))
+        geom=geometry_from_geojson(data.get("geojson"))
+        return [(str(rid),geom)] if geom else []
+    except (urllib.error.URLError,TimeoutError,ValueError,KeyError):
+        return []
+
 def enrich(dataset):
     trips=dataset["trips"]
-    # Prioritise tram, where accurate rails make the largest visual difference.
-    mode_priority={"commuter":0,"tram":1,"metro":2,"rail":3}
     patterns=collections.defaultdict(list)
     for trip in trips:
-        if trip.get('mode')!='commuter':continue
-        line=str(trip.get("line","")).strip()
-        if not line or len(line)>6:continue
-        key=(trip["mode"],line,trip["stops"][0][2],trip["stops"][-1][2])
+        if trip.get("mode")!="commuter":continue
+        line=str(trip.get("line","")).strip().upper()
+        if not line:continue
+        key=(line,trip["stops"][0][2],trip["stops"][-1][2])
         patterns[key].append(trip)
-    ordered=sorted(patterns.items(),key=lambda item:(mode_priority.get(item[0][0],9),-len(item[1])))
-    lookup_cache={}
+    ordered=sorted(patterns.items(),key=lambda item:-len(item[1]))
     shape_cache={}
     successful=collections.Counter()
-    fetches=0
-    for (mode,line,first,last),group in ordered[:MAX_LOOKUPS]:
-        cache_key=(mode,line,first,last)
-        if cache_key not in lookup_cache:lookup_cache[cache_key]=osm_candidates(line,mode,first,last)
-        if not lookup_cache[cache_key]:continue
-        representative=group[0]
-        chosen=None
-        for candidate in lookup_cache[cache_key]:
-            rid=candidate.get("id")
-            if rid not in shape_cache and fetches<MAX_FETCHES:
-                fetches+=1
-                try:shape_cache[rid]=get_shape(candidate)
-                except (urllib.error.URLError,ValueError,TimeoutError,KeyError,TypeError):
-                    shape_cache[rid]=None
-            shape=shape_cache.get(rid)
-            if shape and project_stops(representative["stops"],shape,MATCH_LIMIT.get(mode,350)):
-                chosen=(rid,shape);break
-        if not chosen:continue
-        rid,shape=chosen
-        sid="osm:"+str(rid)
-        dataset["shapes"][sid]=shape
+    diagnostics=collections.Counter()
+    # Fetch each documented OSM corridor once, not once per trip.
+    for line in sorted({key[0] for key in patterns}):
+        shape_cache[line]=pinned_pendeltag_shapes(line)
+        diagnostics["pinned_candidates"]+=len(shape_cache[line])
+        print("OSM PINNED ROUTES",line,"shapes",len(shape_cache[line]),flush=True)
+    # Fallback to search only if a particular line has no pinned geometry.
+    for (line,first,last),group in ordered:
+        shapes=shape_cache.get(line,[])
+        if not shapes:
+            found=osm_candidates(line,"commuter",first,last)
+            for candidate in found[:5]:
+                try:
+                    geom=get_shape(candidate)
+                    if geom:shapes.append((str(candidate["id"]),geom))
+                except (ValueError,TypeError,KeyError,urllib.error.URLError,TimeoutError):
+                    continue
+            shape_cache[line]=shapes
+        if not shapes:
+            diagnostics["no_osm_geometry"]+=len(group)
+            continue
+        winner=None
+        best_error=float("inf")
+        for relation_id,geom in shapes:
+            matched=project_stops(group[0]["stops"],geom,MATCH_LIMIT["commuter"])
+            if matched:
+                # Prefer the route with the closest overall station alignment.
+                err=abs(matched[-1]-matched[0]-sum(distance(a[:2],b[:2]) for a,b in zip(group[0]["stops"],group[0]["stops"][1:])))
+                if err<best_error:
+                    winner=(relation_id,geom);best_error=err
+        if not winner:
+            diagnostics["stop_alignment_failed"]+=len(group)
+            continue
+        rid,geom=winner
+        sid="osm:"+rid
+        dataset["shapes"][sid]=geom
         for trip in group:
-            if project_stops(trip["stops"],shape,MATCH_LIMIT.get(mode,350)):
+            if project_stops(trip["stops"],geom,MATCH_LIMIT["commuter"]):
                 trip["shapeId"]=sid
                 trip["geometryQuality"]="verified-osm-relation"
                 trip["osmRelation"]=rid
-                successful[mode]+=1
-    dataset["routeRefinement"]={"method":"OSM directional public-transport relation, stop-projection guarded",
-        "verifiedTrips":dict(successful),"attemptedPatterns":min(MAX_LOOKUPS,len(patterns)),
-        "estimatedTrips":len(trips)-sum(successful.values())}
+                successful["commuter"]+=1
+            else:
+                diagnostics["individual_stop_mismatch"]+=1
+    dataset["routeRefinement"]={
+        "method":"Pinned OSM Pendeltåg route relations with directional stop-matching",
+        "verifiedTrips":dict(successful),
+        "estimatedTrips":len(trips)-sum(successful.values()),
+        "diagnostics":dict(diagnostics),
+        "patterns":len(patterns),
+    }
     return dataset
 
 def main():
