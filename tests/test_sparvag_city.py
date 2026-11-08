@@ -50,6 +50,8 @@ class City7Tests(unittest.TestCase):
     def test_terminal_aliases(self):
         self.assertEqual(terminus("T-Centralen Spårv","Waldemarsudde"),"out")
         self.assertEqual(terminus("Waldemarsudde","Sergels torg"),"back")
+        self.assertEqual(terminus("Stockholm Waldemarsudde","T-Centralen Spårv"),"back")
+        self.assertEqual(terminus("T-Centralen Spårv","Stockholm Waldemarsudde"),"out")
         self.assertIsNone(terminus("Skansen","T-Centralen"))
     def test_route_master_id(self):
         self.assertEqual(RELATION,2860817)
