@@ -28,7 +28,29 @@ jobs:
           for file in src/*.js; do node --check "$file"; done
           python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/build_roslags_candidates.py scripts/append_roslagsbanan.py scripts/build_saltsjo_candidates.py scripts/append_saltsjobanan.py scripts/build_arlanda_candidates.py scripts/append_arlanda_express.py scripts/build_malartag_candidates.py scripts/append_malartag.py scripts/download_photos.py
           npm test
-          python -m unittest discover -s tests -p 'test_*.py' -v
+          set +e
+          python -m unittest discover -s tests -p 'test_*.py' -v > /tmp/stockholm-python-tests.log 2>&1
+          python_exit=$?
+          set -e
+          if [ "$python_exit" -ne 0 ]; then
+            echo "::group::FAILED PYTHON UNIT TESTS — EXACT ERRORS"
+            python - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/stockholm-python-tests.log').read_text(errors='replace')
+          lines=text.splitlines()
+          first=[i for i,line in enumerate(lines) if line.startswith(('FAIL: ','ERROR: '))]
+          if first:
+              for i in first:
+                  print('\n'.join(lines[i:min(i+33,len(lines))]))
+          else:
+              print('\n'.join(lines[-90:]))
+          PY
+            echo "::endgroup::"
+            echo "::error::Python unit tests failed; precise exception is in FAILED PYTHON UNIT TESTS above"
+            exit "$python_exit"
+          fi
+          echo "Python unit tests passed"
+          tail -n 5 /tmp/stockholm-python-tests.log
       - name: Assert sidebar and map both select lines 12 and 21
         run: |
           npm test
