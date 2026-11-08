@@ -167,7 +167,7 @@ function originalSpriteUrl(key){
 // Small sizes keep the network legible even with hundreds of rail vehicles.
 function miniRailIcon(v,chosen=false){
   const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
-    v.mode==='commuter'?'commuter':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
+    v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
   const img=originalSpriteUrl(imageKey);
   const size=chosen?27:19;
   const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
