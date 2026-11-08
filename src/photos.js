@@ -11,6 +11,7 @@ export function photoForVehicle(v){
  let key=null;
  if(v.mode==='metro')key=['13','14'].includes(line)?'metro_c30':line==='10'||line==='11'?'metro_c20_blue':'metro_c20_green';
  if(v.mode==='commuter')key='commuter_x60';
+ if(v.mode==='express' && v.agency==='Arlanda Express')key='rail_arlanda';
  if(v.mode==='saltsjo')key='local_saltsjo';
  if(v.mode==='localrail')key=String(v.id||'').split('').reduce((n,c)=>n+c.charCodeAt(0),0)%2?'local_x10p':'local_x15p';
  if(v.mode==='tram')key=['30','31'].includes(line)?'tram_a35':line==='12'?'tram_nockeby12':line==='21'?'tram_lidingo21':line==='7'?'tram_city7':null;
