@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 concurrency:
@@ -17,6 +18,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: feature/malartag-01
+      - name: Require green full validation for this exact Mälartåg commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          CURRENT_SHA="$(git rev-parse HEAD)"
+          echo "Checking validated feature commit $CURRENT_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/validate-malartag01.yml/runs?branch=feature/malartag-01&status=success&per_page=60" \
+            --jq '.workflow_runs[].head_sha' > /tmp/malartag-approved-commits
+          if ! grep -Fxq "$CURRENT_SHA" /tmp/malartag-approved-commits; then
+            echo "::error::This Mälartåg feature SHA has not passed full validation. No deploy permitted."
+            exit 1
+          fi
+          echo "Green full pre-deploy validation exists for exactly $CURRENT_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
