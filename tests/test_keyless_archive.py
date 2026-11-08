@@ -12,7 +12,7 @@ import build_rail_keyless as keyless
 class PublicHistoricRailTests(unittest.TestCase):
     def test_sample_archive_without_api_key(self):
         days=[keyless.SOURCE_START+dt.timedelta(days=i) for i in range(7)]
-        service=days[0]
+        service=keyless.REFERENCE_DAY
         rows={
           "agency.txt":"agency_id,agency_name\nsl,SL\n",
           "routes.txt":"route_id,agency_id,route_short_name,route_long_name,route_type\nM,sl,13,Tunnelbana,1\nB,sl,4,Bus,3\n",
@@ -29,7 +29,9 @@ class PublicHistoricRailTests(unittest.TestCase):
             data=keyless.build(archive,now=service)
         self.assertEqual(data["counts"]["metro"],1)
         self.assertEqual(len(data["trips"]),1)
-        self.assertEqual(data["type"],"historical-weekday-simulation")
+        self.assertEqual(data["type"],"historical-daily-repeating-simulation")
+        self.assertEqual(data["referenceDay"],keyless.REFERENCE_DAY.isoformat())
+        self.assertEqual(data["simulationTemplateDay"],service.isoformat())
         self.assertEqual(data["trips"][0]["geometryQuality"],"approximate-stop-connectors")
         self.assertTrue(data["shapes"][data["trips"][0]["shapeId"]])
         self.assertEqual(data["trips"][0]["stops"][0][2],"Slussen")
@@ -38,7 +40,7 @@ class PublicHistoricRailTests(unittest.TestCase):
         """Regression: historic bbox 59.00..59.80 dropped both endpoints."""
         self.assertTrue(keyless.in_box([59.85853,17.64609]))  # Uppsala C
         self.assertTrue(keyless.in_box([58.901,17.949]))     # Nynäshamn
-        day=keyless.SOURCE_START
+        day=keyless.REFERENCE_DAY
         rows={
           "agency.txt":"agency_id,agency_name\nSL,SL\n",
           "routes.txt":"route_id,agency_id,route_short_name,route_long_name,route_type\n"
@@ -66,6 +68,7 @@ class PublicHistoricRailTests(unittest.TestCase):
         archive.seek(0)
         with zipfile.ZipFile(archive) as z:
             data=keyless.build(z,now=day)
+        self.assertEqual(data["referenceDay"],keyless.REFERENCE_DAY.isoformat())
         trip_by_destination={t["destination"]:t for t in data["trips"]}
         self.assertEqual(trip_by_destination["Uppsala Centralstation"]["stops"][-1][2],"Uppsala Centralstation")
         self.assertEqual(len(trip_by_destination["Uppsala Centralstation"]["stops"]),3)
