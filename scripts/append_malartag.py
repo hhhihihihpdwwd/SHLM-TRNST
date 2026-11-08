@@ -24,6 +24,7 @@ MAX_ERROR=650
 MAX_OSM_LOOKUPS=120
 OSM_RESPONSE_BYTES=18_000_000
 OSM_TIMEOUT_SECONDS=40
+OSM_HTTP_CACHE={}
 MAX_FILE=105_000_000
 
 def geometry_large(geojson):
@@ -72,6 +73,7 @@ def read_regional_osm(url):
 
  A failed request is reported, never treated as an empty valid rail route.
  """
+ if url in OSM_HTTP_CACHE:return OSM_HTTP_CACHE[url]
  last=None
  for attempt in range(2):
   try:
@@ -81,7 +83,9 @@ def read_regional_osm(url):
    with urllib.request.urlopen(req,timeout=OSM_TIMEOUT_SECONDS) as response:
     raw=response.read(OSM_RESPONSE_BYTES+1)
    if len(raw)>OSM_RESPONSE_BYTES:raise ValueError("regional OSM relation exceeds 18MB limit")
-   return json.loads(raw)
+   decoded=json.loads(raw)
+   OSM_HTTP_CACHE[url]=decoded
+   return decoded
   except (urllib.error.URLError,TimeoutError,OSError,ValueError) as exc:
    last=exc
    if attempt==0:time.sleep(1)
