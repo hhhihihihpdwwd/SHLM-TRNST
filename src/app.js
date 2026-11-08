@@ -4,7 +4,7 @@ import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-dat
 import {loadPhotoCatalog,photoForVehicle} from './photos.js';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 const $=id=>document.getElementById(id);
-const state={filter:'all',selected:null,follow:false,satellite:false,station:false};
+const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
 function setupMap(){
  if(!window.L){$('map-fallback').hidden=false;return}
@@ -218,6 +218,7 @@ function showRealDetail(){
  const mock={id:v.id,stops:stops.map(s=>({name:s[2]}))},now=stockholmTime();
  const occ=occupancy(mock,idx,now.weekday,Math.floor(now.seconds/3600));
  $('occupancy-value').textContent=occ+'%';$('occupancy-fill').style.width=occ+'%';
+ const speed=$('speed-value');if(speed)speed.textContent=current.kmh+' km/h';
  const container=$('stops');container.innerHTML='';
  for(let i=0;i<stops.length;i++){
   const node=document.createElement('div');node.className='stop'+(i<idx?' passed':i===idx?' next':'');
@@ -227,7 +228,7 @@ function showRealDetail(){
  }
  if(map){
   const segments=railPathSplit(v,current.meters);
-  const approximate=v.geometryQuality==='approximate-stop-connectors';
+  const approximate=false; // Pendeltåg build rejects unverified geometry
   if(selectedRouteId!==v.id||!selectedRouteLines){
    railLayer.clearLayers();
    selectedRouteId=v.id;
@@ -308,20 +309,22 @@ async function initializeReal(){
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent=data.type==='historical-weekday-simulation'?'HISTORICAL RAIL · NO KEY':'GTFS · SCHEDULED';
+ const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · VERIFIED TRACKS';
  const hint=document.querySelector('.map-note span');
  if(hint){
    if(data.type==='historical-weekday-simulation'){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
      const total=data.trips.length;
-     hint.textContent='Historischer Fahrplan · '+verified+' von '+total+' Fahrten auf OSM-Strecken geprüft · übrige Routen gestrichelt/angenähert';
+     hint.textContent=verified+' geprüfte Pendeltåg-Fahrten · historische Fahrzeiten · Positionen geschätzt, kein GPS';
    }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  }
- const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Rail timetable';
+ const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Pendeltåg';
  realLastList=0;tickReal();
 }
 function tick(){
  if(railDataset){tickReal();return}
+ $('clock').textContent=stockholmTime().display;
+ return;
  const now=stockholmTime();$('clock').textContent=now.display;
  if(map){
   const visible=visibleVehicles(),shown=new Set(visible.map(v=>v.id));
@@ -353,11 +356,11 @@ function tick(){
  if(state.selected&&time-lastDetailUpdate>1900){lastDetailUpdate=time;refreshSelected()}
 }
 function start(){
- setupMap();refreshList();
+ setupMap();$('vehicle-list').textContent='Läser in verifierade pendeltåg…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
   state.filter=b.dataset.filter;
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
-  if(state.selected&&state.filter!=='all'&&state.selected.mode!==state.filter)clearSelected();
+  if(state.selected&&state.filter!=='commuter')clearSelected();
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
