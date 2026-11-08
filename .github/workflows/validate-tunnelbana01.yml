@@ -1,0 +1,85 @@
+name: Validate Tunnelbana 01 (no deploy)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-code:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/tunnelbana-isolated-01
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax checks
+        run: |
+          for script in src/*.js; do node --check "$script"; done
+          python -m py_compile scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/download_photos.py
+      - name: Regression tests (both transport modes)
+        run: |
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py' -v
+  validate-live-build:
+    needs: validate-code
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/tunnelbana-isolated-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build public historical timetable
+        run: |
+          python -u scripts/build_rail_keyless.py
+          cp data/rail.json data/metro_candidates.json
+      - name: Validate and freeze existing Pendeltåg railway routes
+        run: |
+          python -u scripts/refine_osm_routes.py
+          python -u scripts/pendeltag_only.py
+          cp data/rail.json data/pendeltag_verified_snapshot.json
+      - name: Append all seven verified Tunnelbana lines
+        run: python -u scripts/append_tunnelbana.py
+      - name: Verify entire rail graph, timetable and preserved Pendeltåg
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before=json.loads(Path('data/pendeltag_verified_snapshot.json').read_text())
+          after=json.loads(Path('data/rail.json').read_text())
+          assert after['scope']=='pendeltag-and-tunnelbana'
+          assert set(after['metroLines'])=={'10','11','13','14','17','18','19'}
+          assert after['counts']['commuter']==before['counts']['commuter']
+          assert after['trips'][:len(before['trips'])]==before['trips']
+          assert all(after['shapes'][k]==v for k,v in before['shapes'].items())
+          assert all(x['geometryQuality']=='verified-osm-relation' for x in after['trips'])
+          assert all(x['shapeId'] in after['shapes'] for x in after['trips'])
+          print('VALIDATION SUCCESS — Pendeltåg unchanged:',after['counts']['commuter'])
+          print('Tunnelbana line trip counts:',after['metroLines'])
+          PY
+      - name: Check approved original rail imagery
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python -u scripts/download_photos.py
+          python - <<'PY'
+          import json
+          x=json.load(open('photos/catalog.json'))
+          print('Approved local train photos:',len(x))
+          assert any(k.startswith('metro_') for k in x)
+          assert 'commuter_x60' in x
+          PY
+      - name: Upload validation evidence without publishing Pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-tunnelbana-01
+          path: |
+            data/rail.json
+            photos/catalog.json
+          retention-days: 3
