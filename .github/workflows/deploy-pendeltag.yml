@@ -27,7 +27,7 @@ jobs:
         run: |
           set -e
           for script in src/*.js; do node --check "$script"; done
-          python -m py_compile scripts/build_pendeltag.py scripts/refine_osm_routes.py scripts/build_rail_keyless.py scripts/download_photos.py
+          python -m py_compile scripts/build_pendeltag.py scripts/pendeltag_graph.py scripts/refine_osm_routes.py scripts/build_rail_keyless.py scripts/download_photos.py
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Build historical Pendeltåg timetables matched to exact OSM rail tracks
@@ -39,7 +39,7 @@ jobs:
           obj=json.load(open('data/rail.json'))
           assert obj['type']=='historical-pendeltag-verified-rail'
           assert obj['strictGeometry'] and obj['counts']['commuter']>=12
-          assert all(t['mode']=='commuter' and t['geometryQuality']=='verified-osm-relation' for t in obj['trips'])
+          assert all(t['mode']=='commuter' and t['geometryQuality']=='verified-osm-rail-graph' for t in obj['trips'])
           assert all(t['shapeId'] in obj['shapes'] for t in obj['trips'])
           print('Verified train trips',len(obj['trips']))
           print('Quality report',obj['qualityReport'])
