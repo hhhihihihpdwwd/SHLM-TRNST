@@ -20,29 +20,46 @@ CORRIDORS={
  "orebro-uppsala":("örebro","eskilstuna","stockholm","uppsala"),
  "nykoping":("norrköping","nyköping","stockholm"),
  "hallsberg":("hallsberg","katrineholm","stockholm"),
- "uven":("linköping","norrköping","eskilstuna","västerås","sala"),
+ "uven":("linköping","norrköping","katrineholm","eskilstuna","västerås","sala","uppsala"),
  "gavle":("uppsala","tierp","gävle"),
 }
+# Prevent ambiguous overlap (e.g. Stockholm-Uppsala on its own) being
+# assigned to the wrong corridor. Do not infer missing journey segments.
+SIGNATURES={
+ "orebro-uppsala":("örebro","arboga","köping"),
+ "nykoping":("nyköping","vagnhärad","kolmården"),
+ "hallsberg":("hallsberg","vingåker"),
+ "uven":("västerås","kvicksund","kolbäck","ransta","heby","morgongåva"),
+ "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus"),
+}
 def norm(s):
- return unicodedata.normalize("NFKC",s or "").casefold().replace(" centralstation","").replace(" central","").replace(" c","").strip()
+ return unicodedata.normalize("NFKC",s or "").casefold().strip()
+def contains_station(name,anchor):
+ # "Sala" must not match "Salaspår", and "C" is never stripped from a city name.
+ value=norm(name).replace(" centralstation","").replace(" central","").replace(" resecentrum","")
+ return value==anchor or value.startswith(anchor+" ") or value.startswith(anchor+"-")
 def agency_ok(s):
  s=norm(s)
  return any(x in s for x in ("mälartåg","mälardalstrafik","malartag","malardalstrafik"))
 def corridor_for(names,route_text=""):
- """Classify only unambiguous services with corridor-specific station evidence."""
+ """Conservative classification from unique corridor stops and route metadata.
+
+ Subsections lacking a distinctive station are not guessed. Identical segments
+ shared by more than one corridor require explicit route naming.
+ """
  names=[norm(n) for n in names]
  text=norm(route_text)
- scores={}
- for key,anchors in CORRIDORS.items():
-  score=sum(any(a in n for n in names) for a in anchors)
-  route_score=sum(a in text for a in anchors)
-  # Two distinguishing stations, plus full direction in stop order.
-  if score>=2 or (score>=1 and route_score>=2):
-   scores[key]=(score,route_score)
- if not scores:return None
- high=max(scores.values())
- winners=[key for key,value in scores.items() if value==high]
- return winners[0] if len(winners)==1 else None
+ hits={key:sum(any(contains_station(n,anchor) for n in names) for anchor in signature)
+       for key,signature in SIGNATURES.items()}
+ best=max(hits.values(),default=0)
+ if best:
+  winners=[key for key,score in hits.items() if score==best]
+  if len(winners)==1:return winners[0]
+  by_route=[key for key in winners if sum(a in text for a in CORRIDORS[key])>=2]
+  return by_route[0] if len(by_route)==1 else None
+ # Route metadata is used only for distinctive, unambiguous route descriptions.
+ matches=[key for key,signature in SIGNATURES.items() if any(a in text for a in signature)]
+ return matches[0] if len(matches)==1 else None
 
 def build(z,now):
  dates=[REF_START+dt.timedelta(days=i) for i in range(7)]
@@ -80,7 +97,7 @@ def build(z,now):
  output=[];counts=collections.Counter();unclassified=0
  for tid,entries in times.items():
   entries.sort(key=lambda x:x[0])
-  if len(entries)<2 or any(a[2]>b[2] for a,b in zip(entries,entries[1:])):continue
+  if len(entries)<2 or any(a[2]>b[2] or a[3]>b[3] for a,b in zip(entries,entries[1:])):continue
   route,days,head,train=selected[tid]
   stops=[e[1] for e in entries]
   corridor=corridor_for([s[2] for s in stops],route["routeText"])
