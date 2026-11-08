@@ -4,7 +4,7 @@ import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-dat
 import {loadPhotoCatalog,photoForVehicle} from './photos.js';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 const $=id=>document.getElementById(id);
-const state={filter:'all',selected:null,follow:false,satellite:false,station:false};
+const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
 function setupMap(){
  if(!window.L){$('map-fallback').hidden=false;return}
@@ -210,6 +210,8 @@ function showRealDetail(){
  const epoch=Date.now()/1000,current=railAt(v,epoch),idx=current.next;
  const stops=v.stops,first=stops[0][3],base=v.start-first;
  $('train-heading').textContent=realTitle(v);
+ $('train-speed').textContent=String(current.kmh);
+ $('motion-status').textContent=current.atStop?'VID STATION':'UNDER FÄRD';
  showVerifiedPhoto(v);
  $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  $('next-stop-name').textContent=stops[idx][2];
@@ -263,7 +265,7 @@ function tickReal(){
  const now=Date.now(),epoch=now/1000;
  $('clock').textContent=stockholmTime(now).display;
  if(now-realLastList>15000){
-  realActive=activeRailTrips(railDataset,epoch,500);realLastList=now;showRealList();
+  realActive=activeRailTrips(railDataset,epoch,180);realLastList=now;showRealList();
   if(state.selected&&!realActive.some(v=>v.id===state.selected.id))clearReal();
  }
  if(!map||now-realLastDraw<90)return;realLastDraw=now;
@@ -304,53 +306,22 @@ function tickReal(){
 
 async function initializeReal(){
  const data=await loadRailTimetable();
- if(!data)return;
+ if(!data){
+  $('vehicle-list').textContent='Inga verifierade pendeltåg tillgängliga. Ingen ungefärlig spårposition visas.';
+  return;
+ }
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent=data.type==='historical-weekday-simulation'?'HISTORICAL RAIL · NO KEY':'GTFS · SCHEDULED';
+ const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · VERIFIED TRACKS';
  const hint=document.querySelector('.map-note span');
- if(hint){
-   if(data.type==='historical-weekday-simulation'){
-     const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
-     const total=data.trips.length;
-     hint.textContent='Historischer Fahrplan · '+verified+' von '+total+' Fahrten auf OSM-Strecken geprüft · übrige Routen gestrichelt/angenähert';
-   }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
- }
+ if(hint)hint.textContent='Archiv-Fahrplan '+(data.archiveSource||'')+' · '+data.qualityReport.verifiedTrips+' geprüfte Fahrten auf OSM-Gleisen · Position/km/h geschätzt, kein Live-GPS';
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent='Rail timetable';
  realLastList=0;tickReal();
 }
 function tick(){
  if(railDataset){tickReal();return}
- const now=stockholmTime();$('clock').textContent=now.display;
- if(map){
-  const visible=visibleVehicles(),shown=new Set(visible.map(v=>v.id));
-  for(const [id,m] of markers){if(!shown.has(id)){map.removeLayer(m);markers.delete(id)}}
-  for(const v of visible){
-   const current=vehicleAt(v,now),chosen=state.selected?.id===v.id,dimmed=!!state.selected&&!chosen;
-   let m=markers.get(v.id);
-   if(!m){
-    m=L.marker(current.pg.position).addTo(map);markers.set(v.id,m);
-    m.on('click',()=>selectVehicle(v));
-   }else m.setLatLng(current.pg.position);
-   const key=[chosen,dimmed].join(':');
-   if(m._railStyle!==key){
-    m._railStyle=key;
-    m.setIcon(L.divIcon({html:`<div class="train-marker" style="background:${v.color};opacity:${dimmed?.34:1};transform:scale(${chosen?1.2:1})">▣</div>`,iconSize:[24,24],iconAnchor:[12,12],className:''}));
-    m.setZIndexOffset(chosen?1000:0);
-   }
-   if(chosen){
-    const nowMs=performance.now();
-    if(nowMs-lastRouteUpdate>1100){routeFor(current);lastRouteUpdate=nowMs}
-    if(state.follow){
-     const center=map.getCenter(),target=L.latLng(current.pg.position);
-     if(map.distance(center,target)>4)map.panTo([center.lat+(target.lat-center.lat)*.06,center.lng+(target.lng-center.lng)*.06],{animate:false});
-    }
-   }
-  }
- }
- const time=performance.now();
- if(state.selected&&time-lastDetailUpdate>1900){lastDetailUpdate=time;refreshSelected()}
+ $('clock').textContent=stockholmTime().display;
 }
 function start(){
  setupMap();refreshList();
@@ -365,6 +336,6 @@ function start(){
  $('tab-trains').onclick=clearSelected;
  $('clear').onclick=clearSelected;
  $('follow').onclick=()=>{state.follow=!state.follow;updateFollow()};
- tick();setInterval(tick,100);requestAnimationFrame(followFrame);loadPhotoCatalog().then(()=>{lastPhotoVehicleId=null;if(state.selected&&railDataset)showVerifiedPhoto(state.selected)});initializeReal();
+ tick();setInterval(tick,150);requestAnimationFrame(followFrame);loadPhotoCatalog().then(()=>{lastPhotoVehicleId=null;if(state.selected&&railDataset)showVerifiedPhoto(state.selected)});initializeReal();
 }
 start();
