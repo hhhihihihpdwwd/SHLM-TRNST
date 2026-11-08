@@ -34,6 +34,43 @@ class PublicHistoricRailTests(unittest.TestCase):
         self.assertTrue(data["shapes"][data["trips"][0]["shapeId"]])
         self.assertEqual(data["trips"][0]["stops"][0][2],"Slussen")
         self.assertEqual(data["trips"][0]["stops"][1][2],"T-Centralen")
+    def test_pendeltag_keeps_uppsala_and_southern_terminals(self):
+        """Regression: historic bbox 59.00..59.80 dropped both endpoints."""
+        self.assertTrue(keyless.in_box([59.85853,17.64609]))  # Uppsala C
+        self.assertTrue(keyless.in_box([58.901,17.949]))     # Nynäshamn
+        day=keyless.SOURCE_START
+        rows={
+          "agency.txt":"agency_id,agency_name\\nSL,SL\\n",
+          "routes.txt":"route_id,agency_id,route_short_name,route_long_name,route_type\\n"
+            "R40,SL,40,Pendeltåg Uppsala,109\\n"
+            "R42,SL,42,Pendeltåg Nynäshamn,109\\n",
+          "calendar_dates.txt":f"service_id,date,exception_type\\nW,{day:%Y%m%d},1\\n",
+          "trips.txt":"route_id,service_id,trip_id,trip_headsign\\n"
+            "R40,W,UP,Uppsala Centralstation\\n"
+            "R42,W,NY,Nynäshamn\\n",
+          "stops.txt":"stop_id,stop_name,stop_lat,stop_lon\\n"
+            "S,Stockholm City,59.3311,18.0603\\n"
+            "M,Märsta station,59.6268,17.8617\\n"
+            "U,Uppsala Centralstation,59.85853,17.64609\\n"
+            "N,Nynäshamn station,58.901,17.949\\n",
+          "stop_times.txt":"trip_id,arrival_time,departure_time,stop_id,stop_sequence\\n"
+            "UP,10:00:00,10:00:00,S,1\\n"
+            "UP,10:30:00,10:30:00,M,2\\n"
+            "UP,11:00:00,11:00:00,U,3\\n"
+            "NY,12:00:00,12:00:00,S,1\\n"
+            "NY,13:00:00,13:00:00,N,2\\n"
+        }
+        archive=io.BytesIO()
+        with zipfile.ZipFile(archive,"w") as z:
+            for name,value in rows.items():z.writestr(name,value)
+        archive.seek(0)
+        with zipfile.ZipFile(archive) as z:
+            data=keyless.build(z,now=day)
+        trip_by_destination={t["destination"]:t for t in data["trips"]}
+        self.assertEqual(trip_by_destination["Uppsala Centralstation"]["stops"][-1][2],"Uppsala Centralstation")
+        self.assertEqual(len(trip_by_destination["Uppsala Centralstation"]["stops"]),3)
+        self.assertEqual(trip_by_destination["Nynäshamn"]["stops"][-1][2],"Nynäshamn station")
+
     def test_gtfs_25_hour_clock(self):
         self.assertEqual(keyless.clock("25:15:00"),90900)
         self.assertIsNone(keyless.clock("25:99:00"))
