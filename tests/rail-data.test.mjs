@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {activeRailTrips,railAt,railPathSplit} from '../src/rail-data.js';
 const now=Math.floor(Date.now()/1000);
-const dataset={schema:1,counts:{metro:1},shapes:{one:[[59.3,18],[59.32,18.02],[59.34,18.04]]},trips:[
-{id:'test',mode:'metro',shapeId:'one',start:now-50,end:now+50,
+const dataset={schema:1,scope:'pendeltag-only',counts:{commuter:1},shapes:{one:[[59.3,18],[59.32,18.02],[59.34,18.04]]},trips:[
+{id:'test',mode:'commuter',geometryQuality:'verified-osm-relation',shapeId:'one',start:now-50,end:now+50,
 stops:[[59.3,18,'First',0,0],[59.32,18.02,'Middle',50,50],[59.34,18.04,'Last',100,100]]}
 ]};
 test('actual GTFS shape is used, no fabricated direct connectors',()=>{
@@ -17,4 +17,16 @@ test('actual GTFS shape is used, no fabricated direct connectors',()=>{
 });
 test('not scheduled outside service time',()=>{
  assert.equal(activeRailTrips(dataset,now+3600).length,0);
+});
+
+test('Pendeltåg scope excludes other modes and unverified geometry',()=>{
+ const other={...dataset.trips[0],id:'metro',mode:'metro'};
+ const bad={...dataset.trips[0],id:'bad',geometryQuality:'approximate-stop-connectors'};
+ const all={...dataset,trips:[dataset.trips[0],other,bad]};
+ assert.deepEqual(activeRailTrips(all,now).map(t=>t.id),['test']);
+});
+test('derived train speed is positive in motion and zero during terminal dwell',()=>{
+ const trip=activeRailTrips(dataset,now)[0];
+ assert(railAt(trip,now).kmh>=0);
+ assert.equal(railAt(trip,now+50).kmh,0);
 });
