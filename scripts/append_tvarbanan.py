@@ -13,7 +13,7 @@ from pathlib import Path
 from refine_osm_routes import BASE, read_json, geometry_from_geojson, project_stops
 
 ROOT=Path(__file__).resolve().parents[1]
-SOURCE=ROOT/"data"/"metro_candidates.json"
+SOURCE=ROOT/"data"/"tvarbanan_candidates.json"
 OUTPUT=ROOT/"data"/"rail.json"
 TVARBANAN={"30":241384,"31":11997852}
 STOP_LIMIT_METERS=280
