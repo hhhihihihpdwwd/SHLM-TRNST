@@ -19,5 +19,5 @@ test('markers reuse original images and remain compact',()=>{
 });
 test('map route quality is not mislabeled verified when fallback estimated',()=>{
  assert(app.includes("v.geometryQuality==='approximate-stop-connectors'"));
- assert(app.includes("verified-osm-relation"));
+ assert(app.includes("verified-osm-rail-graph"));
 });
