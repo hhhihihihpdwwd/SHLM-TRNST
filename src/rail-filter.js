@@ -2,6 +2,7 @@
 export function matchesRailFilter(v,filter){
   if(filter==='all')return true;
   if(filter==='nockeby')return v.mode==='tram'&&String(v.line)==='12';
+  if(filter==='arlanda')return v.mode==='express'&&v.agency==='Arlanda Express';
   if(filter==='saltsjo')return v.mode==='saltsjo'&&['25','26'].includes(String(v.line));
   if(filter==='roslags')return v.mode==='localrail'&&['27','28','29'].includes(String(v.line));
   if(filter==='city7')return v.mode==='tram'&&String(v.line)==='7';
@@ -12,6 +13,6 @@ export function matchesRailFilter(v,filter){
 export function railFilterTitle(filter){
   return ({
     commuter:'Pendeltåg',metro:'Tunnelbana',tram:'Tvärbanan',
-    nockeby:'Nockebybanan',lidingo:'Lidingöbanan',city7:'Spårväg City',roslags:'Roslagsbanan',saltsjo:'Saltsjöbanan',all:'Alla tåg'
+    nockeby:'Nockebybanan',lidingo:'Lidingöbanan',city7:'Spårväg City',roslags:'Roslagsbanan',saltsjo:'Saltsjöbanan',arlanda:'Arlanda Express',all:'Alla tåg'
   })[filter]||'Alla tåg';
 }
