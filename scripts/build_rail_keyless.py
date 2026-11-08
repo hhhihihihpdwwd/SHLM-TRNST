@@ -106,27 +106,29 @@ def fetch_archive(url=URL):
     return zipfile.ZipFile(io.BytesIO(raw))
 
 def round_robin_service_days(candidates):
-    """Interleave target dates within each mode before per-mode caps apply.
+    """Preserve each service day, daytime hour and line under per-mode caps.
 
-    Rows use (mode, trip_id, stops, route, head, short, target, source_day).
-    Deterministic and fair even if one day has far more departures than another.
+    The previous sequential cap picked mainly early departures. Even if a day
+    had hundreds of valid Metro trains, late evening could show zero vehicles.
+    Stratify by day + departure hour + line; interleave each time window before
+    the existing mode caps are applied. This does not fabricate GTFS trips.
     """
     buckets=collections.defaultdict(list)
     for row in candidates:
-        buckets[(row[0],row[6].isoformat())].append(row)
+        mode,tid,stops,route,head,short,target,source_day=row
+        hour=(stops[0][2]//3600)%24
+        line=str(route.get("line",""))
+        buckets[(mode,target.isoformat(),hour,line)].append(row)
     for bucket in buckets.values():
         bucket.sort(key=lambda row:(row[2][0][2],row[1]))
     ordered=[]
-    for mode in sorted({mode for mode,_ in buckets}):
-        dates=sorted(d for m,d in buckets if m==mode)
-        for entries in zip_longest_nonempty([buckets[(mode,d)] for d in dates]):
-            ordered.extend(entries)
-    return ordered
-
-def zip_longest_nonempty(days):
     from itertools import zip_longest
-    for row in zip_longest(*days,fillvalue=None):
-        yield [item for item in row if item is not None]
+    for mode in sorted({key[0] for key in buckets}):
+        keys=sorted((key for key in buckets if key[0]==mode),
+                    key=lambda k:(k[2],k[1],k[3]))
+        for layer in zip_longest(*(buckets[key] for key in keys),fillvalue=None):
+            ordered.extend(item for item in layer if item is not None)
+    return ordered
 
 def build(z,now=None):
     now=now or dt.datetime.now(ZONE).date()
