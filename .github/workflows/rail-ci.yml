@@ -1,0 +1,230 @@
+name: Stockholm Rail - Data Integration Checks
+on:
+  push:
+    branches: [feature/saltsjobanan-01]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile and unit-test the new rail engine
+        run: |
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/build_roslags_candidates.py scripts/append_roslagsbanan.py scripts/build_saltsjo_candidates.py scripts/append_saltsjobanan.py scripts/download_photos.py
+          for file in src/*.js; do node --check "$file"; done
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py' -v
+  verify-full-timetable-without-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build historical SL schedule from free public archive
+        run: |
+          python -u scripts/build_rail_keyless.py
+          cp data/rail.json data/metro_candidates.json
+      - name: Match full-length verified Pendeltåg tracks
+        run: |
+          python -u scripts/refine_osm_routes.py
+          python -u scripts/pendeltag_only.py
+      - name: Append shape-validated Tunnelbana lines 10 11 13 14 17 18 19
+        run: python -u scripts/append_tunnelbana.py
+      - name: Save verified Pendeltåg and Metro baseline
+        run: cp data/rail.json data/rail-baseline.json
+      - name: Build Tvärbanan service days from archive November 4-10 (separate from baseline)
+        run: python -u scripts/build_tvarbanan_candidates.py
+      - name: Add verified Tvärbanan 30 and 31
+        run: python -u scripts/append_tvarbanan.py
+      - name: Freeze the entire tested STABLE 01 data output
+        run: cp data/rail.json data/stable-three-mode.json
+      - name: Build historical Nockebybanan and Lidingöbanan schedules independently
+        run: python -u scripts/build_local_tram_candidates.py
+      - name: Add verified bidirectional line 12 and 21 OSM geometries
+        run: python -u scripts/append_local_trams.py
+      - name: Freeze entire STABLE 02 dataset for byte-exact comparison
+        run: cp data/rail.json data/stable02-snapshot.json
+      - name: Import City 7 historical GTFS timetable
+        run: python -u scripts/build_sparvag_city_candidates.py
+      - name: Append only verified Spårväg City line 7 both directions
+        run: python -u scripts/append_sparvag_city.py
+      - name: Freeze tested STABLE 03 dataset for exact comparison
+        run: cp data/rail.json data/stable03-snapshot.json
+      - name: Import isolated Roslagsbanan 27 28 29 historical timetable
+        run: python -u scripts/build_roslags_candidates.py
+      - name: Append only directionally verified OSM tracks on Roslagsbanan
+        run: python -u scripts/append_roslagsbanan.py
+      - name: Freeze complete STABLE 04 dataset for unchanged journey comparison
+        run: cp data/rail.json data/stable04-snapshot.json
+      - name: Import historical Saltsjöbanan line 25 and 26 only
+        run: python -u scripts/build_saltsjo_candidates.py
+      - name: Append only current 2026 restricted Saltsjöbanan rail services
+        run: python -u scripts/append_saltsjobanan.py
+      - name: Confirm no previous service or geometry changed and City7 validated
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('data/rail.json'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo'
+          frozen04=json.load(open('data/stable04-snapshot.json'))
+          assert d['trips'][:len(frozen04['trips'])]==frozen04['trips']
+          assert all(d['shapes'][k]==v for k,v in frozen04['shapes'].items())
+          assert all(d['counts'][k]==v for k,v in frozen04['counts'].items())
+          assert d['roslagsLines']==frozen04['roslagsLines'] and d['tramLines']==frozen04['tramLines']
+          assert set(d['saltsjoLines'])=={'25','26'}
+          assert all(d['saltsjoDirections'][line][dir]>0 for line in ('25','26') for dir in ('out','back'))
+          frozen=json.load(open('data/stable03-snapshot.json'))
+          assert d['trips'][:len(frozen['trips'])]==frozen['trips']
+          assert all(d['shapes'][key]==value for key,value in frozen['shapes'].items())
+          assert all(d['counts'][key]==value for key,value in frozen['counts'].items())
+          assert d['tramLines']==frozen['tramLines'] and d['metroLines']==frozen['metroLines']
+          assert set(d['roslagsLines'])=={'27','28','29'}
+          assert all(d['roslagsDirections'][line]['out']>0 and d['roslagsDirections'][line]['back']>0 for line in ('27','28','29'))
+          unchanged=json.load(open('data/stable02-snapshot.json'))
+          assert d['trips'][:len(unchanged['trips'])]==unchanged['trips']
+          assert all(d['shapes'][k]==v for k,v in unchanged['shapes'].items())
+          assert all(d['counts'][mode]==unchanged['counts'][mode] for mode in ('commuter','metro'))
+          assert all(d['tramLines'][line]==unchanged['tramLines'][line] for line in ('12','21','30','31'))
+          assert d['city7Directions']['out']>0 and d['city7Directions']['back']>0
+          assert set(d['metroLines'])=={'10','11','13','14','17','18','19'}
+          assert set(d['tramLines'])=={'30','31','12','21','7'}
+          assert all(d['tramLines'][k]>0 for k in ('30','31'))
+          stable=json.load(open('data/stable-three-mode.json'))
+          assert d['trips'][:len(stable['trips'])]==stable['trips']
+          assert all(d['shapes'][key]==shape for key,shape in stable['shapes'].items())
+          assert all(d['counts'][m]==stable['counts'][m] for m in ('commuter','metro'))
+          assert all(d['tramLines'][m]==stable['tramLines'][m] for m in ('30','31'))
+          assert d['counts']['tram']>stable['counts']['tram']
+          assert all(d['localTramDirections'][m]['out']>0 and d['localTramDirections'][m]['back']>0 for m in ('12','21'))
+          baseline=json.load(open('data/rail-baseline.json'))
+          assert d['trips'][:len(baseline['trips'])]==baseline['trips']
+          assert all(d['shapes'][k]==v for k,v in baseline['shapes'].items())
+          assert d['counts']['commuter']==baseline['counts']['commuter']
+          assert d['counts']['metro']==baseline['counts']['metro']
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
+          print('PASS EIGHT RAIL SYSTEMS:',d['counts'],'Saltsjöbanan:',d['saltsjoDirections'])
+          PY
+      - name: Check Roslagsbanan 27 28 29 renderable on map at multiple hours
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const data=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const h of [8,12,16,20]){
+            const t=Date.parse('2026-11-08T'+String(h).padStart(2,'0')+':47:00+01:00')/1000;
+            const visible=activeRailTrips(data,t,3500);
+            for(const line of ['27','28','29']){
+              const trains=visible.filter(v=>v.mode==='localrail'&&v.line===line);
+              const inbound=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops.at(-1)[2]));
+              const outbound=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops[0][2]));
+              console.log('ROSLAG VISIBLE',h,line,trains.length,'inbound',inbound.length,'outbound',outbound.length);
+              if(!trains.length)throw new Error('Roslagsbanan missing '+line+' at '+h);
+              // Do not require simultaneous opposite-direction departures on
+              // lower-frequency line 29 at an arbitrary minute. Both travel
+              // directions are separately required across the full GTFS dataset.
+              if([12,16].includes(h)&&line!=='29'&&(!inbound.length||!outbound.length))
+                throw new Error('Roslagsbanan missing simultaneous directions '+line+' '+h);
+            }
+          }
+          JS
+      - name: Verify actual Saltsjöbanan map-visible trains at four Sunday times
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const epoch=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const active=activeRailTrips(d,epoch,4000);
+            for(const line of ['25','26']){
+              const trains=active.filter(v=>v.mode==='saltsjo'&&String(v.line)===line);
+              const outbound=trains.filter(v=>/saltsjö-järla|igelboda/i.test(v.stops[0][2]));
+              const inbound=trains.filter(v=>/saltsjöbaden|solsidan/i.test(v.stops[0][2]));
+              console.log('SALTSJO VISIBLE',hour,line,trains.length,'out',outbound.length,'back',inbound.length);
+              if(!trains.length && (hour!==20 || line!=='26'))throw Error('Saltsjöbanan not visible '+line+' at '+hour);
+            }
+          }
+          JS
+      - name: Assert reverse-direction trains and Uppsala return journeys
+        run: python -u scripts/audit_rail_directions.py
+      - name: Diagnose on-screen vehicles per mode and weekday
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const counts={};
+          for(const t of d.trips){
+            const day=t.serviceDay,mode=t.mode;
+            counts[day]??={commuter:0,metro:0,tram:0};
+            counts[day][mode]=(counts[day][mode]||0)+1;
+          }
+          console.log('GTFS SERVICE DAY TOTALS',JSON.stringify(counts));
+          // Sunday 2026-11-08 was blank in Preview 01 despite hundreds
+          // of imported trams. A visible, positionable noon service is mandatory.
+          const sunday=Date.parse('2026-11-08T12:47:00+01:00')/1000;
+          const noon=activeRailTrips(d,sunday,1000).filter(v=>v.mode==='tram');
+          console.log('SUNDAY NOON TVÄRBANAN RENDERABLE',noon.length);
+          if(noon.length<2)throw new Error('No Sunday noon Tvärbanan services — refuse deploy');
+          const locals=activeRailTrips(d,sunday,2000);
+          for(const line of ['12','21']){
+            const visible=locals.filter(v=>v.mode==='tram'&&v.line===line);
+            console.log('SUNDAY NOON LINE',line,'RENDERABLE',visible.length);
+            if(!visible.length)throw Error('Empty-map regression on local line '+line);
+          }
+
+          // Test actual renderable City 7 markers at multiple times, not merely
+          // historical trip counts (the previous local-tram bug).
+          for(const hour of [8,12,16,20]){
+            const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const visible=activeRailTrips(d,at,3000).filter(v=>v.mode==='tram'&&v.line==='7');
+            const outward=visible.filter(v=>/t-centralen|sergels torg/i.test(v.stops[0][2]));
+            const returnTrips=visible.filter(v=>/waldemarsudde/i.test(v.stops[0][2]));
+            console.log('CITY7 VISIBLE AT',hour,visible.length,'directions',outward.length,returnTrips.length);
+            if(visible.length<1)throw new Error('City7 invisible in map at '+hour);
+            if([12,16].includes(hour) && (!outward.length||!returnTrips.length))
+              throw new Error('City7 missing a visible direction at '+hour);
+          }
+          for(const [day,modes] of Object.entries(counts)){
+            for(const hour of [8,12,17,21]){
+              const dt=new Date(day+'T'+String(hour).padStart(2,'0')+':00:00+01:00');
+              const t=dt.getTime()/1000;
+              const raw=d.trips.filter(x=>x.mode==='tram'&&x.start<=t&&x.end>=t);
+              const visible=activeRailTrips(d,t,1000);
+              console.log('VIEWPORT-DATA DIAG',day,hour,'RAW TRAM',raw.length,
+                  'RENDERABLE',JSON.stringify(Object.fromEntries(['commuter','metro','tram'].map(k=>[k,visible.filter(x=>x.mode===k).length]))));
+            }
+          }
+          JS
+      - name: Verify approved locally optimized commuter and metro train photos
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python -u scripts/download_photos.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          photos=json.load(open('photos/catalog.json'))
+          assert 'tram_a35' in photos, 'Tvärbanan A35 vehicle photo missing'
+          assert 'tram_nockeby12' in photos, 'Nockebybanan A32 photo missing'
+          assert 'tram_lidingo21' in photos, 'Lidingöbanan A36 photo missing'
+          assert 'tram_city7' in photos, 'Spårväg City A35 photo missing'
+          assert 'local_x15p' in photos and 'local_x10p' in photos, 'Missing Roslagsbanan train model photos'
+          assert 'local_saltsjo' in photos, 'Missing approved Saltsjöbanan train photograph'
+          assert 'commuter_x60' in photos, 'Pendeltåg vehicle photo missing'
+          assert any(p in photos for p in ('metro_c20_blue','metro_c30')), 'Blue/red metro vehicle image missing'
+          assert 'metro_c20_green' in photos, 'Green metro vehicle photo missing'
+          for entry in photos.values():
+              local=Path(entry['path'])
+              assert local.is_file() and local.stat().st_size>2500
+          print('Verified approved vehicle images:',len(photos))
+          PY
+
