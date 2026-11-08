@@ -196,7 +196,7 @@ function showRealList(){
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.mode==='regional'?'MT':(v.line||v.mode.slice(0,2).toUpperCase());
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
-  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.timetableProxy?'Söndag simulerad från historiskt lördagsmönster':railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · simulerat':v.agency+' · Tidtabell, ingen GPS';
+  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
   t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
  }
  list.append(frag);
@@ -229,7 +229,7 @@ function showRealDetail(){
  const stops=v.stops,first=stops[0][3],base=v.start-first;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
- $('train-sub').textContent=v.timetableProxy?'Söndagssimulering: historiskt lördagsmönster · OSM-spår, ingen GPS':railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  if(v.stopAlignmentCaveat)$('train-sub').textContent+=' · Enebybergs stationspunkt avviker cirka 690 m från OSM-linjen';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
@@ -331,7 +331,7 @@ async function initializeReal(){
  const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN · LOKALBANOR · SPÅRVÄG CITY · ROSLAGSBANAN · SALTSJÖBANAN · ARLANDA EXPRESS · MÄLARTÅG';
  const hint=document.querySelector('.map-note span');
  if(hint){
-   if(data.type==='historical-weekday-simulation'){
+   if(data.type?.startsWith('historical-')){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
      const total=data.trips.length;
      hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan + '+data.tramLines['7']+' Spårväg City + '+data.counts.localrail+' Roslagsbanan + '+data.counts.saltsjo+' Saltsjöbanan + '+data.counts.express+' Arlanda Express · historisk tidtabell, simulerade positioner';
