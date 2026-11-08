@@ -19,7 +19,7 @@ def build_tram_candidates(gtfs,current=None):
     old=archive.SOURCE_START
     try:
         archive.SOURCE_START=TRAM_REFERENCE_START
-        result=archive.build(gtfs,now=current)
+        result=archive.build(gtfs,now=current,tram_lines=LINES)
     finally:
         archive.SOURCE_START=old
     trips=[t for t in result["trips"] if t["mode"]=="tram" and str(t.get("line","")) in LINES]
@@ -40,7 +40,11 @@ def build_tram_candidates(gtfs,current=None):
         if daytime_count(sundays,sunday)<2:
             saturday_trips=[t for t in trips if t["serviceDay"]==saturday_date]
             if daytime_count(saturday_trips,saturday)<2:
-                raise RuntimeError("No complete prior-day tram pattern to simulate Sunday")
+                from collections import Counter
+                counts=Counter((str(t["line"]),t["serviceDay"]) for t in trips)
+                raise RuntimeError(
+                    "No complete prior-day tram pattern to simulate Sunday; "
+                    "per-line GTFS reference counts="+str(dict(counts)))
             shift=int((dt.datetime.combine(sunday,dt.time(0),archive.ZONE)-
                        dt.datetime.combine(saturday,dt.time(0),archive.ZONE)).total_seconds())
             replay=[{**t,
