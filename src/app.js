@@ -191,7 +191,7 @@ function showRealList(){
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.line||v.mode.slice(0,2).toUpperCase();
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
-  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · simulerat':v.agency+' · Tidtabell, ingen GPS';
+  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.timetableProxy?'Söndag simulerad från historiskt lördagsmönster':railDataset?.type==='historical-weekday-simulation'?'Historiskt veckoschema · simulerat':v.agency+' · Tidtabell, ingen GPS';
   t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
  }
  list.append(frag);
@@ -217,7 +217,7 @@ function showRealDetail(){
  const stops=v.stops,first=stops[0][3],base=v.start-first;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
- $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=v.timetableProxy?'Söndagssimulering: historiskt lördagsmönster · OSM-spår, ingen GPS':railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
  $('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);
