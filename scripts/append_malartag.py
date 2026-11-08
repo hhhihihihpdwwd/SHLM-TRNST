@@ -68,6 +68,54 @@ def geometry_large(geojson):
   result=[result[round(i*step)] for i in range(9000)]
  return result if all(57.3<p[0]<61.5 and 14.0<p[1]<19.8 for p in result) else None
 
+def geometry_components(geojson, join_metres=15):
+ """Recover individual real track chains from a branching OSM relation.
+
+ The previous geometry_large rejected an entire relation if ANY one member
+ way was disconnected. Instead preserve original members, joining only
+ endpoints that actually touch. Every resulting route still requires complete
+ GTFS stop projection in chronological order before it is accepted.
+ """
+ from refine_osm_routes import distance
+ if not isinstance(geojson,dict):return []
+ fragments=[]
+ features=geojson.get("features",[]) if geojson.get("type")=="FeatureCollection" else [{"geometry":geojson}]
+ for feature in features:
+  g=feature.get("geometry") or {}
+  kind=g.get("type")
+  groups=([g.get("coordinates",[])] if kind=="LineString" else
+          g.get("coordinates",[]) if kind=="MultiLineString" else [])
+  for coords in groups:
+   try:shape=[[round(float(p[1]),6),round(float(p[0]),6)] for p in coords]
+   except (IndexError,ValueError,TypeError):continue
+   if len(shape)>=2 and all(57.3<x[0]<61.5 and 14.0<x[1]<19.8 for x in shape):
+    fragments.append(shape)
+ if not fragments:return []
+ # Preserve branching segments instead of demanding that all relation members
+ # can be forced into one chain. Each original OSM LineString stays intact.
+ if len(fragments)>120:return fragments[:120]
+ changed=True
+ while changed:
+  changed=False
+  for i in range(len(fragments)):
+   if changed:break
+   for j in range(i+1,len(fragments)):
+    a,b=fragments[i],fragments[j]
+    options=[
+      (distance(a[-1],b[0]),a,b),
+      (distance(a[-1],b[-1]),a,list(reversed(b))),
+      (distance(a[0],b[-1]),b,a),
+      (distance(a[0],b[0]),list(reversed(b)),a)
+    ]
+    d,first,second=min(options,key=lambda x:x[0])
+    if d>join_metres:continue
+    joined=first+second[1:] if first[-1]==second[0] else first+second
+    fragments[i]=joined
+    fragments.pop(j)
+    changed=True
+    break
+ return [f for f in fragments if len(f)>=2]
+
 def read_regional_osm(url):
  """Separate large-route HTTP fetch; local lines retain their original limits.
 
@@ -211,13 +259,24 @@ def relation_shapes(corridor,first,last,reader=None):
  geometries=[]
  for rid,item in list(found.items())[:MAX_OSM_LOOKUPS]:
   try:
+   obj={}
    if item.get("geojson"):
     shape=geometry_large(item["geojson"])
    else:
     obj=reader(BASE+"route/"+str(rid))
     shape=geometry_large(obj.get("geojson"))
-   if shape and len(shape)>5:geometries.append((str(rid),shape))
-   else:diagnostics["invalid_or_disconnected_geometry"]+=1
+   if shape and len(shape)>5:
+    geometries.append((str(rid),shape))
+   else:
+    diagnostics["invalid_or_disconnected_geometry"]+=1
+    # Missing/branching relations still contain real OSM track members.
+    # Expose separate actual fragments to the strict directional validator,
+    # rather than throwing away the entire railway.
+    source_geojson=item.get("geojson") or obj.get("geojson")
+    parts=geometry_components(source_geojson)
+    diagnostics["recovered_osm_track_fragments"]+=len(parts)
+    for n,part in enumerate(parts):
+     if len(part)>5:geometries.append((str(rid)+":part"+str(n),part))
   except (OSError,ValueError,TimeoutError,RuntimeError,KeyError) as ex:
    diagnostics["route_download_error"]+=1
    print("MÄLARTÅG OSM ROUTE FAILED",rid,str(ex)[:140],flush=True)
