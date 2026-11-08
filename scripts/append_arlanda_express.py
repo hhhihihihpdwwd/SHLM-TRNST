@@ -62,7 +62,7 @@ def integrate(base,archive,provider=osm_shapes):
             if project_stops(t["stops"],shape,MAX_ERROR) is None:
                 rejected[direction]+=1
                 continue
-            accepted.append({**t,"mode":"express","line":"Arlanda Express","shapeId":sid,
+            accepted.append({**t,"mode":"express","line":"AX","routeNumber":"46","shapeId":sid,
                 "geometryQuality":"verified-osm-relation",
                 "osmRelation":rid,"vehicleModel":"X3","vehiclePhotoStatus":"approved-X3-photo",
                 "source":t.get("source","GTFS Sverige 2 archived timetable")})
