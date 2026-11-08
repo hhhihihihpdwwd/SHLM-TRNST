@@ -25,7 +25,10 @@ OUT=ROOT/"data"/"rail.json"
 ZONE=ZoneInfo("Europe/Stockholm")
 URL="https://data.samtrafiken.se/trafiklab/gtfs-sverige-2/2026/11/sweden-20261104.zip"
 SOURCE_START=dt.date(2026,11,9) # archived reference week Monday-Sunday
-BOX=(59.0,59.80,17.45,18.65)
+# Geographic stop retention must cover ALL Pendeltåg termini, not just central
+# Stockholm. In particular Uppsala C (59.86 N) and Nynäshamn (58.90 N)
+# were previously truncated by the 59.00..59.80 bounds.
+BOX=(58.70,60.10,17.20,19.10)
 LIMIT=9000
 LIMIT_PER_MODE={"metro":2800,"commuter":2300,"rail":2400,"tram":1500}
 MAX_OUTPUT=32_000_000
