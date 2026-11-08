@@ -1,7 +1,7 @@
 name: Stockholm Rail - Data Integration Checks
 on:
   push:
-    branches: [feature/roslagsbanan-01]
+    branches: [feature/saltsjobanan-01]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
           node-version: '22'
       - name: Compile and unit-test the new rail engine
         run: |
-          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/build_roslags_candidates.py scripts/append_roslagsbanan.py scripts/download_photos.py
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/build_roslags_candidates.py scripts/append_roslagsbanan.py scripts/build_saltsjo_candidates.py scripts/append_saltsjobanan.py scripts/download_photos.py
           for file in src/*.js; do node --check "$file"; done
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
@@ -63,12 +63,25 @@ jobs:
         run: python -u scripts/build_roslags_candidates.py
       - name: Append only directionally verified OSM tracks on Roslagsbanan
         run: python -u scripts/append_roslagsbanan.py
+      - name: Freeze complete STABLE 04 dataset for unchanged journey comparison
+        run: cp data/rail.json data/stable04-snapshot.json
+      - name: Import historical Saltsjöbanan line 25 and 26 only
+        run: python -u scripts/build_saltsjo_candidates.py
+      - name: Append only current 2026 restricted Saltsjöbanan rail services
+        run: python -u scripts/append_saltsjobanan.py
       - name: Confirm no previous service or geometry changed and City7 validated
         run: |
           python - <<'PY'
           import json
           d=json.load(open('data/rail.json'))
-          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags'
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo'
+          frozen04=json.load(open('data/stable04-snapshot.json'))
+          assert d['trips'][:len(frozen04['trips'])]==frozen04['trips']
+          assert all(d['shapes'][k]==v for k,v in frozen04['shapes'].items())
+          assert all(d['counts'][k]==v for k,v in frozen04['counts'].items())
+          assert d['roslagsLines']==frozen04['roslagsLines'] and d['tramLines']==frozen04['tramLines']
+          assert set(d['saltsjoLines'])=={'25','26'}
+          assert all(d['saltsjoDirections'][line][dir]>0 for line in ('25','26') for dir in ('out','back'))
           frozen=json.load(open('data/stable03-snapshot.json'))
           assert d['trips'][:len(frozen['trips'])]==frozen['trips']
           assert all(d['shapes'][key]==value for key,value in frozen['shapes'].items())
@@ -98,7 +111,7 @@ jobs:
           assert d['counts']['commuter']==baseline['counts']['commuter']
           assert d['counts']['metro']==baseline['counts']['metro']
           assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
-          print('PASS SEVEN RAIL SYSTEMS:',d['counts'],'Roslagsbanan:',d['roslagsDirections'])
+          print('PASS EIGHT RAIL SYSTEMS:',d['counts'],'Saltsjöbanan:',d['saltsjoDirections'])
           PY
       - name: Check Roslagsbanan 27 28 29 renderable on map at multiple hours
         run: |
@@ -120,6 +133,24 @@ jobs:
               // directions are separately required across the full GTFS dataset.
               if([12,16].includes(h)&&line!=='29'&&(!inbound.length||!outbound.length))
                 throw new Error('Roslagsbanan missing simultaneous directions '+line+' '+h);
+            }
+          }
+          JS
+      - name: Verify actual Saltsjöbanan map-visible trains at four Sunday times
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const epoch=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const active=activeRailTrips(d,epoch,4000);
+            for(const line of ['25','26']){
+              const trains=active.filter(v=>v.mode==='saltsjo'&&String(v.line)===line);
+              const outbound=trains.filter(v=>/saltsjö-järla|igelboda/i.test(v.stops[0][2]));
+              const inbound=trains.filter(v=>/saltsjöbaden|solsidan/i.test(v.stops[0][2]));
+              console.log('SALTSJO VISIBLE',hour,line,trains.length,'out',outbound.length,'back',inbound.length);
+              if(!trains.length)throw Error('Saltsjöbanan not visible '+line+' at '+hour);
             }
           }
           JS
@@ -187,6 +218,7 @@ jobs:
           assert 'tram_lidingo21' in photos, 'Lidingöbanan A36 photo missing'
           assert 'tram_city7' in photos, 'Spårväg City A35 photo missing'
           assert 'local_x15p' in photos and 'local_x10p' in photos, 'Missing Roslagsbanan train model photos'
+          assert 'local_saltsjo' in photos, 'Missing approved Saltsjöbanan train photograph'
           assert 'commuter_x60' in photos, 'Pendeltåg vehicle photo missing'
           assert any(p in photos for p in ('metro_c20_blue','metro_c30')), 'Blue/red metro vehicle image missing'
           assert 'metro_c20_green' in photos, 'Green metro vehicle photo missing'
