@@ -8,7 +8,7 @@ export async function loadRailTimetable(){
   if(!response.ok)return null;
   const data=await response.json();
   if(data.schema!==1||!Array.isArray(data.trips)||!data.shapes||!data.trips.length)return null;
-  if(!data.counts?.metro)return null;
+  if(data.scope!=='pendeltag-only'||!data.counts?.commuter)return null;
   return data;
  }catch(e){console.warn('Timetable unavailable; demo mode remains active',e);return null}
 }
@@ -70,6 +70,7 @@ export function activeRailTrips(dataset,epoch,limit=900){
  if(!dataset)return [];
  const candidates=[];
  for(const trip of dataset.trips){
+  if(trip.mode!=='commuter'||trip.geometryQuality!=='verified-osm-relation')continue;
   if(epoch<trip.start-60||epoch>trip.end+80)continue;
   const geom=geometry(trip.shapeId,dataset.shapes);
   if(!geom)continue;
@@ -92,7 +93,12 @@ export function railAt(trip,epoch){
   const factor=Math.min(1,Math.max(0,(seconds-a)/Math.max(1,b-a)));
   distance=anchor[prev]+(anchor[next]-anchor[prev])*factor;
  }
- return {pos:atDistance(geom,distance),next,meters:distance};
+ let kmh=0;
+ if(next>0 && seconds>=stops[next-1][4] && seconds<stops[next][3]){
+   const duration=stops[next][3]-stops[next-1][4];
+   kmh=duration>0?Math.max(0,(anchor[next]-anchor[next-1])/duration*3.6):0;
+ }
+ return {pos:atDistance(geom,distance),next,meters:distance,kmh:Math.round(kmh)};
 }
 export function railPathSplit(trip,meters){
  const g=trip._geom,a=trip._anchors[0],b=trip._anchors.at(-1),progress=Math.min(b,Math.max(a,meters));
