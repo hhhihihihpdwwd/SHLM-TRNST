@@ -1,7 +1,7 @@
 name: Stockholm Rail - Data Integration Checks
 on:
   push:
-    branches: [feature/tunnelbana-isolated-01]
+    branches: [feature/tvarbanan-isolated-01]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
           node-version: '22'
       - name: Compile and unit-test the new rail engine
         run: |
-          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/download_photos.py
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/download_photos.py
           for file in src/*.js; do node --check "$file"; done
           npm test
           python -m unittest discover -s tests -p 'test_*.py' -v
@@ -39,15 +39,26 @@ jobs:
           python -u scripts/pendeltag_only.py
       - name: Append shape-validated Tunnelbana lines 10 11 13 14 17 18 19
         run: python -u scripts/append_tunnelbana.py
-      - name: Confirm no Pendeltåg regression and all metro routes
+      - name: Save verified Pendeltåg and Metro baseline
+        run: cp data/rail.json data/rail-baseline.json
+      - name: Add verified Tvärbanan 30 and 31
+        run: python -u scripts/append_tvarbanan.py
+      - name: Confirm no Pendeltåg/Tunnelbana regression and both tram routes
         run: |
           python - <<'PY'
           import json
           d=json.load(open('data/rail.json'))
-          assert d['scope']=='pendeltag-and-tunnelbana'
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan'
           assert set(d['metroLines'])=={'10','11','13','14','17','18','19'}
+          assert set(d['tramLines'])=={'30','31'}
+          assert all(d['tramLines'][k]>0 for k in ('30','31'))
+          baseline=json.load(open('data/rail-baseline.json'))
+          assert d['trips'][:len(baseline['trips'])]==baseline['trips']
+          assert all(d['shapes'][k]==v for k,v in baseline['shapes'].items())
+          assert d['counts']['commuter']==baseline['counts']['commuter']
+          assert d['counts']['metro']==baseline['counts']['metro']
           assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'])
-          print('PASS:',d['counts'],'Verified metro lines:',d['metroLines'])
+          print('PASS THREE MODES:',d['counts'],'Tram lines:',d['tramLines'])
           PY
       - name: Verify approved locally optimized commuter and metro train photos
         run: |
@@ -57,6 +68,7 @@ jobs:
           import json
           from pathlib import Path
           photos=json.load(open('photos/catalog.json'))
+          assert 'tram_a35' in photos, 'Tvärbanan A35 vehicle photo missing'
           assert 'commuter_x60' in photos, 'Pendeltåg vehicle photo missing'
           assert any(p in photos for p in ('metro_c20_blue','metro_c30')), 'Blue/red metro vehicle image missing'
           assert 'metro_c20_green' in photos, 'Green metro vehicle photo missing'
