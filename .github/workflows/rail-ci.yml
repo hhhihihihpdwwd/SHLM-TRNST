@@ -111,8 +111,8 @@ jobs:
             const visible=activeRailTrips(data,t,3500);
             for(const line of ['27','28','29']){
               const trains=visible.filter(v=>v.mode==='localrail'&&v.line===line);
-              const inbound=trains.filter(v=>/stockholms östra/i.test(v.destination));
-              const outbound=trains.filter(v=>!/stockholms östra/i.test(v.destination));
+              const inbound=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops.at(-1)[2]));
+              const outbound=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops[0][2]));
               console.log('ROSLAG VISIBLE',h,line,trains.length,'inbound',inbound.length,'outbound',outbound.length);
               if(!trains.length)throw new Error('Roslagsbanan missing '+line+' at '+h);
               if([12,16].includes(h)&&(!inbound.length||!outbound.length))
