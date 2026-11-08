@@ -1,0 +1,18 @@
+name: Diagnose Roslagsbanan OSM (no deploy)
+on:
+  push:
+    branches: [feature/roslagsbanan-01]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnosis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test line 27 28 29 OSM route vertices against GTFS stop positions
+        run: python -u scripts/debug_roslags_geometry.py
