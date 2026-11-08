@@ -1,0 +1,41 @@
+name: Diagnose Arlanda Express archives and OSM (no deploy)
+on:
+  push:
+    branches: [feature/arlanda-express-01]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build historical Arlanda Express only and verify actual OSM geometry
+        run: python -u scripts/smoke_arlanda.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify X3 map positions are renderable at four day times
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/arlanda-smoke.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const t=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const shown=activeRailTrips(d,t,500).filter(v=>v.mode==='express');
+            let airport=0,city=0;
+            for(const v of shown){
+              const point=railAt(v,t);
+              if(!Number.isFinite(point.pos?.[0]))throw Error('Missing X3 map position');
+              if(v.stops[0][2].toLowerCase().includes('stockholm'))airport++;
+              else city++;
+            }
+            console.log('ARLANDA VISIBLE SUNDAY',hour,'total',shown.length,'airport',airport,'city',city);
+            if(!shown.length)throw Error('No Arlanda Express map vehicle at '+hour);
+          }
+          JS
