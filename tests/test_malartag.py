@@ -1,6 +1,8 @@
 import copy
 import sys
 import unittest
+from unittest.mock import patch
+import append_malartag as mal
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
@@ -71,6 +73,25 @@ class MalartagTests(unittest.TestCase):
   disconnected=make([[[18.0000,59.3000],[18.0010,59.3010]],
                       [[18.5000,59.7000],[18.5010,59.7010]]])
   self.assertIsNone(geometry_large(disconnected))
+ def test_overpass_relations_recovered_when_standard_search_returns_zero(self):
+  # The real 2026-11-08 build had 738 GTFS rides, but route-name search
+  # reported zero OSM relations in all five corridors.
+  route={"id":876,"name":"Mälartåg Uppsala - Gävle","from":"Uppsala","to":"Gävle"}
+  geometry={"type":"FeatureCollection","features":[{"geometry":{
+    "type":"LineString","coordinates":[[17.65,59.86],[17.67,59.88],[17.70,59.91],
+    [17.74,59.95],[17.80,60.00],[17.87,60.05]]}}]}
+  def reader(url):
+   if "search?" in url:return {"routes":[]}
+   if "route/876" in url:return {"geojson":geometry}
+   raise AssertionError(url)
+  with patch.object(mal,"read_regional_osm",side_effect=reader),patch.object(
+    mal,"discover_regional_osm_relations",return_value={876:route}):
+   result=mal.relation_shapes("gavle","Uppsala","Gävle")
+  self.assertEqual(len(result),1)
+  self.assertEqual(result[0][0],"876")
+ def test_overpass_rejects_unrelated_relations(self):
+  self.assertFalse(mal.corridor_relation_match("gavle",{"name":"Stockholm - Malmö",
+       "operator":"SJ","from":"Stockholm","to":"Malmö"}))
  def test_direction(self):
   base,archive,provider=self.make_fixture()
   self.assertEqual(direction_of(archive["trips"][0]),"forward")
