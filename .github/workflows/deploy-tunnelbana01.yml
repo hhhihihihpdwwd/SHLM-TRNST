@@ -1,0 +1,87 @@
+name: Deploy Stockholm Rail - Tunnelbana 01
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout new rail engine (leave stable main untouched)
+        uses: actions/checkout@v4
+        with:
+          ref: feature/tunnelbana-isolated-01
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify code before downloading anything
+        run: |
+          for file in src/*.js; do node --check "$file"; done
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/download_photos.py
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Build public historical Stockholm rail timetable (no API key)
+        run: python -u scripts/build_rail_keyless.py
+      - name: Keep immutable snapshot of historic metro timetable candidates
+        run: cp data/rail.json data/metro_candidates.json
+      - name: Improve mapped rail routes where OSM relation matches the stops
+        run: python -u scripts/refine_osm_routes.py
+      - name: Reject unverified tracks and all other transport modes
+        run: python -u scripts/pendeltag_only.py
+      - name: Append all seven shape-verified Tunnelbana lines to Pendeltåg
+        run: python -u scripts/append_tunnelbana.py
+      - name: Verify historical services and explicitly approximate geometry
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('data/rail.json'))
+          assert x['schema']==1 and x['scope']=='pendeltag-and-tunnelbana'
+          assert x['trips'] and x['shapes']
+          assert x['counts'].get('commuter',0)>0 and x['counts'].get('metro',0)>0
+          metro={'10','11','13','14','17','18','19'}
+          assert set(x['metroLines'])==metro, 'Incomplete metro line coverage'
+          assert all(t['mode'] in ('commuter','metro') and t['geometryQuality']=='verified-osm-relation'
+              and t['shapeId'] in x['shapes'] for t in x['trips'])
+          uppsala=[t for t in x['trips'] if t['mode']=='commuter'
+                   and 'uppsala' in t.get('destination','').lower()]
+          assert uppsala and all('uppsala' in t['stops'][-1][2].lower()
+                   and t['stops'][-1][0]>=59.8 for t in uppsala)
+          print('UNMODIFIED COMMUTER TRIP COUNT:',x['counts']['commuter'])
+          print('VERIFIED METRO ROUTES:',x['metroLines'])
+          print('NOTE: ARCHIVED WEEKDAY TIMES, NOT LIVE GPS')
+          PY
+      - name: Install photo processing library
+        run: python -m pip install --disable-pip-version-check Pillow
+      - name: Prepare local approved rail photos
+        run: python -u scripts/download_photos.py
+      - name: Package static preview
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -R src photos _site/
+          mkdir -p _site/data
+          cp data/rail.json _site/data/rail.json
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish only successfully verified rail preview
+        id: deployment
+        uses: actions/deploy-pages@v4
