@@ -106,7 +106,7 @@ jobs:
           assert x['tramLines']==stable04['tramLines'] and x['metroLines']==stable04['metroLines']
           assert set(x['saltsjoLines'])=={'25','26'}
           assert all(x['saltsjoDirections'][line][direction]>0 for line in ('25','26') for direction in ('out','back'))
-          for trip in x['trips'][len(stable04['trips']):]:
+          for trip in x['trips'][len(stable04['trips']):len(frozen05['trips'])]:
               assert trip['mode']=='saltsjo' and trip['line'] in ('25','26')
               first=trip['stops'][0][2].casefold()
               last=trip['stops'][-1][2].casefold()
