@@ -213,7 +213,7 @@ function showRealDetail(){
  $('train-speed').textContent=String(current.kmh);
  $('motion-status').textContent=current.atStop?'VID STATION':'UNDER FÄRD';
  showVerifiedPhoto(v);
- $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=railDataset?.type==='historical-weekday-simulation'?(v.geometryQuality==='verified-osm-rail-graph'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
  $('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);
@@ -229,7 +229,7 @@ function showRealDetail(){
  }
  if(map){
   const segments=railPathSplit(v,current.meters);
-  const approximate=v.geometryQuality==='approximate-stop-connectors';
+  const approximate=!v.geometryQuality?.startsWith('verified-osm-');
   if(selectedRouteId!==v.id||!selectedRouteLines){
    railLayer.clearLayers();
    selectedRouteId=v.id;
