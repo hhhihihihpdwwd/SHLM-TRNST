@@ -1,0 +1,64 @@
+name: Deploy verified SJ 01 artifact - Stockholm Rail (10 systems)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-sj-verified.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download exact SJ website proven by green validation 42575119994
+        uses: actions/download-artifact@v4
+        with:
+          name: stockholm-rail-sj-preview
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42575119994
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Confirm exact ten-system SJ package before publication
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('_site')
+          assert (p/'index.html').is_file()
+          assert (p/'src/app.js').is_file()
+          assert (p/'photos/catalog.json').is_file()
+          d=json.loads((p/'data/rail.json').read_text(encoding='utf8'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj'
+          assert d['type']=='historical-daily-repeating-simulation'
+          expected={'to-goteborg','from-goteborg','to-malmo','from-malmo'}
+          assert set(d.get('sjDirections',{}))==expected
+          assert all(d['sjDirections'][x]>0 for x in expected)
+          assert d['counts']['intercity']==56
+          assert all(d['counts'][k]>0 for k in ('commuter','metro','tram','localrail','saltsjo','express'))
+          assert not any(t.get('mode')=='regional' or t.get('agency')=='Mälartåg' for t in d['trips'])
+          assert 'data-filter="sj"' in (p/'index.html').read_text(encoding='utf8')
+          print('EXACT VERIFIED SJ ARTIFACT READY',d['sjDirections'],'original systems preserved')
+          PY
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy validated SJ 01 package
+        id: deployment
+        uses: actions/deploy-pages@v4
