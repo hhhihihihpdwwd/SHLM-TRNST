@@ -39,6 +39,15 @@ for(const day of days){
  }
  if(!result.metro[7]||!result.metro[20])
   throw Error('Tunnelbana absent at 07:00 or 20:00 on '+day);
+ // Explicit regression for the screenshot taken at 07:01 Stockholm time.
+ const morning=Date.parse(day+'T07:01:00'+tz)/1000;
+ const morningTrains=activeRailTrips(d,morning,20000);
+ const morningModes=filters.filter(filter=>
+  morningTrains.some(t=>matchesRailFilter(t,filter)));
+ if(!morningModes.includes('metro')||!morningModes.includes('commuter')||
+    morningModes.length<4)
+  throw Error('07:01 still has a nearly empty network: '+morningModes.join(', '));
+ console.log('SCREENSHOT 07:01 ACTIVE SYSTEMS',day,morningModes.join(', '));
  console.log('24-HOUR VERIFIED MAP-RENDERABLE TRAINS',day,JSON.stringify(result));
 }
 console.log('STABLE 06 NINE-SYSTEM 24-HOUR AUDIT PASSED',total,'quarter-hour samples');
