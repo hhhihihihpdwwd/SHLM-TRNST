@@ -2,7 +2,7 @@
 """Historical SJ Stockholm–Göteborg services: authentic Friday GTFS, daily replay.
 
 No guessed schedule, no geometry. Track matching happens in append_sj_rail.py.
-Only full Stockholm C <> Göteborg C train services are currently in scope.
+Only full Stockholm C <> Göteborg C or Malmö C train services are in scope.
 """
 import collections
 import datetime as dt
@@ -13,7 +13,7 @@ import build_rail_keyless as gtfs
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"sj_candidates.json"
 REF_DAY=gtfs.REFERENCE_DAY
-ENDS=("stockholm centralstation","göteborg centralstation")
+ENDS=("stockholm centralstation","göteborg centralstation","malmö centralstation")
 ALLOWED_TYPES={"2","100","101","102","103","106","109"}
 
 def normalize(s):
@@ -22,7 +22,9 @@ def normalize(s):
 def direction(names):
  names=[normalize(x) for x in names]
  if names[0]==ENDS[0] and names[-1]==ENDS[1]:return "to-goteborg"
- if names[0]==ENDS[1] and names[-1]==ENDS[0]:return "to-stockholm"
+ if names[0]==ENDS[1] and names[-1]==ENDS[0]:return "from-goteborg"
+ if names[0]==ENDS[0] and names[-1]==ENDS[2]:return "to-malmo"
+ if names[0]==ENDS[2] and names[-1]==ENDS[0]:return "from-malmo"
  return None
 
 def build(z,now):
@@ -84,8 +86,8 @@ def build(z,now):
     "vehiclePhotoStatus":"no-trip-confirmed-photo",
     "isLiveGPS":False})
    stats[d]+=1
- if not candidates or not stats["to-goteborg"] or not stats["to-stockholm"]:
-  raise ValueError("Authentic SJ Stockholm–Göteborg historical service missing in both directions")
+ if not candidates or any(stats[d]<1 for d in ("to-goteborg","from-goteborg","to-malmo","from-malmo")):
+  raise ValueError("Authentic SJ Gothenburg and Malmö historical trains missing in four directions")
  return {"trips":candidates,"counts":dict(stats),"referenceDay":REF_DAY.isoformat()}
 
 def main():
@@ -93,5 +95,5 @@ def main():
   candidates=build(z,dt.datetime.now(gtfs.ZONE).date())
  OUT.parent.mkdir(parents=True,exist_ok=True)
  OUT.write_text(json.dumps(candidates,ensure_ascii=False,separators=(",",":")),encoding="utf8")
- print("SJ HISTORIC STOCKHOLM–GÖTEBORG",candidates["counts"],"TRIPS",len(candidates["trips"]),flush=True)
+ print("SJ HISTORIC STOCKHOLM–GÖTEBORG / MALMÖ",candidates["counts"],"TRIPS",len(candidates["trips"]),flush=True)
 if __name__=="__main__":main()
