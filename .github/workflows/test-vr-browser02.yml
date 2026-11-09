@@ -1,0 +1,81 @@
+name: Browser verify VR 12-system release - NO DEPLOY
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/test-vr-browser02.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vr-browser-safe-02
+          path: _vr
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run all prior source unit and integration tests
+        run: |
+          cd _vr
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          npm test
+          node --check tests/vr-browser-smoke.mjs
+      - name: Retrieve EXACT previously validated 13-train VR preview, not new GTFS/OSM data
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42642058744
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: stockholm-rail-vr-full-13-verified-preview
+          path: _site
+      - name: Apply ONLY frontend cache fixes to the already verified candidate site
+        run: |
+          cp _vr/index.html _site/index.html
+          cp _vr/src/app.js _site/src/app.js
+          cp _vr/src/rail-data.js _site/src/rail-data.js
+          cp _vr/src/rail-filter.js _site/src/rail-filter.js
+          cp _vr/src/photos.js _site/src/photos.js
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('_site')
+          d=json.loads((p/'data/rail.json').read_text(encoding='utf8'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr'
+          assert len(d['trips'])==10402
+          assert d['vrDirections']=={'to-goteborg':7,'to-stockholm':6}
+          assert len([t for t in d['trips'] if t.get('agency')=='VR Snabbtåg'])==13
+          html=(p/'index.html').read_text()
+          app=(p/'src/app.js').read_text()
+          rail=(p/'src/rail-data.js').read_text()
+          for path in ('app.js','rail-data.js','rail-filter.js','photos.js'):
+           assert ('./src/'+path+'?v=vr-browser-fixed-02' if path=='app.js' else './'+path+'?v=vr-browser-fixed-02') in (html if path=='app.js' else app),path
+          assert "'./data/rail.json?v=vr-browser-fixed-02'" in rail
+          assert "['verified-osm-relation','verified-osm-rail-ways'].includes(t.geometryQuality)" in app
+          print('CANDIDATE BROWSER VERSION AND REAL VR TRAIN DATA VERIFIED')
+          PY
+      - name: Install real headless Chromium and browser automation
+        run: |
+          cd _vr
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Actually open the entire website in Chromium and verify real rendered trains
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _vr
+          node tests/vr-browser-smoke.mjs
+      - name: Preserve exact fully Chromium-verified website for final deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockholm-rail-vr-13-browser-verified
+          path: _site/
+          if-no-files-found: error
