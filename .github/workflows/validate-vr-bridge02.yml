@@ -1,0 +1,200 @@
+name: Validate full VR Snabbtåg real OSM bridge – 12 systems (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/validate-vr-bridge02.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout isolated VR Snabbtåg branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/vr-snabbtag-01
+          path: _vr
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run all original 11-system JS and Python tests plus VR regressions
+        run: |
+          cd _vr
+          python -m py_compile scripts/build_vr_candidates.py scripts/append_vr_rail.py
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          npm test
+      - name: Retrieve exact successfully deployed 11-system STABLE 07 page artifact
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42633083267
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _stable07_artifact
+      - name: Download independently proven real railway-node Katrineholm-Hallsberg bridge
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42638189037
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: vr-katrineholm-hallsberg-real-rail
+          path: _bridge
+      - name: Restore only a disposable preview copy of STABLE 07
+        run: |
+          mkdir -p _preview
+          tar -xf _stable07_artifact/artifact.tar -C _preview
+          cp _preview/data/rail.json /tmp/stockholm-stable07-rail.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('_preview')
+          d=json.load(open('/tmp/stockholm-stable07-rail.json'))
+          assert d['type']=='historical-daily-repeating-simulation'
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag'
+          assert len(d['trips'])==10389
+          assert d['counts']['intercity']==56 and d['counts']['regional']==432
+          assert set(d['malartagDirections'])=={'orebro-uppsala','nykoping','uven'}
+          assert d['tramLines']['21']>350
+          assert (p/'photos/catalog.json').is_file()
+          print('FROZEN STABLE 07 PRESERVED',len(d['trips']),'RAIL TRIPS',len(d['shapes']),'VERIFIED TRACKS')
+          PY
+      - name: Build authentic VR Snabbtåg Friday timetable in BOTH directions
+        run: |
+          reference=$(python -c "import json;print(json.load(open('/tmp/stockholm-stable07-rail.json'))['simulationTemplateDay'])")
+          python -u _vr/scripts/build_vr_candidates.py "$reference"
+      - name: Add only VR trains mapped to physically connected and node-matched OSM lines
+        run: |
+          test -s _bridge/vr_osm_bridge.json
+          python -u _vr/scripts/append_vr_rail.py \
+            /tmp/stockholm-stable07-rail.json \
+            _vr/data/vr_candidates.json \
+            _preview/data/rail.json \
+            _bridge/vr_osm_bridge.json
+      - name: Audit unchanged original eleven systems and genuine VR train identity
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('/tmp/stockholm-stable07-rail.json'))
+          b=json.load(open('_preview/data/rail.json'))
+          c=json.load(open('_vr/data/vr_candidates.json'))
+          assert b['scope']==a['scope']+'-vr'
+          assert b['type']==a['type']=='historical-daily-repeating-simulation'
+          assert len(b['trips'])==len(a['trips'])+sum(b['vrDirections'].values())
+          assert b['trips'][:len(a['trips'])]==a['trips']
+          assert all(b['shapes'].get(k)==v for k,v in a['shapes'].items())
+          extra_shapes={k for k in b['shapes'] if k not in a['shapes']}
+          assert extra_shapes<={
+           'vr-osm-rail-ways:katrineholm-hallsberg:forward',
+           'vr-osm-rail-ways:katrineholm-hallsberg:reverse'}
+          assert extra_shapes, "No real VR railway way bridge selected"
+          assert b['sjDirections']==a['sjDirections']
+          assert b['malartagDirections']==a['malartagDirections']
+          assert b['malartagCoverage']==a['malartagCoverage']
+          assert b['localTramDirections']==a['localTramDirections']
+          assert b['tramLines']==a['tramLines']
+          assert b['arlandaDirections']==a['arlandaDirections']
+          assert b['counts']['intercity']==56+sum(b['vrDirections'].values())
+          for k,v in a['counts'].items():
+           if k!='intercity':assert b['counts'][k]==v,(k,b['counts'][k],v)
+          assert set(b['vrDirections'])=={'to-goteborg','to-stockholm'}
+          assert all(n>0 for n in b['vrDirections'].values())
+          added=b['trips'][len(a['trips']):]
+          assert len(added)==13,(len(added),b['vrDirections'])
+          assert b['vrDirections']=={'to-goteborg':7,'to-stockholm':6}
+          assert all(t['mode']=='intercity' and t['agency']=='VR Snabbtåg'
+            and t['archiveDay']=='2026-11-06' and t['direction'] in b['vrDirections']
+            and t['geometryQuality'] in ('verified-osm-relation','verified-osm-rail-ways')
+            and t['shapeId'] in b['shapes']
+            and (t['geometryQuality']=='verified-osm-relation' and t['shapeId'] in a['shapes'] or
+                 t['geometryQuality']=='verified-osm-rail-ways' and
+                 t.get('osmWayNetwork') is True and t['shapeId'] in extra_shapes)
+            and t['isLiveGPS'] is False for t in added)
+          assert all(t['stops'][0][2].casefold().strip()=='stockholm centralstation'
+               if t['direction']=='to-goteborg' else
+               t['stops'][0][2].casefold().strip()=='göteborg centralstation'
+               for t in added)
+          assert all(t['id'].startswith('VR-ARCHIVE:') for t in added)
+          print('STABLE 07 UNCHANGED',len(a['trips']),'TRAIN RECORDS')
+          print('REAL VR ONLY',len(added),'TRAIN RECORDS',b['vrDirections'])
+          PY
+      - name: Overlay only isolated VR UI, preserving original application behavior
+        run: |
+          cp _vr/index.html _preview/index.html
+          cp _vr/src/app.js _preview/src/app.js
+          cp _vr/src/rail-data.js _preview/src/rail-data.js
+          cp _vr/src/rail-filter.js _preview/src/rail-filter.js
+          cp _vr/src/photos.js _preview/src/photos.js
+          touch _preview/.nojekyll
+      - name: Verify real VR X74 licensed photograph and ALL previous photo assets
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('_preview')
+          catalog=json.loads((p/'photos/catalog.json').read_text(encoding='utf8'))
+          for key in ('rail_vr_x74','rail_x2000','rail_malartag','tram_lidingo21'):
+           info=catalog[key]
+           asset=p/info['path']
+           assert asset.is_file() and asset.stat().st_size>2500,(key,asset)
+           assert info['license'].startswith('CC '),(key,info['license'])
+           print('LICENSED PHOTO',key,asset.stat().st_size,info['license'])
+          html=(p/'index.html').read_text(encoding='utf8')
+          app=(p/'src/app.js').read_text(encoding='utf8')
+          photos=(p/'src/photos.js').read_text(encoding='utf8')
+          assert 'data-filter="vr"' in html and 'data-filter="sj"' in html and 'data-filter="malartag"' in html
+          assert 'vr-snabbtag-01' in html and 'vr-snabbtag-01' in app
+          assert 'focusVrSnabbtag()' in app
+          assert 'focusLidingoLine()' in app and 'focusMalartagPilot()' in app
+          assert "v.mode==='intercity' && v.agency==='VR Snabbtåg'" in photos
+          assert 'Exempelbild av VR Snabbtåg X74' in app
+          for item in ('id="satellite"','id="follow"','id="speed-value"','id="occupancy-value"'):
+           assert item in html,item
+          print('VR UI PHOTO/FAIR LIST/FOLLOW/SATELLITE/SPEED/LOAD VALIDATED')
+          PY
+      - name: Check 24-hour VR train positions and full old-network visibility in both directions
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './_vr/src/rail-data.js';
+          import {matchesRailFilter} from './_vr/src/rail-filter.js';
+          const a=JSON.parse(fs.readFileSync('/tmp/stockholm-stable07-rail.json','utf8'));
+          const d=JSON.parse(fs.readFileSync('_preview/data/rail.json','utf8'));
+          for(const [day,offset] of [['2026-11-09','+01:00'],['2026-11-15','+01:00'],['2027-07-13','+02:00']]){
+           const counts={'to-goteborg':0,'to-stockholm':0};
+           for(let h=0;h<24;h++)for(const m of [0,15,30,45]){
+            const epoch=Date.parse(day+'T'+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':00'+offset)/1000;
+            const previous=activeRailTrips(a,epoch,20000);
+            const current=activeRailTrips(d,epoch,20000);
+            const oldCurrent=current.filter(t=>t.agency!=='VR Snabbtåg');
+            if(previous.length!==oldCurrent.length||
+               previous.some((t,i)=>t.id!==oldCurrent[i].id))
+              throw Error('STABLE07 vehicle visibility changed '+day+' hour '+h+':'+m);
+            const vr=current.filter(t=>matchesRailFilter(t,'vr'));
+            for(const t of vr){
+             if(!counts.hasOwnProperty(t.direction))throw Error('Invalid VR direction '+t.id);
+             const pos=railAt(t,epoch);
+             if(!pos.pos.every(Number.isFinite)||!Number.isFinite(pos.kmh)||
+                pos.kmh<0||pos.kmh>350)
+              throw Error('Invalid VR position/speed '+t.id+' '+pos.kmh);
+             counts[t.direction]++;
+            }
+           }
+           for(const direction of Object.keys(counts)){
+            if(counts[direction]<1)throw Error('No VR map-visible trains '+direction+' '+day);
+           }
+           console.log('VR ALL-DAY VERIFIED',day,JSON.stringify(counts),
+                       'STABLE07 old trains unchanged');
+          }
+          JS
+      - name: Upload private verified twelve-system preview, NEVER DEPLOY
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockholm-rail-vr-full-13-verified-preview
+          path: _preview
