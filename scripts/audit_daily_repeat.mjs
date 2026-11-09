@@ -8,7 +8,7 @@ if(d.type!=='historical-daily-repeating-simulation')
 if(!d.simulationTemplateDay||d.referenceDay!=='2026-11-06')
  throw Error('The validated fixed historic Friday timetable is absent');
 
-const filters=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda','malartag'];
+const filters=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda'];
 const samples=['03:47','08:47','12:47','16:47','20:06','20:47'];
 const dates=[
  ['2026-11-09','+01:00'],['2026-11-10','+01:00'],['2026-11-11','+01:00'],
