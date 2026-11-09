@@ -14,12 +14,13 @@ import collections
 import copy
 import datetime as dt
 import json
+import os
 from pathlib import Path
 import build_rail_keyless as gtfs
 from refine_osm_routes import project_stops
 
 ROOT=Path(__file__).resolve().parents[1]
-RAIL=ROOT/"data"/"rail.json"
+RAIL=Path(os.environ.get("STOCKHOLM_RAIL_DATA",str(ROOT/"data"/"rail.json")))
 BASE_SCOPE="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj"
 SATURDAY=dt.date(2026,11,7)
 MAX_DISTANCE=280
