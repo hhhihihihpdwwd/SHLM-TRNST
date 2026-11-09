@@ -1,4 +1,4 @@
-name: Validate Stockholm Rail SJ 01 (NO DEPLOY)
+name: Validate Stockholm Rail SJ 01 – verified four SJ directions (NO DEPLOY)
 on:
   push:
     branches: [main]
