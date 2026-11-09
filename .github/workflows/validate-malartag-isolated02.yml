@@ -1,4 +1,4 @@
-name: Mälartåg isolated pilot 02 – Uppsala-Gävle (NEVER DEPLOY)
+name: Mälartåg isolated pilot 02 – Uppsala-Gävle (preview only, no Pages)
 on:
   push:
     branches: [main]
