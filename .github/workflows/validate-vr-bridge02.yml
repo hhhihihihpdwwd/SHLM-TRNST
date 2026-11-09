@@ -1,4 +1,4 @@
-name: Validate full VR Snabbtåg real OSM bridge – 12 systems (NO DEPLOY)
+name: Validate VR Snabbtåg 13 real OSM trains and protect STABLE 07 (NO DEPLOY)
 on:
   push:
     branches: [main]
