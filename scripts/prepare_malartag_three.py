@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from build_malartag_candidates import contains_station
 from refine_osm_routes import project_stops
+from append_malartag import direction_of
 
 BASE_SCOPE="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj"
 CORRIDORS={
@@ -37,7 +38,10 @@ def prepare(live,audit):
  for key in ("metroLines","tramLines","roslagsLines","saltsjoLines",
              "arlandaDirections","sjDirections","localTramDirections"):
   assert audit[key]==live[key],"audited baseline altered: "+key
- extra=audit["trips"][len(live["trips"]):]
+ source=audit["trips"][len(live["trips"]):]
+ # Pinned 42624208878 audit predates a later direction-field addition.
+ # Infer exactly as its original import did, from authentic ordered GTFS stops.
+ extra=[{**t,"direction":t.get("direction") or direction_of(t)} for t in source]
  assert all(t["corridor"] in CORRIDORS for t in extra),"unverified corridor sneaked into audit"
  assert len(extra)==3*sum(EXPECTED_DAILY.values())==432,"expected 432 actual verifications"
  assert len({t["id"] for t in extra})==len(extra),"duplicate regional trip IDs"
