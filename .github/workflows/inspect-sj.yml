@@ -24,3 +24,4 @@ jobs:
           python -u scripts/discover_sj.py
           python -u scripts/discover_sj_osm.py
           python -u scripts/verify_sj_osm.py
+          echo 'OSM stop distance audit complete'
