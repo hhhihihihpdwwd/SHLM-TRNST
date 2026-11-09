@@ -8,7 +8,7 @@ export async function loadRailTimetable(){
   if(!response.ok)return null;
   const data=await response.json();
   if(data.schema!==1||!Array.isArray(data.trips)||!data.shapes||!data.trips.length)return null;
-  if(!['pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-malartag'].includes(data.scope)||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
+  if(data.scope!=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda'||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
   return data;
  }catch(e){console.warn('Verified timetable unavailable; preserving current release',e);return null}
 }
@@ -103,7 +103,7 @@ export function activeRailTrips(dataset,epoch,limit=900){
  if(repeating&&!templateDay)return [];
  const shifts=repeating?targetDays.map(day=>swedishMidnight(day)-swedishMidnight(templateDay)):[0];
  for(const source of dataset.trips){
-  if(!['commuter','metro','tram','localrail','saltsjo','express','regional'].includes(source.mode)||source.geometryQuality!=='verified-osm-relation')continue;
+  if(!['commuter','metro','tram','localrail','saltsjo','express'].includes(source.mode)||source.geometryQuality!=='verified-osm-relation')continue;
   if(repeating && source.serviceDay!==templateDay)continue;
   for(let index=0;index<targetDays.length;index++){
    const delta=shifts[index];
