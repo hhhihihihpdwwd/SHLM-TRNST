@@ -147,7 +147,12 @@ function showVerifiedPhoto(v){
  img.onerror=()=>{if(token===photoSelection)el.textContent='Fotot kunde inte laddas';};
  const link=document.createElement('a');link.href=pic.source;link.target='_blank';link.rel='noopener noreferrer';
  link.textContent=(pic.author||'Foto')+' · '+(pic.license||'Wikimedia Commons');link.style.cssText='font-size:10px;color:#587B74;margin-top:8px';
- el.append(img,link);
+ if(pic.illustrative){
+  const note=document.createElement('div');
+  note.textContent='Exempelbild av SJ-tåg · fordonstyp för denna avgång ej verifierad';
+  note.style.cssText='font-size:11px;color:#587B74;line-height:1.45;margin-top:5px';
+  el.append(img,note,link);
+ }else el.append(img,link);
 }
 // A compact transport pictogram; unlike the old large dot it stays readable
 // at low zoom and never rebuilds for every animation frame.
