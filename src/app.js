@@ -1,7 +1,7 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
-import {loadPhotoCatalog,photoForVehicle} from './photos.js';
+import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=sj-photo-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js';
 const $=id=>document.getElementById(id);
