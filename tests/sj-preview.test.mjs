@@ -29,9 +29,11 @@ test('real OSM-verified SJ train can be rendered without making up tracks',()=>{
   stops:[[59.33,18.05,'Stockholm C',0,0],[59.28,17.99,'Destination',1200,1200]]};
  const data={shapes:{'sj-test':shape},trips:[valid,
    {...valid,id:'fake',geometryQuality:'approximate-stop-connectors'},
-   {...valid,id:'unrelated',mode:'regional'}]};
+   {...valid,id:'verified-regional',mode:'regional',agency:'Mälartåg'}]};
  const active=activeRailTrips(data,epoch,100);
- assert.deepEqual(active.map(t=>t.id),['sj-valid']);
+ assert.deepEqual(active.map(t=>t.id),['sj-valid','verified-regional']);
+ assert.deepEqual(active.filter(t=>matchesRailFilter(t,'sj')).map(t=>t.id),['sj-valid']);
+ assert.deepEqual(active.filter(t=>matchesRailFilter(t,'malartag')).map(t=>t.id),['verified-regional']);
  const at=railAt(active[0],epoch);
  assert(at.pos.every(Number.isFinite));
  assert(Number.isFinite(at.kmh));
