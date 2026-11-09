@@ -1,0 +1,24 @@
+name: Inspect SJ historical trains (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/inspect-sj.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/sj-rail-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inspect authentic SJ reference-day timetable and route patterns
+        run: |
+          python -m py_compile scripts/discover_sj.py
+          python -u scripts/discover_sj.py
