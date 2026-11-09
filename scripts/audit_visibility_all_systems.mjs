@@ -4,7 +4,6 @@ import {matchesRailFilter} from '../src/rail-filter.js';
 
 const data=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
 const filters=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda'];
-if(data.counts.regional)filters.push('malartag');
 const dates=[...new Set(data.trips.map(t=>t.serviceDay).filter(Boolean))].sort();
 if(!dates.length)throw Error('No dated historical timetable services');
 const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -12,7 +11,10 @@ if(!dates.includes(today))throw Error('Published data does not contain Stockholm
 const stamps=['08:47','12:47','16:47','20:06','20:47'];
 const results={};
 for(const hm of stamps){
- const epoch=Date.parse(today+'T'+hm+':00+01:00')/1000;
+ const zone=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Stockholm',timeZoneName:'shortOffset'})
+  .formatToParts(new Date(today+'T12:00:00Z')).find(x=>x.type==='timeZoneName')?.value||'GMT+1';
+ const offset=zone==='GMT+2'?'+02:00':'+01:00';
+ const epoch=Date.parse(today+'T'+hm+':00'+offset)/1000;
  const trains=activeRailTrips(data,epoch,15000);
  results[hm]={};
  for(const filter of filters){
