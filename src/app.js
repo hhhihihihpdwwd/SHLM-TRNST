@@ -266,7 +266,7 @@ function showRealDetail(){
  const stops=v.stops,first=stops[0][3],base=v.start-first;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
- $('train-sub').textContent=(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema som simulerad reservavgång · OSM-spår, ingen GPS':v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(v.geometryQuality==='verified-osm-relation'?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema som simulerad reservavgång · OSM-spår, ingen GPS':v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(['verified-osm-relation','verified-osm-rail-ways'].includes(v.geometryQuality)?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  if(v.stopAlignmentCaveat)$('train-sub').textContent+=' · Enebybergs stationspunkt avviker cirka 690 m från OSM-linjen';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
@@ -418,7 +418,7 @@ function focusLidingoLine(){
  if(!map||!railDataset)return;
  const journey=railDataset.trips.find(t=>
    matchesRailFilter(t,'lidingo') &&
-   t.geometryQuality==='verified-osm-relation' &&
+   ['verified-osm-relation','verified-osm-rail-ways'].includes(t.geometryQuality) &&
    Array.isArray(t.stops)&&t.stops.length>=2);
  if(!journey)return;
  const points=journey.stops.map(stop=>[Number(stop[0]),Number(stop[1])])
@@ -430,7 +430,7 @@ function focusLidingoLine(){
 function focusMalartagPilot(){
  if(!map||!railDataset)return;
  const trips=railDataset.trips.filter(t=>matchesRailFilter(t,'malartag')&&
-   t.geometryQuality==='verified-osm-relation'&&Array.isArray(t.stops));
+   ['verified-osm-relation','verified-osm-rail-ways'].includes(t.geometryQuality)&&Array.isArray(t.stops));
  if(!trips.length)return;
  const points=trips.flatMap(t=>t.stops.map(s=>[Number(s[0]),Number(s[1])]))
    .filter(p=>p.every(Number.isFinite));
