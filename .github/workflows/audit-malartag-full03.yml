@@ -24,6 +24,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Cache authentic Overpass railway-way geometries for reproducible retries
+        uses: actions/cache@v4
+        with:
+          path: _candidate/data/malartag_osm_ways
+          key: stockholm-rail-malartag-osm-ways-full03
       - name: Check syntax and JS/Python regressions
         run: |
           cd _candidate
