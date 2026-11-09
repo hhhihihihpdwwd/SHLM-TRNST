@@ -138,11 +138,11 @@ jobs:
             console.log('VERIFIED 24-HOUR THREE-CORRIDOR MAP',day,JSON.stringify(counts));
           }
           JS
+      - uses: actions/configure-pages@v5
       - name: Upload exact release website, only after every test passed
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - uses: actions/configure-pages@v5
   deploy:
     needs: build
     runs-on: ubuntu-latest
