@@ -195,7 +195,7 @@ def corridor_relation_match(corridor,item):
  """
  names=norm(" ".join(str(item.get(k,"")) for k in ("name","from","to")))
  def has_place(place):
-  return re.search(r"(?<!\\w)"+re.escape(norm(place))+r"(?!\\w)",names) is not None
+  return re.search(r"(?<!\w)"+re.escape(norm(place))+r"(?!\w)",names) is not None
  anchors=CORRIDORS[corridor]
  if sum(has_place(a) for a in anchors)>=2:return True
  hints={
