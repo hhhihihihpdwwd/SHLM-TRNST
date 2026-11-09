@@ -1,9 +1,9 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
-import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=vr-snabbtag-01';
-import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=vr-snabbtag-01';
+import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=vr-browser-fixed-02';
+import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=vr-browser-fixed-02';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
-import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=vr-snabbtag-01';
+import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=vr-browser-fixed-02';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
@@ -445,7 +445,8 @@ function focusMalartagPilot(){
 function focusVrSnabbtag(){
  if(!map||!railDataset)return;
  const trip=railDataset.trips.find(t=>matchesRailFilter(t,'vr')&&
-   t.geometryQuality==='verified-osm-relation'&&Array.isArray(t.stops));
+   ['verified-osm-relation','verified-osm-rail-ways'].includes(t.geometryQuality)&&
+   Array.isArray(t.stops));
  if(!trip)return;
  const points=trip.stops.map(s=>[Number(s[0]),Number(s[1])])
   .filter(p=>p.every(Number.isFinite));
