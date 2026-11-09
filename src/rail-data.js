@@ -1,6 +1,6 @@
 // GTFS timetable adapter: UTC epoch for times, source shape coordinates for positions.
 // No fallback straight-track geometry for actual services.
-const TIMETABLE_URL='./data/rail.json';
+const TIMETABLE_URL='./data/rail.json?v=vr-browser-fixed-02';
 const pathCache=new Map(),projectionCache=new Map();
 export async function loadRailTimetable(){
  try {
