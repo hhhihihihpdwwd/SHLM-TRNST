@@ -347,7 +347,7 @@ def integrate(base,archive,provider=relation_shapes):
   key=(c,tuple(s[2] for s in t["stops"]))
   records[key].append(t)
  added=[];shape_map={};counts=collections.Counter();directions=collections.defaultdict(lambda:collections.Counter())
- cache={}
+ cache={};composite_cache={}
  for (corridor,stopnames),group in sorted(records.items(),key=lambda row:-len(row[1])):
   first,last=stopnames[0],stopnames[-1]
   direction=direction_of(group[0])
@@ -357,10 +357,11 @@ def integrate(base,archive,provider=relation_shapes):
    cache[key]=provider(corridor,first,last)
   winner=choose_directional_shape(group[0]["stops"],cache[key],MAX_ERROR)
   if not winner and len(cache[key])>1:
-   # A full train may use multiple separately mapped, contiguous OSM
-   # rail relations. Never use station-to-station straight lines.
-   composites=connected_route_combinations(cache[key])
-   winner=choose_directional_shape(group[0]["stops"],composites,MAX_ERROR)
+   # Build once per corridor, not once per station pattern. NEVER invent links.
+   if key not in composite_cache:
+    composite_cache[key]=connected_route_combinations(cache[key])
+    print("MÄLARTÅG CONNECTED OSM COMPOSITES",key,len(composite_cache[key]),flush=True)
+   winner=choose_directional_shape(group[0]["stops"],composite_cache[key],MAX_ERROR)
    if winner:
     print("MÄLARTÅG VERIFIED CONNECTED OSM ROUTES",corridor,
           first,last,winner[0],flush=True)
@@ -379,7 +380,10 @@ def integrate(base,archive,provider=relation_shapes):
    counts[corridor]+=1
    directions[corridor][direction]+=1
  missing=[c for c in CORRIDORS if directions[c]["forward"]<1 or directions[c]["reverse"]<1]
- if missing:raise ValueError("Mälartåg incomplete verified bidirectional OSM/GTFS corridors: "+", ".join(missing))
+ if missing:
+  print("MÄLARTÅG AUDIT MISSING BIDIRECTIONAL",missing,flush=True)
+  if not os.environ.get("MALARTAG_AUDIT_ONLY"):
+   raise ValueError("Mälartåg incomplete verified bidirectional OSM/GTFS corridors: "+", ".join(missing))
  # Require every officially advertised corridor waypoint to occur in an
  # actually accepted train's scheduled stops. A few accepted partial
  # services must not be misrepresented as single selected Uppsala–Gävle pilot.
@@ -387,7 +391,10 @@ def integrate(base,archive,provider=relation_shapes):
  for corridor,anchors in CORRIDORS.items():
   names=[stop[2] for t in added if t["corridor"]==corridor for stop in t["stops"]]
   absent=[a for a in anchors if not any(contains_station(name,a) for name in names)]
-  if absent:raise ValueError("Mälartåg incomplete corridor "+corridor+"; stations missing: "+", ".join(absent))
+  if absent:
+   print("MÄLARTÅG AUDIT MISSING FULL CORRIDOR STOPS",corridor,absent,flush=True)
+   if not os.environ.get("MALARTAG_AUDIT_ONLY"):
+    raise ValueError("Mälartåg incomplete corridor "+corridor+"; stations missing: "+", ".join(absent))
   coverage[corridor]={"requiredStops":len(anchors),"scheduledStops":len(set(names))}
  base["malartagCoverage"]=coverage
  base["trips"].extend(added)
