@@ -22,3 +22,4 @@ jobs:
         run: |
           python -m py_compile scripts/discover_sj.py
           python -u scripts/discover_sj.py
+          python -u scripts/discover_sj_osm.py
