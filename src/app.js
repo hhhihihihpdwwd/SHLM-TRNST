@@ -119,7 +119,7 @@ function showStation(){
  state.station=true;state.follow=false;state.selected=null;clearRoutes();
  $('vehicle-list').hidden=true;$('selected-detail').hidden=true;$('station-view').hidden=false;
  $('tab-trains').classList.remove('active');$('tab-station')?.classList.add('active');
- const examples=[['SPÅR A','SJ Regional','Uppsala','#517e98'],['SPÅR B','Mälartåg','Västerås','#9169b0'],['SPÅR C','','Ledigt','#67888b'],['SPÅR D','Arlanda Express','Arlanda','#d2a44b']];
+ const examples=[['SPÅR A','SJ Regional','Uppsala','#517e98'],['SPÅR B','Pendeltåg','Uppsala','#9169b0'],['SPÅR C','','Ledigt','#67888b'],['SPÅR D','Arlanda Express','Arlanda','#d2a44b']];
  $('platforms').replaceChildren(...examples.map(([num,train,dest,color])=>{
   const box=document.createElement('div');box.className='platform';
   const head=document.createElement('div');head.className='head';head.textContent=num;
