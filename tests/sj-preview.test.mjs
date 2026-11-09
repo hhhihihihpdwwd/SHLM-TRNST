@@ -18,7 +18,7 @@ test('SJ selection is exclusive and nine established systems keep their filters'
  assert.equal(railFilterTitle('sj'),'SJ');
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  assert(html.includes('data-filter="sj"'));
- assert(!html.includes('data-filter="malartag"'));
+ assert(html.includes('data-filter="malartag"'));
 });
 test('real OSM-verified SJ train can be rendered without making up tracks',()=>{
  const epoch=Date.parse('2026-11-09T12:30:00+01:00')/1000;
@@ -47,7 +47,8 @@ test('verified licensed SJ example photo is shown for intercity even when model 
  assert.equal(approved.rail_x2000.license,'CC BY-SA 4.0');
  const before=globalThis.fetch;
  globalThis.fetch=async()=>({ok:true,json:async()=>({
-  rail_x2000:{...approved.rail_x2000,path:'photos/images/rail_x2000.webp'}
+  rail_x2000:{...approved.rail_x2000,path:'photos/images/rail_x2000.webp'},
+  rail_malartag:{...approved.rail_malartag,path:'photos/images/rail_malartag.webp'}
  })});
  try{
   await loadPhotoCatalog();
@@ -56,7 +57,9 @@ test('verified licensed SJ example photo is shown for intercity even when model 
   assert.equal(picture.path,'photos/images/rail_x2000.webp');
   assert.equal(picture.illustrative,true);
   assert.match(picture.label,/exempelbild/);
-  assert.equal(photoForVehicle({mode:'regional',agency:'Mälartåg'}),null);
+  const pilotPhoto=photoForVehicle({mode:'regional',agency:'Mälartåg'});
+  assert.equal(pilotPhoto.path,'photos/images/rail_malartag.webp');
+  assert.equal(pilotPhoto.illustrative,true);
   const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
   assert(app.includes('if(pic.illustrative)'));
   assert(app.includes('Exempelbild av SJ-tåg'));
