@@ -66,3 +66,20 @@ test('VR map UI exposes follow, satellite, loading estimate and preserves all ex
  assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
  assert(app.includes('Exempelbild av VR Snabbtåg X74'));
 });
+
+test('real OSM railway-way VR node graph renders without permitting an SJ shortcut',()=>{
+ const epoch=Date.parse('2026-11-09T11:30:00+01:00')/1000;
+ const shape=[[59.36,17.2],[59.34,17.19],[59.30,17.16]];
+ const vr={id:'vr-physical',mode:'intercity',agency:'VR Snabbtåg',
+  geometryQuality:'verified-osm-rail-ways',osmWayNetwork:true,
+  line:'VR',shapeId:'vr-verified-track',start:epoch-900,end:epoch+900,
+  stops:[[59.36,17.2,'A',0,0],[59.30,17.16,'B',1800,1800]]};
+ const data={shapes:{'vr-verified-track':shape},
+  trips:[vr,
+    {...vr,id:'sj-relabel',agency:'SJ'},
+    {...vr,id:'no-osm-proof',osmWayNetwork:false},
+    {...vr,id:'approx',geometryQuality:'approximate-stop-connectors'}]};
+ const visible=activeRailTrips(data,epoch);
+ assert.deepEqual(visible.map(t=>t.id),['vr-physical']);
+ assert(railAt(visible[0],epoch).pos.every(Number.isFinite));
+});
