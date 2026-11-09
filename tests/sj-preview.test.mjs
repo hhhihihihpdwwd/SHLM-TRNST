@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {matchesRailFilter,railFilterTitle} from '../src/rail-filter.js';
 import {activeRailTrips,railAt} from '../src/rail-data.js';
+import {loadPhotoCatalog,photoForVehicle} from '../src/photos.js';
 
 test('SJ selection is exclusive and nine established systems keep their filters',()=>{
  const sources=[{mode:'commuter',agency:'SL'},{mode:'metro',agency:'SL'},
@@ -39,4 +40,25 @@ test('SJ is fairly included in combined rail map and sidebar list',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  assert(app.includes("['sj',t=>t.mode==='intercity'&&t.agency==='SJ']"));
  assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
+});
+
+test('verified licensed SJ example photo is shown for intercity even when model is unknown',async()=>{
+ const approved=JSON.parse(readFileSync(new URL('../photos/approved.json',import.meta.url),'utf8'));
+ assert.equal(approved.rail_x2000.license,'CC BY-SA 4.0');
+ const before=globalThis.fetch;
+ globalThis.fetch=async()=>({ok:true,json:async()=>({
+  rail_x2000:{...approved.rail_x2000,path:'photos/images/rail_x2000.webp'}
+ })});
+ try{
+  await loadPhotoCatalog();
+  const picture=photoForVehicle({id:'sj-photo',agency:'SJ',mode:'intercity',
+   line:'SJ',destination:'Malmö Centralstation',vehicleModel:'unknown'});
+  assert.equal(picture.path,'photos/images/rail_x2000.webp');
+  assert.equal(picture.illustrative,true);
+  assert.match(picture.label,/exempelbild/);
+  assert.equal(photoForVehicle({mode:'regional',agency:'Mälartåg'}),null);
+  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+  assert(app.includes('if(pic.illustrative)'));
+  assert(app.includes('Exempelbild av SJ-tåg'));
+ }finally{globalThis.fetch=before;}
 });
