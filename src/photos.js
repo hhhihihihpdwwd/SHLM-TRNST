@@ -10,6 +10,10 @@ export function photoForVehicle(v){
  // Historical SJ GTFS identifies the operator, but not the carriage class.
  // Show a licensed, locally packaged real SJ train photo as an explicit
  // illustrative image. Never claim the exact X2000 model ran this service.
+ if(v.mode==='regional' && v.agency==='Mälartåg'){
+  const example=photoCatalog.rail_malartag;
+  return example?{...example,label:'Mälartåg ER1 – exempelbild (fordonstyp för avgången ej verifierad)',illustrative:true}:null;
+ }
  if(v.mode==='intercity' && v.agency==='SJ'){
   const example=photoCatalog.rail_x2000||photoCatalog.rail_sj3000||photoCatalog.rail_sj_rc6;
   return example?{...example,
