@@ -427,6 +427,17 @@ function focusLidingoLine(){
  const bounds=L.latLngBounds(points);
  if(bounds.isValid())map.flyToBounds(bounds,{padding:[65,65],maxZoom:13,duration:1.0});
 }
+function focusMalartagPilot(){
+ if(!map||!railDataset)return;
+ const trips=railDataset.trips.filter(t=>matchesRailFilter(t,'malartag')&&
+   t.geometryQuality==='verified-osm-relation'&&Array.isArray(t.stops));
+ if(!trips.length)return;
+ const points=trips.flatMap(t=>t.stops.map(s=>[Number(s[0]),Number(s[1])]))
+   .filter(p=>p.every(Number.isFinite));
+ if(points.length<2)return;
+ const bounds=L.latLngBounds(points);
+ if(bounds.isValid())map.flyToBounds(bounds,{padding:[50,50],maxZoom:10,duration:1});
+}
 function start(){
  setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg-, Tunnelbana- och Tvärbanan-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
@@ -437,6 +448,7 @@ function start(){
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
   if(state.selected&&!matchesRailFilter(state.selected,state.filter))clearSelected();
   if(state.filter==='lidingo')focusLidingoLine();
+  if(state.filter==='malartag')focusMalartagPilot();
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
