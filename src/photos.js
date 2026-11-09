@@ -14,6 +14,12 @@ export function photoForVehicle(v){
   const example=photoCatalog.rail_malartag;
   return example?{...example,label:'Mälartåg ER1 – exempelbild (fordonstyp för avgången ej verifierad)',illustrative:true}:null;
  }
+ if(v.mode==='intercity' && v.agency==='VR Snabbtåg'){
+  const example=photoCatalog.rail_vr_x74;
+  return example?{...example,
+   label:'VR Snabbtåg X74 – exempelbild (exakt fordon för avgången ej verifierat)',
+   illustrative:true}:null;
+ }
  if(v.mode==='intercity' && v.agency==='SJ'){
   const example=photoCatalog.rail_x2000||photoCatalog.rail_sj3000||photoCatalog.rail_sj_rc6;
   return example?{...example,
