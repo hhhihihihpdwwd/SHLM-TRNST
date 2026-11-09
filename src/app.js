@@ -1,7 +1,7 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
-import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=sj-photo-01';
+import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=malartag-pilot-02';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js';
 const $=id=>document.getElementById(id);
@@ -181,6 +181,7 @@ function miniRailIcon(v,chosen=false){
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#E78B35',rail:'#C89D52'};
 function realColor(v){
+ if(v.mode==='regional')return '#8066A3';
  if(v.mode==='intercity')return '#9D565F';
  if(v.mode==='express')return '#E4AE20';
  if(v.mode==='saltsjo')return '#517BA0';
@@ -206,7 +207,8 @@ function displayOrder(trips){
   ['roslags',t=>t.mode==='localrail'],
   ['saltsjo',t=>t.mode==='saltsjo'],
   ['arlanda',t=>t.mode==='express'],
-  ['sj',t=>t.mode==='intercity'&&t.agency==='SJ']
+  ['sj',t=>t.mode==='intercity'&&t.agency==='SJ'],
+  ['malartag',t=>t.mode==='regional'&&t.agency==='Mälartåg']
  ];
  const queues=keys.map(([_,match])=>trips.filter(match));
  const used=new Set(queues.flat().map(t=>t.id));
@@ -363,13 +365,13 @@ async function initializeReal(){
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN · LOKALBANOR · SPÅRVÄG CITY · ROSLAGSBANAN · SALTSJÖBANAN · ARLANDA EXPRESS · SJ';
+ const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN · LOKALBANOR · SPÅRVÄG CITY · ROSLAGSBANAN · SALTSJÖBANAN · ARLANDA EXPRESS · SJ · MÄLARTÅG';
  const hint=document.querySelector('.map-note span');
  if(hint){
    if(data.type?.startsWith('historical-')){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
      const total=data.trips.length;
-     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan + '+data.tramLines['7']+' Spårväg City + '+data.counts.localrail+' Roslagsbanan + '+data.counts.saltsjo+' Saltsjöbanan + '+data.counts.express+' Arlanda Express + '+(data.counts.intercity||0)+' SJ · historisk tidtabell, simulerade positioner';
+     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan + '+data.tramLines['7']+' Spårväg City + '+data.counts.localrail+' Roslagsbanan + '+data.counts.saltsjo+' Saltsjöbanan + '+data.counts.express+' Arlanda Express + '+(data.counts.intercity||0)+' SJ + '+(data.counts.regional||0)+' Mälartåg · historisk tidtabell, simulerade positioner';
    }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  }
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent=railFilterTitle(state.filter);
