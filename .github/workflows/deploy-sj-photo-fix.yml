@@ -1,0 +1,108 @@
+name: Deploy SJ verified photo fix (no rail-data rebuild)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-sj-photo-fix.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout SJ photo fix only
+        uses: actions/checkout@v4
+        with:
+          ref: fix/sj-photo-01
+          path: _patch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify SJ photo selection and the complete source tests
+        run: |
+          cd _patch
+          for f in src/*.js; do node --check "$f"; done
+          npm test
+      - name: Download EXACT previously validated ten-system SJ website
+        uses: actions/download-artifact@v4
+        with:
+          name: stockholm-rail-sj-preview
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42575119994
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Overlay only verified photo presentation; never rebuild train data
+        run: |
+          cp _patch/src/photos.js _site/src/photos.js
+          cp _patch/src/app.js _site/src/app.js
+          cp _patch/index.html _site/index.html
+          python - <<'PY'
+          import json
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          root=Path('_site')
+          d=json.loads((root/'data/rail.json').read_text(encoding='utf8'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj'
+          assert d['type']=='historical-daily-repeating-simulation'
+          expected={'to-goteborg':8,'from-goteborg':11,'to-malmo':20,'from-malmo':17}
+          assert d['sjDirections']==expected,(d.get('sjDirections'),expected)
+          assert d['counts']['intercity']==56
+          assert all(d['counts'].get(k,0)>0 for k in ('commuter','metro','tram','localrail','saltsjo','express'))
+          trains=[t for t in d['trips'] if t.get('mode')=='intercity' and t.get('agency')=='SJ']
+          assert len(trains)==56
+          assert all(t.get('geometryQuality')=='verified-osm-relation' for t in trains)
+          assert not any(t.get('mode')=='regional' for t in d['trips'])
+          catalog=json.loads((root/'photos/catalog.json').read_text(encoding='utf8'))
+          photo=catalog['rail_x2000']
+          image=root/photo['path']
+          assert image.is_file() and image.stat().st_size>2500,image
+          with image.open('rb') as stream:
+           head=stream.read(12)
+          assert head[:4]==b'RIFF' and head[8:12]==b'WEBP','Image is not WebP'
+          assert photo['license']=='CC BY-SA 4.0'
+          photos_js=(root/'src/photos.js').read_text(encoding='utf8')
+          app_js=(root/'src/app.js').read_text(encoding='utf8')
+          html=(root/'index.html').read_text(encoding='utf8')
+          assert "v.mode==='intercity' && v.agency==='SJ'" in photos_js
+          assert 'rail_x2000' in photos_js
+          assert 'if(pic.illustrative)' in app_js
+          assert 'src="./src/app.js?v=sj-photo-01"' in html
+          assert "./photos.js?v=sj-photo-01" in app_js
+          print('SJ PHOTO FIX VERIFIED',image,image.stat().st_size,
+                photo['author'],photo['license'],flush=True)
+          for direction,n in expected.items():
+           rows=sorted((t for t in trains if t.get('direction')==direction),key=lambda t:t['start'])
+           assert len(rows)==n
+           print('SJ HISTORICAL ROUTE',direction,'COUNT',n,flush=True)
+           for t in rows:
+            t0=datetime.fromtimestamp(t['start'],ZoneInfo('Europe/Stockholm')).strftime('%H:%M')
+            t1=datetime.fromtimestamp(t['end'],ZoneInfo('Europe/Stockholm')).strftime('%H:%M')
+            print('SJ ACCEPTED DEPARTURE',direction,t0,t1,
+                  t['stops'][0][2],'->',t['stops'][-1][2],
+                  'GTFS_ID',t['id'].split(':')[1],flush=True)
+          print('UNCHANGED HISTORIC SJ DATA: 56 TRAINS, 10 SYSTEMS',flush=True)
+          PY
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish approved real SJ photograph in existing ten-system site
+        id: deployment
+        uses: actions/deploy-pages@v4
