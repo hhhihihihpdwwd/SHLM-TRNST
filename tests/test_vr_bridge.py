@@ -12,8 +12,8 @@ TRACK=[[59.05+i*.001,17.05+i*.001] for i in range(51)]
 SUFFIX=[[59.10+i*.001,17.10+i*.001] for i in range(51)]
 
 def sample(disconnect=False):
- points={1000+i:p for i,p in enumerate(TRACK)}
- edges={nid:{} for nid in points}
+ rail_nodes={1000+i:p for i,p in enumerate(TRACK)}
+ edges={nid:{} for nid in rail_nodes}
  for i in range(50):
   if disconnect and i==25:continue
   a,b=1000+i,1001+i
@@ -21,11 +21,11 @@ def sample(disconnect=False):
   edges[b][a]=160
  data={"scope":"pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag",
        "simulationTemplateDay":"2026-11-09",
-       "shapes":{bridge.STOCKHOLM_MALMO:PREFIX,
-                 bridge.STOCKHOLM_GOTEBORG:SUFFIX}}
+       "shapes":{bridge.STOCKHOLM_MALMO:copy.deepcopy(PREFIX),
+                 bridge.STOCKHOLM_GOTEBORG:copy.deepcopy(SUFFIX)}}
  trains=[]
  for direction in ("to-goteborg","to-stockholm"):
-  points=([PREFIX[0],PREFIX[-1],SUFFIX[0],SUFFIX[-1]]
+  stop_points=([PREFIX[0],PREFIX[-1],SUFFIX[0],SUFFIX[-1]]
           if direction=="to-goteborg" else
           [SUFFIX[-1],SUFFIX[0],PREFIX[-1],PREFIX[0]])
   stops=(["Stockholm Centralstation","Katrineholm Centralstation",
@@ -37,8 +37,8 @@ def sample(disconnect=False):
    trains.append({"id":direction+str(i),"direction":direction,
       "serviceDay":"2026-11-09",
       "stops":[[p[0],p[1],name,n*3600,n*3600]
-               for n,(p,name) in enumerate(zip(points,stops))]})
- return data,{"trips":trains},lambda coords:(points,edges)
+               for n,(p,name) in enumerate(zip(stop_points,stops))]})
+ return data,{"trips":trains},lambda coords:(rail_nodes,edges)
 
 class VrBridgeTests(unittest.TestCase):
  def test_real_osm_node_bridge_joins_only_at_identical_existing_vertices(self):
