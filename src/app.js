@@ -231,7 +231,7 @@ function showRealList(){
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=(v.line||v.mode.slice(0,2).toUpperCase());
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
-  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
+  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema · simulerad reservavgång':v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
   t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
  }
  list.append(frag);
