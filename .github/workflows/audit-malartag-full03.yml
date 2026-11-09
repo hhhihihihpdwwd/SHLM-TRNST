@@ -11,7 +11,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 95
     steps:
       - name: Checkout five-corridor Mälartåg work branch, never live main
         uses: actions/checkout@v4
@@ -29,6 +29,7 @@ jobs:
           cd _candidate
           python -m py_compile scripts/build_malartag_candidates.py scripts/append_malartag.py
           python -m unittest discover -s tests -p 'test_malartag_pilot02.py' -v
+          python -m unittest discover -s tests -p 'test_osm_railway_router03.py' -v
           npm test
       - name: Download the ACTUAL protected ten-system production snapshot
         uses: actions/download-artifact@v4
@@ -57,6 +58,7 @@ jobs:
         env:
           STOCKHOLM_RAIL_DATA: ${{ github.workspace }}/_preview/data/rail.json
           MALARTAG_AUDIT_ONLY: "1"
+          MALARTAG_ENABLE_GRAPH_ROUTER: "1"
         run: python -u _candidate/scripts/append_malartag.py
       - name: Report precise verified train coverage and immutable existing systems
         run: |
@@ -78,7 +80,7 @@ jobs:
            print('CORRIDOR',k,'DIRECTIONS',d.get('malartagDirections',{}).get(k,{}),
              'COUNTS',d.get('malartagCorridors',{}).get(k,0),'STATIONS',sorted(stops)[:35],
              'COVERAGE',d.get('malartagCoverage',{}).get(k,{}),flush=True)
-          assert all(t['geometryQuality']=='verified-osm-relation' and t['shapeId'] in d['shapes'] for t in added)
+          assert all(t['geometryQuality'] in ('verified-osm-relation','verified-osm-rail-ways') and t['shapeId'] in d['shapes'] for t in added)
           print('NO PUBLIC DEPLOY; ACTUAL PRODUCTION IS UNCHANGED')
           PY
       - name: Upload a PRIVATE diagnostics artifact, not GitHub Pages
