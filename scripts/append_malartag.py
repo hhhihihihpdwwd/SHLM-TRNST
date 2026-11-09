@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Append ONLY proven complete Uppsala–Gävle Mälartåg OSM trips to a copy of the current 10-system website.
+"""Append authenticated Mälartåg trains on the existing ten-system website snapshot, for five corridors.
 
 No straight-line fallback, no guessed OSM track, no STABLE 06 mutation.
 Requires every GTFS intermediate stopping point in monotonic order on a genuine
@@ -23,7 +23,7 @@ DATA=Path(os.environ.get("STOCKHOLM_RAIL_DATA",str(ROOT/"data"/"rail.json")))
 CANDIDATES=ROOT/"data"/"malartag_candidates.json"
 STABLE_SCOPE="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj"
 MAX_ERROR=650
-MAX_OSM_LOOKUPS=120
+MAX_OSM_LOOKUPS=85
 OSM_RESPONSE_BYTES=18_000_000
 OSM_TIMEOUT_SECONDS=40
 OSM_HTTP_CACHE={}
@@ -202,7 +202,8 @@ def corridor_relation_match(corridor,item):
   "orebro-uppsala":("örebro","arboga","köping"),
   "nykoping":("nyköping","vagnhärad","kolmården"),
   "uven":("västerås","kvicksund","kolbäck","ransta","heby","morgongåva"),
-  "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus")
+  "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus"),
+  "hallsberg":("hallsberg","katrineholm","vingåker","flen")
  }
  return any(has_place(station) for station in hints[corridor])
 
@@ -244,20 +245,24 @@ def relation_shapes(corridor,first,last,reader=None):
     else:
      found[rid]=item
   if len(found)>=MAX_OSM_LOOKUPS:break
- if not found and reader is read_regional_osm:
-  # The OSM route-search endpoint can return zero relations for regional
-  # rail services even if OSM has relevant train relations.
+ # Route-name search is incomplete for regional rail; ALWAYS union real OSM
+ # train relations from Overpass, not only when the first search is empty.
+ # No relation is accepted without geometry projection against EVERY stop.
+ if reader is read_regional_osm:
   try:
    inventory=discover_regional_osm_relations()
    matched={rid:item for rid,item in inventory.items()
             if corridor_relation_match(corridor,item)}
    print("MÄLARTÅG OVERPASS CORRIDOR",corridor,
-         "candidate_relations",len(matched),"relation_ids",list(matched)[:30],flush=True)
-   found.update(dict(list(matched.items())[:MAX_OSM_LOOKUPS]))
+         "candidate_relations",len(matched),
+         "relation_ids",list(matched)[:35],flush=True)
+   for rid,item in matched.items():
+    if len(found)>=MAX_OSM_LOOKUPS:break
+    found.setdefault(rid,item)
    diagnostics["overpass_matches"]=len(matched)
   except RuntimeError as exc:
    diagnostics["overpass_error"]+=1
-   print("MÄLARTÅG OVERPASS FALLBACK FAILED",corridor,str(exc),flush=True)
+   print("MÄLARTÅG OVERPASS FAILED",corridor,str(exc),flush=True)
  geometries=[]
  for rid,item in list(found.items())[:MAX_OSM_LOOKUPS]:
   try:
