@@ -1,4 +1,4 @@
-name: Browser verify VR 12-system release - corrected cache version (NO DEPLOY)
+name: Browser verify actual VR map icons with real-time clock (NO DEPLOY)
 on:
   push:
     branches: [main]
