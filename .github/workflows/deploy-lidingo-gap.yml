@@ -1,0 +1,124 @@
+name: Repair Lidingobanan 21 historical morning gaps + map focus (10 systems)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-lidingo-gap.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/lidingo-morning-01
+          path: _patch
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run existing tests plus new line 21 regression tests
+        run: |
+          cd _patch
+          node --check src/app.js
+          python -m py_compile scripts/repair_lidingo_gaps.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Download exact previously VERIFIED 10-system SJ website (no rebuilding old routes)
+        uses: actions/download-artifact@v4
+        with:
+          name: stockholm-rail-sj-preview
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42575119994
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Freeze original published train data and overlay only presentation files
+        run: |
+          cp _site/data/rail.json /tmp/stockholm-rail-pre-lidingo.json
+          cp _patch/src/app.js _site/src/app.js
+          cp _patch/src/photos.js _site/src/photos.js
+          cp _patch/index.html _site/index.html
+          test -f _site/photos/catalog.json
+          test -s _site/photos/images/tram_lidingo21.webp
+          test -s _site/photos/images/rail_x2000.webp
+      - name: Supplement incomplete 07–09 / 15–18 weekday gap with genuine 2026-11-07 Saturday GTFS
+        run: |
+          STOCKHOLM_RAIL_DATA="$GITHUB_WORKSPACE/_site/data/rail.json" python -u _patch/scripts/repair_lidingo_gaps.py
+      - name: Verify all prior train journeys immutable and screenshot 08:28 repaired
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before=json.load(open('/tmp/stockholm-rail-pre-lidingo.json'))
+          after=json.load(open('_site/data/rail.json'))
+          assert after['scope']==before['scope']
+          assert after['type']==before['type']=='historical-daily-repeating-simulation'
+          assert after['trips'][:len(before['trips'])]==before['trips']
+          assert after['shapes']==before['shapes']
+          assert after['sjDirections']==before['sjDirections']
+          assert after['arlandaDirections']==before['arlandaDirections']
+          assert after['counts']['intercity']==before['counts']['intercity']==56
+          assert all(after['counts'][k]==v for k,v in before['counts'].items() if k!='tram')
+          assert all(after['tramLines'][k]==v for k,v in before['tramLines'].items() if k!='21')
+          added=after['trips'][len(before['trips']):]
+          assert len(added)>=10
+          assert all(t['line']=='21' and t['mode']=='tram'
+              and t['archiveDay']=='2026-11-07'
+              and t['geometryQuality']=='verified-osm-relation'
+              and t['shapeId'] in before['shapes']
+              and t['timetableProxy'].startswith('Saturday') for t in added)
+          assert 'if(state.filter===\'lidingo\')focusLidingoLine()' in Path('_site/src/app.js').read_text()
+          assert 'v=lidingo-gap-01' in Path('_site/index.html').read_text()
+          print('EXISTING 10 SYSTEMS AND 56 SJ RIDES UNCHANGED; REAL LINE 21 GAP RUNS ADDED',len(added))
+          PY
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './_site/src/rail-data.js';
+          import {matchesRailFilter} from './_site/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('_site/data/rail.json','utf8'));
+          for(const [date,tz] of [['2026-11-09','+01:00'],['2026-11-15','+01:00'],['2027-07-13','+02:00']]){
+            for(const [hour,minute,minimum] of [[8,28,1],[8,35,2],[16,30,1]]){
+              const epoch=Date.parse(date+'T'+String(hour).padStart(2,'0')+':'+minute+':50'+tz)/1000;
+              const active=activeRailTrips(d,epoch,20000)
+                .filter(t=>matchesRailFilter(t,'lidingo'));
+              if(active.length<minimum)
+                throw Error('Line 21 blank at '+date+' '+hour+':'+minute+' ('+active.length+')');
+              for(const t of active){
+                const pos=railAt(t,epoch);
+                if(!pos.pos.every(Number.isFinite)||!Number.isFinite(pos.kmh))
+                  throw Error('Bad verified Lidingöbanan position '+t.id);
+              }
+              if(hour===8&&minute===35){
+                const directions=new Set(active.map(t=>t.stops[0][2].toLowerCase().startsWith('ropsten')?'out':'back'));
+                if(!directions.has('out')||!directions.has('back'))
+                  throw Error('Both line 21 directions absent at 08:35');
+              }
+              console.log('LIDINGO 21 MAP VISIBLE',date,hour+':'+minute,'count',active.length);
+            }
+          }
+          JS
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy repaired historical Lidingöbanan while protecting all other ten systems
+        id: deployment
+        uses: actions/deploy-pages@v4
