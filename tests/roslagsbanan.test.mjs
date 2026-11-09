@@ -21,8 +21,8 @@ test('Roslagsbanan 27/28/29 separate; all old filters unchanged',()=>{
 test('map and sidebar share same filter and preserve follow and satellite',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
- assert(app.includes('const showing=realActive.filter(v=>matchesRailFilter(v,state.filter))'));
- assert(app.includes('realActive.filter(v=>matchesRailFilter(v,state.filter)).slice(0,90)'));
+ assert(app.includes('const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
+ assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)'));
  for(const feature of ['followFrame','railPathSplit','showRealDetail','switchTiles','occupancy','speed-value'])assert(app.includes(feature));
  assert(html.includes('data-filter="roslags"'));
 });
