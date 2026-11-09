@@ -81,4 +81,17 @@ def main():
       break
    print("SJ OSM GEOMETRY VALIDATION",rid,key,"valid_gtfs",matches,
          "total_candidates",len(candidates),flush=True)
+   if candidates and shapes:
+    from refine_osm_routes import distance
+    for tid,stops in candidates[:2]:
+     g=shapes[0]
+     gap=[]
+     for st in stops:
+      near=min(distance(st[:2],p) for p in g)
+      gap.append((st[2],round(near)))
+     print("SJ OSM STATION DISTANCES",rid,key,"GTFS",tid,"METRES",
+           json.dumps(gap,ensure_ascii=False),flush=True)
+     print("SJ OSM TRACK START END",rid,g[0],g[-1],
+           "PROJECT_REVERSE",bool(project_stops(stops,list(reversed(g)),850)),flush=True)
+
 if __name__=="__main__":main()
