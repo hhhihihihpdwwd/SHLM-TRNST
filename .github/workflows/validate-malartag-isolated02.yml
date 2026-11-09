@@ -1,0 +1,140 @@
+name: Mälartåg isolated pilot 02 – Uppsala-Gävle (NEVER DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/validate-malartag-isolated02.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated Mälartåg pilot code
+        uses: actions/checkout@v4
+        with:
+          ref: feature/malartag-isolated-02
+          path: _pilot
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run all existing JS tests and isolated rail safety tests
+        run: |
+          cd _pilot
+          python -m py_compile scripts/build_malartag_candidates.py scripts/append_malartag.py
+          python -m unittest discover -s tests -p 'test_malartag_pilot02.py' -v
+          npm test
+      - name: Download exact current production website, not rebuild other trains
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42580852015
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _production_zip
+      - name: Extract working ten-system production snapshot safely
+        run: |
+          test -s _production_zip/artifact.tar
+          mkdir -p _preview
+          tar -xf _production_zip/artifact.tar -C _preview
+          cp _preview/data/rail.json /tmp/proven_ten_systems.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/proven_ten_systems.json'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj'
+          assert d['type']=='historical-daily-repeating-simulation'
+          assert d['counts']['intercity']==56
+          assert d['tramLines']['21']>350
+          assert set(d['sjDirections'])=={'to-goteborg','from-goteborg','to-malmo','from-malmo'}
+          print('FROZEN PRODUCTION',len(d['trips']),'trips across 10 systems')
+          PY
+      - name: Build historical GTFS candidates for Uppsala–Tierp–Gävle ONLY
+        run: python -u _pilot/scripts/build_malartag_candidates.py
+      - name: Verify authentic OSM relations and append to preview COPY ONLY
+        env:
+          STOCKHOLM_RAIL_DATA: ${{ github.workspace }}/_preview/data/rail.json
+        run: python -u _pilot/scripts/append_malartag.py
+      - name: Prove all current systems immutable and Mälartåg both directions
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('/tmp/proven_ten_systems.json'))
+          b=json.load(open('_preview/data/rail.json'))
+          assert b['scope']==a['scope']+'-malartag'
+          assert b['trips'][:len(a['trips'])]==a['trips']
+          assert all(b['shapes'][k]==v for k,v in a['shapes'].items())
+          assert all(b['counts'][k]==v for k,v in a['counts'].items())
+          for field in ('metroLines','tramLines','roslagsLines','saltsjoLines',
+                        'arlandaDirections','sjDirections','localTramDirections'):
+           assert b[field]==a[field],field
+          assert b['counts']['intercity']==56
+          assert b['malartagDirections']['gavle']['forward']>0
+          assert b['malartagDirections']['gavle']['reverse']>0
+          assert set(b['malartagDirections'])=={'gavle'}
+          extra=b['trips'][len(a['trips']):]
+          assert len(extra)>2
+          assert all(t['corridor']=='gavle' and t['agency']=='Mälartåg'
+                     and t['mode']=='regional' and t['geometryQuality']=='verified-osm-relation'
+                     and t['shapeId'] in b['shapes'] and len(t['stops'])>=2 for t in extra)
+          assert all(t['archiveDay']=='2026-11-06' for t in extra)
+          for station in ('Uppsala','Tierp','Gävle'):
+           assert any(station.casefold() in s[2].casefold() for t in extra for s in t['stops'])
+          print('VERIFIED MALARTAG SINGLE CORRIDOR',b['malartagDirections'],
+                'NEW TRAINS',len(extra),'OLD UNCHANGED',len(a['trips']))
+          PY
+      - name: Check all 24 hours and weekend/summer-time train positions
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './_pilot/src/rail-data.js';
+          import {matchesRailFilter} from './_pilot/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('_preview/data/rail.json','utf8'));
+          for(const [date,tz] of [['2026-11-09','+01:00'],['2026-11-15','+01:00'],['2027-07-13','+02:00']]){
+           const found=new Set(), count={forward:0,reverse:0};
+           for(let h=0;h<24;h++)for(let minute of [0,15,30,45]){
+            const epoch=Date.parse(date+'T'+String(h).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00'+tz)/1000;
+            const all=activeRailTrips(d,epoch,20000);
+            const regional=all.filter(t=>matchesRailFilter(t,'malartag'));
+            for(const t of regional){
+             const p=railAt(t,epoch);
+             if(!p.pos.every(Number.isFinite)||!Number.isFinite(p.kmh))
+              throw Error('Mälartåg invalid rail position '+t.id);
+             if(t.corridor!=='gavle')throw Error('Unexpected corridor '+t.corridor);
+             const direction=t.stops[0][2].toLowerCase().includes('uppsala')?'forward':'reverse';
+             found.add(direction);count[direction]++;
+            }
+           }
+           if(found.size!==2)throw Error('Missing Mälartåg direction on '+date+': '+Array.from(found));
+           console.log('MÄLARTÅG 24-HOUR REAL OSM RENDERING',date,count);
+          }
+          JS
+      - name: Overlay isolated pilot UI; prepare downloadable test preview only
+        run: |
+          cp _pilot/src/app.js _preview/src/app.js
+          cp _pilot/src/rail-data.js _preview/src/rail-data.js
+          cp _pilot/src/rail-filter.js _preview/src/rail-filter.js
+          cp _pilot/src/photos.js _preview/src/photos.js
+          cp _pilot/index.html _preview/index.html
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('_preview')
+          photos=json.loads((p/'photos/catalog.json').read_text(encoding='utf8'))
+          path=p/photos['rail_malartag']['path']
+          assert path.is_file() and path.stat().st_size>2500,path
+          html=(p/'index.html').read_text()
+          assert 'data-filter="malartag"' in html
+          assert 'malartag-pilot-02' in html
+          assert "focusMalartagPilot()" in (p/'src/app.js').read_text()
+          print('ISOLATED MALARTAG PREVIEW READY; NO PAGES DEPLOYMENT')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: malartag-upssala-gavle-safe-preview
+          path: _preview/
