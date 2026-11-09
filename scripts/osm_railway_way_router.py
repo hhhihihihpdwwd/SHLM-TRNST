@@ -109,7 +109,7 @@ def collect_graph(stops, downloader=fetch_osm_ways):
     u,v=ids[i-1],ids[i]
     if u==v:continue
     length=dist(coords[i-1],coords[i])
-    if length<0.01 or length>900:continue
+    if length<0.01 or length>4000:continue
     weight=length*penalty
     if weight<edges[u].get(v,float("inf")):
      edges[u][v]=weight
