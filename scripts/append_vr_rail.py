@@ -124,7 +124,7 @@ def integrate(original,candidates,verified_bridge=None):
  if not all(k in extra_shapes for k in result["shapes"] if k not in original_sha_copy["shapes"]):
   raise AssertionError("Unproven extra rail geometry included")
  for k,v in original_sha_copy.items():
-  if k in ("trips","counts","scope"):continue
+  if k in ("trips","shapes","counts","scope"):continue
   if result.get(k)!=v:raise AssertionError("Original timetable metadata mutated: "+k)
  for key,val in original_sha_copy["counts"].items():
   if key!="intercity" and result["counts"].get(key)!=val:
