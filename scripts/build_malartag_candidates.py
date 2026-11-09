@@ -16,9 +16,15 @@ ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"malartag_candidates.json"
 REF_START=gtfs.REFERENCE_DAY
 # ONE carefully isolated pilot corridor: Uppsala–Tierp–Gävle; no other Mälartåg routes.
-CORRIDORS={\n "gavle":("uppsala","tierp","gävle"),\n}\n# Prevent ambiguous overlap (e.g. Stockholm-Uppsala on its own) being
+CORRIDORS={
+ "gavle":("uppsala","tierp","gävle"),
+}
+# Prevent ambiguous overlap (e.g. Stockholm-Uppsala on its own) being
 # assigned to the wrong corridor. Do not infer missing journey segments.
-SIGNATURES={\n "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus"),\n}\ndef norm(s):
+SIGNATURES={
+ "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus"),
+}
+def norm(s):
  return unicodedata.normalize("NFKC",s or "").casefold().strip()
 def contains_station(name,anchor):
  # "Sala" must not match "Salaspår", and "C" is never stripped from a city name.
@@ -87,7 +93,10 @@ def build(z,now):
   route,days,head,train=selected[tid]
   stops=[e[1] for e in entries]
   corridor=corridor_for([s[2] for s in stops],route["routeText"])
-  if corridor is None:unclassified+=1;continue\n  if not (any(contains_station(n,"uppsala") for n in (s[2] for s in stops))\n          and any(contains_station(n,"gävle") for n in (s[2] for s in stops))):\n   unclassified+=1;continue
+  if corridor is None:unclassified+=1;continue
+  if not (any(contains_station(n,"uppsala") for n in (s[2] for s in stops))
+          and any(contains_station(n,"gävle") for n in (s[2] for s in stops))):
+   unclassified+=1;continue
   for source_day in days:
    for target in targets:
     # Repeat identical archived service for every day of the week.
