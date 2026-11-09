@@ -15,8 +15,9 @@ ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/"data"/"rail.json"
 CANDIDATES=ROOT/"data"/"sj_candidates.json"
 BASE_SCOPE="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda"
-RELATIONS={"to-goteborg":21493221,"to-stockholm":21493220}
-MAX_ERROR_METRES=850
+RELATIONS={"to-goteborg":21493221,"from-goteborg":21493220,
+           "to-malmo":8860632,"from-malmo":8858855}
+MAX_ERROR_METRES=500
 MAX_BYTES=110_000_000
 OSM_URL="https://openstreetmap.tools/public_transport_geojson/api/route/"
 
@@ -56,8 +57,14 @@ def integrate(baseline,archive,provider=fetch_osm):
   print("SJ ROUTE",direction,"OSM",rid,"candidate_trips",len(trips),
         "OSM_SHAPES",len(options),flush=True)
   for t in trips:
-   for ref,geometry in options:
-    if project_stops(t["stops"],geometry,MAX_ERROR_METRES) is None:continue
+   for ref,raw_geometry in options:
+    # The mapped SJ relations have reverse coordinate order compared with
+    # their OSM from/to tags. Reverse real rail vertices, never invent links.
+    candidates=((ref,raw_geometry),(ref+":reverse",list(reversed(raw_geometry))))
+    match=next(((key,geom) for key,geom in candidates
+                if project_stops(t["stops"],geom,MAX_ERROR_METRES) is not None),None)
+    if match is None:continue
+    ref,geometry=match
     sid="sj-osm:"+ref
     accepted.append({**t,"mode":"intercity","line":"SJ",
       "shapeId":sid,"geometryQuality":"verified-osm-relation",
