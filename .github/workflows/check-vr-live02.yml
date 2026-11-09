@@ -1,0 +1,49 @@
+name: Check LIVE GitHub Pages VR Snabbtåg after deploy (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/check-vr-live02.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vr-browser-safe-02
+          path: _vr
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Get pinned Chromium-passed VR data for representative historic time
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42646755519
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: stockholm-rail-vr-13-browser-verified
+          path: _site
+      - name: Verify live GitHub Pages HTML is not stale STABLE07 or old VR deployment
+        run: |
+          curl --retry 6 --retry-delay 5 --fail --silent --show-error \
+             -H 'Cache-Control: no-cache' \
+             'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?check=vr-browser-fixed-02' \
+             | tee /tmp/vr-live.html | grep -F 'app.js?v=vr-browser-fixed-02'
+          echo 'LIVE HTML NOW SERVES NEW VR BROWSER-CACHE-SAFE RELEASE'
+      - name: Install Chromium for direct external-website test
+        run: |
+          cd _vr
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Actually open LIVE public URL and confirm 2 VR map markers + original lines
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _vr
+          node tests/vr-browser-smoke.mjs
