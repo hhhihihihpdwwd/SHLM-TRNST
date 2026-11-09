@@ -1,0 +1,90 @@
+name: Audit five Mälartåg corridors on isolated 10-system snapshot (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/audit-malartag-full03.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout five-corridor Mälartåg work branch, never live main
+        uses: actions/checkout@v4
+        with:
+          ref: feature/malartag-full-03
+          path: _candidate
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax and JS/Python regressions
+        run: |
+          cd _candidate
+          python -m py_compile scripts/build_malartag_candidates.py scripts/append_malartag.py
+          python -m unittest discover -s tests -p 'test_malartag_pilot02.py' -v
+          npm test
+      - name: Download the ACTUAL protected ten-system production snapshot
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42580852015
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _original_zip
+      - name: Unpack production snapshot without changing original
+        run: |
+          mkdir -p _preview
+          tar -xf _original_zip/artifact.tar -C _preview
+          cp _preview/data/rail.json /tmp/stockholm-production.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/stockholm-production.json'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj'
+          assert d['counts']['intercity']==56 and d['tramLines']['21']>350
+          assert len(d['trips'])==9957
+          print('ORIGINAL PUBLISHED 10 SYSTEMS PRESERVED:',len(d['trips']),'train records',flush=True)
+          PY
+      - name: Retrieve genuine Friday 2026-11-06 Mälartåg GTFS for all 5 corridors
+        run: python -u _candidate/scripts/build_malartag_candidates.py
+      - name: AUDIT ONLY all five real OSM corridor geometries; never release partial network
+        env:
+          STOCKHOLM_RAIL_DATA: ${{ github.workspace }}/_preview/data/rail.json
+          MALARTAG_AUDIT_ONLY: "1"
+        run: python -u _candidate/scripts/append_malartag.py
+      - name: Report precise verified train coverage and immutable existing systems
+        run: |
+          python - <<'PY'
+          import collections,json
+          old=json.load(open('/tmp/stockholm-production.json'))
+          d=json.load(open('_preview/data/rail.json'))
+          assert d['trips'][:len(old['trips'])]==old['trips']
+          assert all(d['shapes'][k]==v for k,v in old['shapes'].items())
+          assert all(d['counts'][k]==v for k,v in old['counts'].items())
+          for k in ('tramLines','metroLines','roslagsLines','saltsjoLines','arlandaDirections','sjDirections','localTramDirections'):
+           assert d[k]==old[k],k
+          expected=['orebro-uppsala','nykoping','hallsberg','uven','gavle']
+          added=d['trips'][len(old['trips']):]
+          tally=collections.Counter((t['corridor'],t['serviceDay']) for t in added)
+          print('OSM/GTFS STRICT VERIFIED PER DAY',dict(tally),flush=True)
+          for k in expected:
+           stops={s[2] for t in added if t['corridor']==k for s in t['stops']}
+           print('CORRIDOR',k,'DIRECTIONS',d.get('malartagDirections',{}).get(k,{}),
+             'COUNTS',d.get('malartagCorridors',{}).get(k,0),'STATIONS',sorted(stops)[:35],
+             'COVERAGE',d.get('malartagCoverage',{}).get(k,{}),flush=True)
+          assert all(t['geometryQuality']=='verified-osm-relation' and t['shapeId'] in d['shapes'] for t in added)
+          print('NO PUBLIC DEPLOY; ACTUAL PRODUCTION IS UNCHANGED')
+          PY
+      - name: Upload a PRIVATE diagnostics artifact, not GitHub Pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: malartag-five-corridors-diagnostic
+          path: |
+            _candidate/data/malartag_candidates.json
+            _preview/data/rail.json
