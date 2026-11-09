@@ -103,7 +103,9 @@ export function activeRailTrips(dataset,epoch,limit=900){
  if(repeating&&!templateDay)return [];
  const shifts=repeating?targetDays.map(day=>swedishMidnight(day)-swedishMidnight(templateDay)):[0];
  for(const source of dataset.trips){
-  if(!['commuter','metro','tram','localrail','saltsjo','express','intercity','regional'].includes(source.mode)||source.geometryQuality!=='verified-osm-relation')continue;
+  const verified=source.geometryQuality==='verified-osm-relation'||
+      (source.mode==='regional'&&source.geometryQuality==='verified-osm-rail-ways');
+  if(!['commuter','metro','tram','localrail','saltsjo','express','intercity','regional'].includes(source.mode)||!verified)continue;
   if(repeating && source.serviceDay!==templateDay)continue;
   for(let index=0;index<targetDays.length;index++){
    const delta=shifts[index];
