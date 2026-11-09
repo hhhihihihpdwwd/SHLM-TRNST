@@ -55,7 +55,7 @@ const fetches=[];
 try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
  const ctx=await browser.newContext({viewport:{width:1600,height:920}});
- await ctx.addInitScript(ms=>{Date.now=()=>ms;},selected.stamp*1000);
+ await ctx.addInitScript(ms=>{const realNow=Date.now.bind(Date);const shift=ms-realNow();Date.now=()=>realNow()+shift;},selected.stamp*1000);
  const page=await ctx.newPage();
  page.on('pageerror',err=>errors.push('JS exception: '+String(err)));
  page.on('console',event=>{if(event.type()==='error'&&!/tile|ERR_/i.test(event.text())) errors.push('Console: '+event.text());});
@@ -82,6 +82,7 @@ try{
  await page.waitForTimeout(1800);
  let markers=await page.locator('.leaflet-marker-icon').count();
  assert(markers>0,'VR trains listed but zero train icons shown on map');
+ assert(markers<=vrCount,'Map still showing old Pendeltåg markers after selecting VR: '+markers+' vs '+vrCount);
  console.log('BROWSER MAP VEHICLE MARKERS',markers);
  await vrButtons.first().click();
  await page.locator('#selected-detail:not([hidden])').waitFor({timeout:20000});
