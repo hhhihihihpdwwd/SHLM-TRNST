@@ -114,21 +114,24 @@ jobs:
              const pos=railAt(t,stamp);
              if(!pos.pos.every(Number.isFinite)||!Number.isFinite(pos.kmh))
               throw Error('Invalid Mälartåg position '+t.id);
-             const v=t.stops.map(s=>s[2].toLowerCase());
-             const anchors=({ 'orebro-uppsala':['örebro','uppsala'],
-                 nykoping:['norrköping','stockholm'],hallsberg:['stockholm','hallsberg'],
-                 uven:['linköping','uppsala'],gavle:['uppsala','gävle']})[t.corridor];
+             const anchors=({
+               'orebro-uppsala':['örebro','eskilstuna','stockholm','uppsala'],
+               nykoping:['norrköping','nyköping','stockholm'],
+               hallsberg:['stockholm','katrineholm','hallsberg'],
+               uven:['linköping','norrköping','katrineholm','eskilstuna','västerås','sala','uppsala'],
+               gavle:['uppsala','tierp','gävle']
+             })[t.corridor];
              if(!anchors)throw Error('Unknown Mälartåg corridor '+t.corridor);
-             const forward=v[0].includes(anchors[0])?'forward':'reverse';
-             tally[t.corridor][forward]++;
+             const order=t.stops.map(s=>anchors.findIndex(a=>s[2].toLowerCase().startsWith(a))).filter(i=>i>=0);
+             if(order.length<2||order[0]===order.at(-1))throw Error('Ambiguous train direction '+t.id);
+             const direction=order[0]<order.at(-1)?'forward':'reverse';
+             if(t.direction&&t.direction!==direction)throw Error('Mismatching GTFS direction '+t.id);
+             tally[t.corridor][direction]++;
             }
            }
            for(const corridor of expected){
-            // Some through services begin/end short of an overall terminus,
-            // so classify by actual first/last stops in the dataset audit
-            // rather than relying on train icons at one exact clock time.
-            const n=tally[corridor].forward+tally[corridor].reverse;
-            if(n<1)throw Error('No map-visible '+corridor+' on '+day);
+            if(tally[corridor].forward<1||tally[corridor].reverse<1)
+             throw Error('No bidirectional map-visible '+corridor+' on '+day+': '+JSON.stringify(tally[corridor]));
            }
            console.log('MÄLARTÅG 24-HOUR MAP AUDIT',day,tally);
           }
