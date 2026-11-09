@@ -1,9 +1,9 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
-import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
+import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=vr-snabbtag-01';
 import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=vr-snabbtag-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
-import {matchesRailFilter,railFilterTitle} from './rail-filter.js';
+import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=vr-snabbtag-01';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
