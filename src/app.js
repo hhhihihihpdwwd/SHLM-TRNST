@@ -176,6 +176,7 @@ function miniRailIcon(v,chosen=false){
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#E78B35',rail:'#C89D52'};
 function realColor(v){
+ if(v.mode==='intercity')return '#9D565F';
  if(v.mode==='express')return '#E4AE20';
  if(v.mode==='saltsjo')return '#517BA0';
  if(v.mode==='localrail')return '#7956A7';
@@ -199,7 +200,8 @@ function displayOrder(trips){
   ['city7',t=>String(t.line)==='7'&&t.mode==='tram'],
   ['roslags',t=>t.mode==='localrail'],
   ['saltsjo',t=>t.mode==='saltsjo'],
-  ['arlanda',t=>t.mode==='express']
+  ['arlanda',t=>t.mode==='express'],
+  ['sj',t=>t.mode==='intercity'&&t.agency==='SJ']
  ];
  const queues=keys.map(([_,match])=>trips.filter(match));
  const used=new Set(queues.flat().map(t=>t.id));
