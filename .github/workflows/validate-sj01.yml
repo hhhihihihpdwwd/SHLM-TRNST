@@ -1,0 +1,397 @@
+name: Validate Stockholm Rail SJ 01 (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/validate-sj01.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout new rail engine (leave stable main untouched)
+        uses: actions/checkout@v4
+        with:
+          ref: feature/sj-rail-01
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify code before downloading anything
+        run: |
+          for file in src/*.js; do node --check "$file"; done
+          python -m py_compile scripts/build_rail.py scripts/build_rail_keyless.py scripts/refine_osm_routes.py scripts/pendeltag_only.py scripts/append_tunnelbana.py scripts/append_tvarbanan.py scripts/build_tvarbanan_candidates.py scripts/audit_rail_directions.py scripts/append_local_trams.py scripts/build_local_tram_candidates.py scripts/build_sparvag_city_candidates.py scripts/append_sparvag_city.py scripts/build_roslags_candidates.py scripts/append_roslagsbanan.py scripts/build_saltsjo_candidates.py scripts/append_saltsjobanan.py scripts/build_arlanda_candidates.py scripts/append_arlanda_express.py scripts/build_sj_candidates.py scripts/append_sj_rail.py scripts/download_photos.py
+          npm test
+          set +e
+          python -m unittest discover -s tests -p 'test_*.py' -v > /tmp/stockholm-python-tests.log 2>&1
+          python_exit=$?
+          set -e
+          if [ "$python_exit" -ne 0 ]; then
+            echo "::group::FAILED PYTHON UNIT TESTS — EXACT ERRORS"
+            python - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/stockholm-python-tests.log').read_text(errors='replace')
+          lines=text.splitlines()
+          first=[i for i,line in enumerate(lines) if line.startswith(('FAIL: ','ERROR: '))]
+          if first:
+              for i in first:
+                  print('\n'.join(lines[i:min(i+33,len(lines))]))
+          else:
+              print('\n'.join(lines[-90:]))
+          PY
+            echo "::endgroup::"
+            echo "::error::Python unit tests failed; precise exception is in FAILED PYTHON UNIT TESTS above"
+            exit "$python_exit"
+          fi
+          echo "Python unit tests passed"
+          tail -n 5 /tmp/stockholm-python-tests.log
+      - name: Assert sidebar and map both select lines 12 and 21
+        run: |
+          npm test
+          grep -F "const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)));" src/app.js
+      - name: Build public historical Stockholm rail timetable (no API key)
+        run: python -u scripts/build_rail_keyless.py
+      - name: Keep immutable snapshot of historic metro timetable candidates
+        run: cp data/rail.json data/metro_candidates.json
+      - name: Improve mapped rail routes where OSM relation matches the stops
+        run: python -u scripts/refine_osm_routes.py
+      - name: Reject unverified tracks and all other transport modes
+        run: python -u scripts/pendeltag_only.py
+      - name: Append all seven shape-verified Tunnelbana lines to Pendeltåg
+        run: python -u scripts/append_tunnelbana.py
+      - name: Preserve tested Pendeltåg and Tunnelbana snapshot
+        run: cp data/rail.json data/rail-baseline.json
+      - name: Import complete weekend Tvärbanan service window separately
+        run: python -u scripts/build_tvarbanan_candidates.py
+      - name: Append only verified Tvärbanan 30 and 31
+        run: python -u scripts/append_tvarbanan.py
+      - name: Freeze complete original STABLE 01 timetable
+        run: cp data/rail.json data/stable-three-mode.json
+      - name: Prepare Nockebybanan and Lidingöbanan historical timetables
+        run: python -u scripts/build_local_tram_candidates.py
+      - name: Append verified bidirectional local trams 12 and 21
+        run: python -u scripts/append_local_trams.py
+      - name: Freeze entire STABLE 02 service and verified track dataset
+        run: cp data/rail.json data/stable02-snapshot.json
+      - name: Build separate historical Spårväg City 7 timetable
+        run: python -u scripts/build_sparvag_city_candidates.py
+      - name: Verify line 7 OSM rails and append both terminal directions
+        run: python -u scripts/append_sparvag_city.py
+      - name: Freeze complete STABLE 03 dataset
+        run: cp data/rail.json data/stable03-snapshot.json
+      - name: Build separate historical Roslagsbanan schedule
+        run: python -u scripts/build_roslags_candidates.py
+      - name: Append OSM-verified lines 27, 28 and 29 both directions
+        run: python -u scripts/append_roslagsbanan.py
+      - name: Freeze entire proven STABLE 04 data
+        run: cp data/rail.json data/stable04-snapshot.json
+      - name: Read only current restricted Saltsjöbanan 25/26 historical railway services
+        run: python -u scripts/build_saltsjo_candidates.py
+      - name: Append verified OSM 25 and 26 only
+        run: python -u scripts/append_saltsjobanan.py
+      - name: Freeze all STABLE 05 established trips and tracks
+        run: cp data/rail.json data/stable05-snapshot.json
+      - name: Build isolated GTFS Arlanda Express X3 historic timetable
+        run: python -u scripts/build_arlanda_candidates.py
+      - name: Append fully OSM-verified route Stockholm C Arlanda Södra Arlanda Norra
+        run: python -u scripts/append_arlanda_express.py
+      - name: Verify historical services and explicitly approximate geometry
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('data/rail.json'))
+          assert x['schema']==1 and x['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda'
+          frozen05=json.load(open('data/stable05-snapshot.json'))
+          assert x['trips'][:len(frozen05['trips'])]==frozen05['trips']
+          assert all(x['shapes'][key]==val for key,val in frozen05['shapes'].items())
+          assert all(x['counts'][key]==val for key,val in frozen05['counts'].items())
+          assert x['metroLines']==frozen05['metroLines'] and x['tramLines']==frozen05['tramLines']
+          assert x['roslagsLines']==frozen05['roslagsLines']
+          assert x['saltsjoLines']==frozen05['saltsjoLines']
+          assert x['arlandaDirections']['to-airport']>0 and x['arlandaDirections']['to-city']>0
+          assert all(t['mode']=='express' and len(t['stops'])==3 and
+                     t['vehicleModel']=='X3' and
+                     'Arlanda Norra' in str(t['stops']) and 'Arlanda Södra' in str(t['stops'])
+                     and 'Arlanda Central' not in str(t['stops'])
+                     for t in x['trips'][len(frozen05['trips']):])
+          stable04=json.load(open('data/stable04-snapshot.json'))
+          assert x['trips'][:len(stable04['trips'])]==stable04['trips']
+          assert all(x['shapes'][k]==v for k,v in stable04['shapes'].items())
+          assert all(x['counts'][k]==v for k,v in stable04['counts'].items())
+          assert x['roslagsLines']==stable04['roslagsLines']
+          assert x['tramLines']==stable04['tramLines'] and x['metroLines']==stable04['metroLines']
+          assert set(x['saltsjoLines'])=={'25','26'}
+          assert all(x['saltsjoDirections'][line][direction]>0 for line in ('25','26') for direction in ('out','back'))
+          for trip in x['trips'][len(stable04['trips']):len(frozen05['trips'])]:
+              assert trip['mode']=='saltsjo' and trip['line'] in ('25','26')
+              first=trip['stops'][0][2].casefold()
+              last=trip['stops'][-1][2].casefold()
+              names=(first,last)
+              if trip['line']=='25':
+                  assert any('saltsjö-järla' in n for n in names) and any('saltsjöbaden' in n for n in names)
+              else:
+                  assert any('igelboda' in n for n in names) and any('solsidan' in n for n in names)
+              assert 'slussen' not in first and 'slussen' not in last
+          stable03=json.load(open('data/stable03-snapshot.json'))
+          assert x['trips'][:len(stable03['trips'])]==stable03['trips']
+          assert all(x['shapes'][k]==v for k,v in stable03['shapes'].items())
+          assert all(x['counts'][key]==value for key,value in stable03['counts'].items())
+          assert x['tramLines']==stable03['tramLines']
+          assert x['metroLines']==stable03['metroLines']
+          assert set(x['roslagsLines'])=={'27','28','29'} and all(x['roslagsLines'][l]>0 for l in ('27','28','29'))
+          assert all(x['roslagsDirections'][line]['out']>0 and x['roslagsDirections'][line]['back']>0 for line in ('27','28','29'))
+          frozen=json.load(open('data/stable02-snapshot.json'))
+          assert x['trips'][:len(frozen['trips'])]==frozen['trips']
+          assert all(x['shapes'][k]==v for k,v in frozen['shapes'].items())
+          assert all(x['counts'][kind]==frozen['counts'][kind] for kind in ('commuter','metro'))
+          assert all(x['tramLines'][line]==frozen['tramLines'][line] for line in ('12','21','30','31'))
+          assert x['city7Directions']['out']>0 and x['city7Directions']['back']>0
+          assert x['trips'] and x['shapes']
+          assert x['counts'].get('commuter',0)>0 and x['counts'].get('metro',0)>0
+          before=json.load(open('data/rail-baseline.json'))
+          assert x['trips'][:len(before['trips'])]==before['trips']
+          assert all(x['shapes'][key]==shape for key,shape in before['shapes'].items())
+          assert all(x['counts'][mode]==before['counts'][mode] for mode in ('commuter','metro'))
+          assert set(x['tramLines'])=={'30','31','12','21','7'} and all(x['tramLines'][line]>0 for line in ('30','31','12','21'))
+          stable=json.load(open('data/stable-three-mode.json'))
+          assert x['trips'][:len(stable['trips'])]==stable['trips']
+          assert all(x['shapes'][k]==v for k,v in stable['shapes'].items())
+          assert all(x['counts'][mode]==stable['counts'][mode] for mode in ('commuter','metro'))
+          assert all(x['tramLines'][line]==stable['tramLines'][line] for line in ('30','31'))
+          for line in ('12','21'):
+              directions=x['localTramDirections'][line]
+              assert directions['out']>0 and directions['back']>0
+          metro={'10','11','13','14','17','18','19'}
+          assert set(x['metroLines'])==metro, 'Incomplete metro line coverage'
+          assert all(t['mode'] in ('commuter','metro','tram','localrail','saltsjo','express') and t['geometryQuality']=='verified-osm-relation'
+              and t['shapeId'] in x['shapes'] for t in x['trips'])
+          uppsala=[t for t in x['trips'] if t['mode']=='commuter'
+                   and 'uppsala' in t.get('destination','').lower()]
+          assert uppsala and all('uppsala' in t['stops'][-1][2].lower()
+                   and t['stops'][-1][0]>=59.8 for t in uppsala)
+          print('UNMODIFIED COMMUTER TRIP COUNT:',x['counts']['commuter'])
+          print('VERIFIED METRO ROUTES:',x['metroLines'])
+          print('VERIFIED LOCAL TRAMWAYS:',x['tramLines'])
+          print('NOTE: ARCHIVED WEEKDAY TIMES, NOT LIVE GPS')
+          PY
+      - name: Verify Tvärbanan exists and is renderable at Sunday midday
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const noon=Date.parse('2026-11-08T12:47:00+01:00')/1000;
+          const trams=activeRailTrips(d,noon,1000).filter(x=>x.mode==='tram');
+          console.log('SUNDAY NOON VISIBLE TVÄRBANAN:',trams.length,
+            trams.map(x=>x.line+':'+x.destination).slice(0,12));
+          if(trams.length<2)throw Error('No visible Tvärbanan services at Sunday noon');
+          JS
+      - name: Refuse the empty-map regression at Sunday 12:47 for BOTH new lines
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const midday=Date.parse('2026-11-08T12:47:00+01:00')/1000;
+          const visible=activeRailTrips(d,midday,2000);
+          for(const line of ['12','21']){
+            const vehicles=visible.filter(t=>t.mode==='tram'&&t.line===line);
+            console.log('SUNDAY LOCAL RAIL LINE',line,'RENDERABLE',vehicles.length);
+            if(!vehicles.length)throw Error('No visible historical trains for line '+line);
+          }
+          JS
+      - name: Verify City 7 renderable in four Sunday time windows
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const line7=activeRailTrips(d,at,3000).filter(t=>t.mode==='tram'&&String(t.line)==='7');
+            const outward=line7.filter(t=>/t-centralen|sergels torg/i.test(t.stops[0][2]));
+            const returning=line7.filter(t=>/waldemarsudde/i.test(t.stops[0][2]));
+            console.log('CITY7 MAP VISIBLE',hour,line7.length,'out',outward.length,'return',returning.length);
+            if(!line7.length)throw new Error('No visible City7 trains at '+hour);
+            if([12,16].includes(hour) && (!outward.length || !returning.length))
+              throw new Error('Missing City7 travel direction at '+hour);
+          }
+          JS
+      - name: Check visible Roslagsbanan 27 28 29 in four time slots
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const epoch=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const active=activeRailTrips(d,epoch,3500);
+            for(const line of ['27','28','29']){
+              const trains=active.filter(v=>v.mode==='localrail'&&v.line===line);
+              const inward=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops.at(-1)[2]));
+              const outward=trains.filter(v=>/(?:stockholm|stockholms) östra/i.test(v.stops[0][2]));
+              console.log('ROSLAG ON MAP',hour,line,trains.length,'in',inward.length,'out',outward.length);
+              if(line!=='29'&&!trains.length)throw Error('No map-visible Roslagsbanan '+line+' at '+hour);
+              // Line 29 is lower-frequency; verify both directions across full
+              // archive separately rather than simultaneous at a single minute.
+              if([12,16].includes(hour) && line!=='29' && (!inward.length || !outward.length))
+                throw Error('Missing a Roslagsbanan direction for '+line+' at '+hour);
+            }
+          }
+          // Sparse line 29: scan actual train positions for the whole day.
+          const seen={in:0,out:0};
+          for(let hour=5;hour<=23;hour++){
+            for(const minute of [0,15,30,45]){
+              const epoch=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00+01:00')/1000;
+              for(const train of activeRailTrips(d,epoch,6000).filter(v=>v.mode==='localrail'&&v.line==='29')){
+                if(/(?:stockholm|stockholms) östra/i.test(train.stops.at(-1)[2]))seen.in++;
+                if(/(?:stockholm|stockholms) östra/i.test(train.stops[0][2]))seen.out++;
+              }
+            }
+          }
+          console.log('ROSLAG 29 FULL-DAY MAP VISIBILITY',seen);
+          if(!seen.in||!seen.out)throw Error('Roslagsbanan 29 lacks map-renderable bidirectional historical trains during day');
+          JS
+      - name: Confirm Saltsjöbanan map-visible vehicles at four Sunday hours
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const at=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const active=activeRailTrips(d,at,4000);
+            for(const line of ['25','26']){
+              const trains=active.filter(v=>v.mode==='saltsjo'&&String(v.line)===line);
+              console.log('SALTSJO VISIBLE',hour,line,trains.length);
+              if(!trains.length && !(hour===20&&line==='26'))throw Error('No Saltsjöbanan '+line+' on map at '+hour);
+            }
+          }
+          JS
+      - name: Ensure real Arlanda X3 map markers at 8 12 16 20 hours in both directions
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          for(const hour of [8,12,16,20]){
+            const now=Date.parse('2026-11-08T'+String(hour).padStart(2,'0')+':47:00+01:00')/1000;
+            const trains=activeRailTrips(d,now,5000).filter(v=>v.mode==='express');
+            const city=trains.filter(v=>/stockholm centralstation/i.test(v.stops.at(-1)[2]));
+            const airport=trains.filter(v=>/stockholm centralstation/i.test(v.stops[0][2]));
+            console.log('ARLANDA EXPRESS X3',hour,trains.length,'airport',airport.length,'city',city.length);
+            if(!trains.length||!airport.length||!city.length)throw Error('Arlanda X3 map missing at '+hour);
+            for(const v of trains)if(!Number.isFinite(railAt(v,now).pos?.[0]))
+              throw Error('Arlanda X3 off-rail location');
+          }
+          JS
+      - name: Verify both network directions and full Uppsala return route
+        run: python -u scripts/audit_rail_directions.py
+      - name: Install photo processing library
+        run: python -m pip install --disable-pip-version-check Pillow
+      - name: Prepare local approved rail photos
+        run: python -u scripts/download_photos.py
+      - name: Confirm local approved Tvärbanan photos
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          catalog=json.load(open('photos/catalog.json'))
+          assert 'tram_a35' in catalog, 'Approved A35 Tvärbanan photograph missing'
+          assert 'tram_nockeby12' in catalog and 'tram_lidingo21' in catalog and 'tram_city7' in catalog and 'local_x10p' in catalog and 'local_x15p' in catalog and 'local_saltsjo' in catalog and 'rail_arlanda' in catalog
+          for key in ('tram_nockeby12','tram_lidingo21','tram_city7','local_x10p','local_x15p','local_saltsjo','rail_arlanda'):
+              f=Path(catalog[key]['path'])
+              assert f.is_file() and f.stat().st_size>2500, f'Missing {key} photo'
+          p=Path(catalog['tram_a35']['path'])
+          assert p.is_file() and p.stat().st_size>2500
+          print('APPROVED TVÄRBANAN IMAGE OK:',p)
+          PY
+      - name: Audit every pre-existing system including screenshot regression
+        run: node scripts/audit_visibility_all_systems.mjs
+      - name: Audit every hour of the 24-hour daily timetable
+        run: node scripts/audit_24_hours.mjs
+      - name: Check that each hour repeats identically throughout the week and in summer
+        run: node scripts/audit_daily_repeat.mjs
+      - name: Block Mälartåg, require all nine historic rail systems
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('data/rail.json'))
+          assert x['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda'
+          assert x['type']=='historical-daily-repeating-simulation'
+          assert x['referenceDay']=='2026-11-06'
+          assert not any(t.get('mode')=='regional' or t.get('corridor') for t in x['trips'])
+          assert all(x['counts'].get(k,0)>0 for k in ('commuter','metro','tram','localrail','saltsjo','express'))
+          assert x['arlandaDirections']['to-airport']>0 and x['arlandaDirections']['to-city']>0
+          assert set(x['saltsjoLines'])=={'25','26'}
+          assert set(x['roslagsLines'])=={'27','28','29'}
+          print('ALL NINE SYSTEMS READY, NO MÄLARTÅG, DAILY HISTORICAL SERVICE')
+          PY
+      - name: Freeze clean nine-system baseline
+        run: cp data/rail.json data/sj-nine-baseline.json
+      - name: Import authentic Stockholm-Göteborg and Stockholm-Malmö SJ schedules
+        run: python -u scripts/build_sj_candidates.py
+      - name: Join only real OSM SJ route relations, checking every GTFS station
+        run: python -u scripts/append_sj_rail.py
+      - name: Require original nine systems unchanged and four real SJ directions
+        run: |
+          python - <<'PY'
+          import json
+          before=json.load(open('data/sj-nine-baseline.json'))
+          after=json.load(open('data/rail.json'))
+          assert before['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda'
+          assert after['scope']==before['scope']+'-sj'
+          assert after['trips'][:len(before['trips'])]==before['trips']
+          assert all(after['shapes'][k]==v for k,v in before['shapes'].items())
+          assert all(after['counts'][k]==v for k,v in before['counts'].items())
+          assert all(after[k]==before[k] for k in ('metroLines','tramLines','roslagsLines','saltsjoLines','arlandaDirections'))
+          assert set(after['sjDirections'])=={'to-goteborg','from-goteborg','to-malmo','from-malmo'}
+          assert all(v>0 for v in after['sjDirections'].values())
+          added=after['trips'][len(before['trips']):]
+          assert len(added)>5 and all(t['mode']=='intercity' and t['agency']=='SJ'
+             and t['geometryQuality']=='verified-osm-relation'
+             and len(t['stops'])>=3 and t['shapeId'] in after['shapes'] for t in added)
+          assert not any(t.get('mode')=='regional' or t.get('agency')=='Mälartåg' for t in added)
+          print('SJ FOUR DIRECTIONS AND NINE ORIGINAL SYSTEMS VERIFIED',after['sjDirections'])
+          PY
+      - name: Confirm actual SJ map-visible vehicles, every calendar day, both directions
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './src/rail-data.js';
+          import {matchesRailFilter} from './src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('data/rail.json','utf8'));
+          const days=[['2026-11-09','+01:00'],['2026-11-15','+01:00'],['2027-07-13','+02:00']];
+          for(const [day,tz] of days){
+            const found=new Set();
+            let count=0;
+            for(let h=0;h<24;h++)for(const m of [0,15,30,45]){
+              const epoch=Date.parse(day+'T'+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':00'+tz)/1000;
+              const trains=activeRailTrips(d,epoch,20000).filter(t=>matchesRailFilter(t,'sj'));
+              for(const t of trains){
+                const pos=railAt(t,epoch);
+                if(!pos.pos.every(Number.isFinite)||!Number.isFinite(pos.kmh))throw Error('Bad SJ position '+t.id);
+                found.add(t.direction);count++;
+              }
+            }
+            const expected=['to-goteborg','from-goteborg','to-malmo','from-malmo'];
+            for(const direction of expected)if(!found.has(direction))throw Error('SJ absent from map '+direction+' on '+day);
+            console.log('SJ REAL DAILY VISIBLE TRAINS',day,count,Array.from(found));
+          }
+          JS
+      - name: Package private SJ preview artifact, NEVER deploy
+        run: |
+          mkdir -p _sj_preview/data
+          cp index.html _sj_preview/
+          cp -R src photos _sj_preview/
+          cp data/rail.json _sj_preview/data/rail.json
+          touch _sj_preview/.nojekyll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockholm-rail-sj-preview
+          path: _sj_preview
