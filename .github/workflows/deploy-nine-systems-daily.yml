@@ -1,6 +1,10 @@
 name: Deploy Stockholm Rail - 9 systems every day (NO Maelartag)
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-nine-systems-daily.yml
 permissions:
   contents: read
   pages: write
