@@ -15,13 +15,21 @@ import build_rail_keyless as gtfs
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"malartag_candidates.json"
 REF_START=gtfs.REFERENCE_DAY
-# ONE carefully isolated pilot corridor: Uppsala–Tierp–Gävle; no other Mälartåg routes.
+# All five historical Mälartåg corridors. No invented departure or missing stops.
 CORRIDORS={
+ "orebro-uppsala":("örebro","eskilstuna","stockholm","uppsala"),
+ "nykoping":("norrköping","nyköping","stockholm"),
+ "hallsberg":("stockholm","katrineholm","hallsberg"),
+ "uven":("linköping","norrköping","katrineholm","eskilstuna","västerås","sala","uppsala"),
  "gavle":("uppsala","tierp","gävle"),
 }
-# Prevent ambiguous overlap (e.g. Stockholm-Uppsala on its own) being
-# assigned to the wrong corridor. Do not infer missing journey segments.
+# A unique station signature classifies train patterns; every full timetable
+# sequence must still be checked against real OSM tracks in both directions.
 SIGNATURES={
+ "orebro-uppsala":("örebro","arboga","köping"),
+ "nykoping":("nyköping","vagnhärad","kolmården"),
+ "hallsberg":("hallsberg","vingåker"),
+ "uven":("västerås","kvicksund","kolbäck","ransta","heby","morgongåva"),
  "gavle":("gävle","tierp","skutskär","älvkarleby","tobo","örbyhus"),
 }
 def norm(s):
@@ -94,9 +102,8 @@ def build(z,now):
   stops=[e[1] for e in entries]
   corridor=corridor_for([s[2] for s in stops],route["routeText"])
   if corridor is None:unclassified+=1;continue
-  if not (any(contains_station(n,"uppsala") for n in (s[2] for s in stops))
-          and any(contains_station(n,"gävle") for n in (s[2] for s in stops))):
-   unclassified+=1;continue
+  # Classify only genuine agency and real station sequence; a short-turn
+  # remains eligible but is not mislabeled as a full end-to-end train.
   for source_day in days:
    for target in targets:
     # Repeat identical archived service for every day of the week.
