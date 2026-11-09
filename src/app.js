@@ -167,7 +167,7 @@ function originalSpriteUrl(key){
 // Small sizes keep the network legible even with hundreds of rail vehicles.
 function miniRailIcon(v,chosen=false){
   const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
-    v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='regional'?'rail':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
+    v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
   const img=originalSpriteUrl(imageKey);
   const size=chosen?27:19;
   const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
@@ -176,7 +176,6 @@ function miniRailIcon(v,chosen=false){
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#E78B35',rail:'#C89D52'};
 function realColor(v){
- if(v.mode==='regional')return '#8569AD';
  if(v.mode==='express')return '#E4AE20';
  if(v.mode==='saltsjo')return '#517BA0';
  if(v.mode==='localrail')return '#7956A7';
@@ -186,14 +185,43 @@ function realColor(v){
  }
  return railColors[v.mode]||'#537F85';
 }
-function realTitle(v){return (v.mode==='express'?'Arlanda Express':v.mode==='regional'?'Mälartåg':(v.line||v.train||v.mode.toUpperCase()))+' · '+(v.destination||'Stockholm')}
+function realTitle(v){return (v.mode==='express'?'Arlanda Express':(v.line||v.train||v.mode.toUpperCase()))+' · '+(v.destination||'Stockholm')}
+// Fair ordering for "Alla tåg": otherwise Pendeltåg can occupy the first
+// 90 list items and 280 map markers while all other systems are present.
+function displayOrder(trips){
+ if(state.filter!=='all')return trips;
+ const keys=[
+  ['commuter',t=>t.mode==='commuter'],
+  ['metro',t=>t.mode==='metro'],
+  ['tvar',t=>t.mode==='tram'&&['30','31'].includes(String(t.line))],
+  ['nockeby',t=>String(t.line)==='12'&&t.mode==='tram'],
+  ['lidingo',t=>String(t.line)==='21'&&t.mode==='tram'],
+  ['city7',t=>String(t.line)==='7'&&t.mode==='tram'],
+  ['roslags',t=>t.mode==='localrail'],
+  ['saltsjo',t=>t.mode==='saltsjo'],
+  ['arlanda',t=>t.mode==='express']
+ ];
+ const queues=keys.map(([_,match])=>trips.filter(match));
+ const used=new Set(queues.flat().map(t=>t.id));
+ const leftovers=trips.filter(t=>!used.has(t.id));
+ const arranged=[];
+ let depth=0,more=true;
+ while(more){
+  more=false;
+  for(const q of queues){
+   if(depth<q.length){arranged.push(q[depth]);more=true;}
+  }
+  depth++;
+ }
+ return arranged.concat(leftovers);
+}
 function showRealList(){
  if(!railDataset)return;
  const list=$('vehicle-list');list.innerHTML='';
  const frag=document.createDocumentFragment();
- for(const v of realActive.filter(v=>matchesRailFilter(v,state.filter)).slice(0,90)){
+ for(const v of displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)){
   const btn=document.createElement('button');btn.className='vehicle'+(state.selected&&state.selected.id!==v.id?' muted':'');
-  const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=v.mode==='regional'?'MT':(v.line||v.mode.slice(0,2).toUpperCase());
+  const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=(v.line||v.mode.slice(0,2).toUpperCase());
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
   const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
@@ -283,12 +311,12 @@ function tickReal(){
  const now=Date.now(),epoch=now/1000;
  $('clock').textContent=stockholmTime(now).display;
  if(now-realLastList>15000){
-  realActive=activeRailTrips(railDataset,epoch,['malartag','all'].includes(state.filter)?10000:1000);realLastList=now;showRealList();
+  realActive=activeRailTrips(railDataset,epoch,10000);realLastList=now;showRealList();
   if(state.selected&&!realActive.some(v=>v.id===state.selected.id))clearReal();
  }
  if(!map||now-realLastDraw<90)return;realLastDraw=now;
  const selected=state.selected;
- const showing=realActive.filter(v=>matchesRailFilter(v,state.filter));
+ const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)));
  const seen=new Set(showing.map(v=>v.id));
  for(const [id,m] of markers)if(!seen.has(id)){map.removeLayer(m);markers.delete(id)}
  const bounds=map.getBounds().pad(.12);
@@ -378,8 +406,7 @@ function start(){
  setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg-, Tunnelbana- och Tvärbanan-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
   state.filter=b.dataset.filter;
-  realLastList=0; // new regional selection must refresh before drawing
-  if(state.filter==='malartag'&&map)map.flyTo([59.32,16.55],8,{duration:1.1});
+  realLastList=0; // selected line refreshes before drawing
   const heading=document.querySelector('.sidebar-heading h1');
   if(heading)heading.textContent=railFilterTitle(state.filter);
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
@@ -387,7 +414,7 @@ function start(){
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
- $('home').onclick=()=>{clearSelected();map?.flyTo(state.filter==='malartag'?[59.32,16.55]:[59.334,18.058],state.filter==='malartag'?8:11,{duration:1.1})};
+ $('home').onclick=()=>{clearSelected();map?.flyTo([59.334,18.058],11,{duration:1.1})};
  $('tab-trains').onclick=clearSelected;
  $('clear').onclick=clearSelected;
  $('follow').onclick=()=>{state.follow=!state.follow;updateFollow()};
