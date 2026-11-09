@@ -34,8 +34,8 @@ test('local vehicle photos and UI elements are present; movement and follow engi
 
 test('map markers and sidebar share exactly the same line-aware filter',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
- assert.match(app,/for\(const v of realActive\.filter\(v=>matchesRailFilter\(v,state\.filter\)\)\.slice\(0,90\)\)/);
- assert.match(app,/const showing=realActive\.filter\(v=>matchesRailFilter\(v,state\.filter\)\)/);
+ assert(app.includes('for(const v of displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)'));
+ assert(app.includes('const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
  assert(!app.includes("state.filter==='all'||state.filter===v.mode"));
  for(const f of ['nockeby','lidingo']){
    const selected=vehicles.filter(v=>matchesRailFilter(v,f));
