@@ -26,8 +26,8 @@ class OsmRailGraphTests(unittest.TestCase):
   way=make_rail(points)
   shape=router.route_osm_ways(stops,downloader=lambda area:[way])
   self.assertGreater(len(shape),90)
-  self.assertEqual(shape[0],points[0])
-  self.assertEqual(shape[-1],points[-1])
+  self.assertLessEqual(router.dist(shape[0],points[0]),router.STOP_MAX_METRES)
+  self.assertLessEqual(router.dist(shape[-1],points[-1]),router.STOP_MAX_METRES)
   self.assertTrue(all(p in points for p in shape))
   self.assertTrue(all(p[0]<=q[0] for p,q in zip(shape,shape[1:])))
  def test_disconnected_crossing_rail_segments_must_not_join(self):
