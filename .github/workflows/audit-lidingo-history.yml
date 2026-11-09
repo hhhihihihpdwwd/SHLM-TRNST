@@ -1,0 +1,24 @@
+name: Audit Lidingobanan real GTFS morning service (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/audit-lidingo-history.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/lidingo-morning-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inspect original archive 2026-11-04 through 2026-11-10
+        run: |
+          python -m py_compile scripts/audit_lidingo_history.py
+          python -u scripts/audit_lidingo_history.py
