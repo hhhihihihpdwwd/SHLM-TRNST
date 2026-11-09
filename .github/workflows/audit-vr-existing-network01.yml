@@ -1,0 +1,35 @@
+name: Audit preserved STABLE 07 tracks for VR southern-western mainline (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/audit-vr-existing-network01.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vr-snabbtag-01
+          path: _vr
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42633083267
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _pinned
+      - name: Inspect ONLY existing audited OSM rail segments against original VR station points
+        run: |
+          mkdir -p _site
+          tar -xf _pinned/artifact.tar -C _site
+          python -u _vr/scripts/build_vr_candidates.py 2026-11-09
+          python -u _vr/scripts/audit_vr_available_network.py _site/data/rail.json _vr/data/vr_candidates.json
