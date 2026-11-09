@@ -29,7 +29,7 @@ def eligible_shapes(original):
  if not result:raise ValueError("Pinned STABLE07 has no real SJ Stockholm–Göteborg OSM tracks")
  return result
 
-def integrate(original,candidates):
+def integrate(original,candidates,verified_bridge=None):
  if original.get("scope")!=BASE_SCOPE:
   raise ValueError("Refuse to modify any baseline other than pinned eleven-system STABLE 07")
  if original.get("type")!="historical-daily-repeating-simulation":
@@ -45,6 +45,28 @@ def integrate(original,candidates):
   raise ValueError("Unexpected Mälartåg STABLE07 corridors")
  original_sha_copy=copy.deepcopy(original)
  shapes=eligible_shapes(original)
+ extra_shapes={}
+ if verified_bridge is not None:
+  # The companion builder has routed ONLY OSM railway=rail node IDs between
+  # two real SJ OSM track vertices. Check the signed source geometry endpoints
+  # and refuse any invented station-to-station connector.
+  if not verified_bridge.get("osmWayNetwork") or verified_bridge.get("source")!=(
+      "Real OSM railway=rail way node IDs + existing verified SJ route relations"):
+   raise ValueError("VR bridge is not verified physical OSM rail")
+  physical=verified_bridge.get("shape")
+  if not isinstance(physical,list) or len(physical)<100:
+   raise ValueError("VR physical OSM bridge incomplete")
+  left=original["shapes"].get("sj-osm:8860632:reverse")
+  right=original["shapes"].get("sj-osm:21493221:reverse")
+  if not left or not right or physical[0]!=left[0] or physical[-1]!=right[-1]:
+   raise ValueError("VR OSM rail bridge does not meet original SJ real railway endpoints")
+  if verified_bridge.get("bridgeNodeCount",0)<10 or verified_bridge.get("maxRealSegmentMetres",9999)>1500:
+   raise ValueError("VR OSM railway-way bridge has insufficient connected source nodes")
+  for suffix,geometry in (("forward",physical),("reverse",list(reversed(physical)))):
+   sid="vr-osm-rail-ways:katrineholm-hallsberg:"+suffix
+   if sid in original["shapes"]:raise ValueError("VR would overwrite existing rail shape")
+   shapes.insert(0,(sid,geometry))
+   extra_shapes[sid]=geometry
  verified=[];counts=collections.Counter()
  rejected=collections.Counter()
  matched_patterns={}
@@ -69,10 +91,13 @@ def integrate(original,candidates):
          [s[2] for s in t["stops"]],flush=True)
    continue
   sid,_=matched
+  from_way_graph=sid.startswith("vr-osm-rail-ways:")
   accepted={**t,
    "mode":"intercity","agency":OPERATOR,"line":"VR",
-   "shapeId":sid,"geometryQuality":"verified-osm-relation",
-   "osmRelation":sid.split(":")[1],
+   "shapeId":sid,
+   "geometryQuality":"verified-osm-rail-ways" if from_way_graph else "verified-osm-relation",
+   "osmRelation":None if from_way_graph else sid.split(":")[1],
+   "osmWayNetwork":from_way_graph,
    "isLiveGPS":False
   }
   verified.append(accepted)
@@ -86,14 +111,18 @@ def integrate(original,candidates):
   raise ValueError("Duplicate real VR journey IDs")
  result=copy.deepcopy(original)
  result["trips"].extend(verified)
+ for sid,geo in extra_shapes.items():
+  if any(t["shapeId"]==sid for t in verified):result["shapes"][sid]=geo
  result["counts"]["intercity"]+=len(verified)
  result["vrDirections"]={d:counts[d] for d in DIRECTIONS}
  result["scope"]=BASE_SCOPE+"-vr"
  # These checks are necessary before users can trust the previous eleven systems.
  if result["trips"][:len(original["trips"])]!=original_sha_copy["trips"]:
   raise AssertionError("Original eleven-system vehicle timetable mutated")
- if result["shapes"]!=original_sha_copy["shapes"]:
+ if not all(result["shapes"].get(k)==v for k,v in original_sha_copy["shapes"].items()):
   raise AssertionError("Original eleven-system OSM geometries mutated")
+ if not all(k in extra_shapes for k in result["shapes"] if k not in original_sha_copy["shapes"]):
+  raise AssertionError("Unproven extra rail geometry included")
  for k,v in original_sha_copy.items():
   if k in ("trips","counts","scope"):continue
   if result.get(k)!=v:raise AssertionError("Original timetable metadata mutated: "+k)
@@ -110,11 +139,12 @@ def integrate(original,candidates):
  return result
 
 def main():
- if len(sys.argv)!=4:
-  raise SystemExit("Usage: append_vr_rail.py ORIGINAL_11.json VR_CANDIDATES.json OUT_12.json")
+ if len(sys.argv) not in (4,5):
+  raise SystemExit("Usage: append_vr_rail.py ORIGINAL_11.json VR_CANDIDATES.json OUT_12.json [VERIFIED_OSM_BRIDGE.json]")
  source=json.loads(Path(sys.argv[1]).read_text(encoding="utf8"))
  vr=json.loads(Path(sys.argv[2]).read_text(encoding="utf8"))
- output=integrate(source,vr)
+ bridge=(json.loads(Path(sys.argv[4]).read_text(encoding="utf8")) if len(sys.argv)==5 else None)
+ output=integrate(source,vr,bridge)
  destination=Path(sys.argv[3])
  destination.parent.mkdir(parents=True,exist_ok=True)
  destination.write_text(json.dumps(output,ensure_ascii=False,separators=(",",":")),encoding="utf8")
