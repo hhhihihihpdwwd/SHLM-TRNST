@@ -1,0 +1,155 @@
+name: Launch Stockholm Rail with THREE verified Mälartåg corridors
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-malartag-three.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated, reviewed Mälartåg three-corridor release code
+        uses: actions/checkout@v4
+        with:
+          ref: release/malartag-three-01
+          path: _release_code
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Full static and behavioral regressions, without network reimports
+        run: |
+          cd _release_code
+          python -m py_compile scripts/*.py
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          npm test
+      - name: Fetch the exact successfully published ten-system website
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42580852015
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _published
+      - name: Fetch the exact completed real-OSM three-corridor audit
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42624208878
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: malartag-five-corridors-diagnostic
+          path: _audit
+      - name: Build proposed release using genuine, already audited data, no new OSM search
+        run: |
+          mkdir -p _site
+          tar -xf _published/artifact.tar -C _site
+          cp _site/data/rail.json /tmp/stockholm-proven-ten-systems.json
+          test -s _audit/_preview/data/rail.json
+          python -u _release_code/scripts/prepare_malartag_three.py \
+            /tmp/stockholm-proven-ten-systems.json \
+            _audit/_preview/data/rail.json \
+            _site/data/rail.json
+          cp _release_code/index.html _site/index.html
+          cp _release_code/src/app.js _site/src/app.js
+          cp _release_code/src/rail-data.js _site/src/rail-data.js
+          cp _release_code/src/rail-filter.js _site/src/rail-filter.js
+          cp _release_code/src/photos.js _site/src/photos.js
+          touch _site/.nojekyll
+      - name: Verify Mälartåg and SJ photos, map, filters, and no unapproved route
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=Path('_site')
+          d=json.loads((r/'data/rail.json').read_text(encoding='utf8'))
+          original=json.load(open('/tmp/stockholm-proven-ten-systems.json'))
+          assert len(d['trips'])==10389 and len(original['trips'])==9957
+          assert d['trips'][:9957]==original['trips']
+          assert d['scope']==original['scope']+'-malartag'
+          assert set(d['malartagDirections'])=={'orebro-uppsala','nykoping','uven'}
+          assert set(d['malartagCorridors'])=={'orebro-uppsala','nykoping','uven'}
+          assert set(d['malartagCoverage'])=={'orebro-uppsala','nykoping','uven'}
+          assert d['counts']['regional']==432
+          assert d['counts']['intercity']==56
+          assert d['tramLines']['21']>350
+          assert all(t['corridor'] in d['malartagDirections'] for t in d['trips'][9957:])
+          html=(r/'index.html').read_text(encoding='utf8')
+          app=(r/'src/app.js').read_text(encoding='utf8')
+          photosjs=(r/'src/photos.js').read_text(encoding='utf8')
+          assert 'data-filter="malartag"' in html and 'data-filter="sj"' in html
+          assert 'malartag-full-03' in html and 'malartag-full-03' in app
+          assert 'focusLidingoLine()' in app and 'focusMalartagPilot()' in app
+          assert "['malartag',t=>t.mode==='regional'&&t.agency==='Mälartåg']" in app
+          assert "['sj',t=>t.mode==='intercity'&&t.agency==='SJ']" in app
+          assert "v.mode==='regional' && v.agency==='Mälartåg'" in photosjs
+          catalog=json.loads((r/'photos/catalog.json').read_text(encoding='utf8'))
+          for key in ('rail_malartag','rail_x2000'):
+           picture=catalog[key]
+           image=r/picture['path']
+           assert image.is_file() and image.stat().st_size>2500,(key,image)
+           assert picture.get('license','').startswith('CC '),(key,picture.get('license'))
+           print('LICENSED TRAIN PHOTO',key,image.stat().st_size,picture['license'])
+          print('EXACTLY THREE CORRIDORS SELECTED, 10 OLD SYSTEMS UNMODIFIED')
+          PY
+      - name: Confirm REAL map-renderable Mälartåg in BOTH directions all day on winter, weekend and summer
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './_release_code/src/rail-data.js';
+          import {matchesRailFilter} from './_release_code/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('_site/data/rail.json','utf8'));
+          const expected=['orebro-uppsala','nykoping','uven'];
+          for(const [day,tz] of [['2026-11-09','+01:00'],['2026-11-15','+01:00'],['2027-07-13','+02:00']]){
+            const counts=Object.fromEntries(expected.map(k=>[k,{forward:0,reverse:0}]));
+            for(let hour=0;hour<24;hour++)for(const minute of [0,15,30,45]){
+              const epoch=Date.parse(day+'T'+String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00'+tz)/1000;
+              const active=activeRailTrips(d,epoch,20000);
+              const trains=active.filter(t=>matchesRailFilter(t,'malartag'));
+              for(const t of trains){
+                const p=railAt(t,epoch);
+                if(!p.pos.every(Number.isFinite)||!Number.isFinite(p.kmh))
+                  throw Error('Invalid regional map position: '+t.id);
+                if(!counts[t.corridor]||!counts[t.corridor].hasOwnProperty(t.direction))
+                  throw Error('Unapproved region or direction: '+t.id);
+                counts[t.corridor][t.direction]++;
+              }
+              if(hour===8&&minute===30){
+                const sj=active.filter(t=>matchesRailFilter(t,'sj'));
+                const lid=active.filter(t=>matchesRailFilter(t,'lidingo'));
+                if(!sj.length||!lid.length)
+                  throw Error('Previously functional SJ/Lidingöbanan missing at 08:30 '+day);
+              }
+            }
+            for(const key of expected)
+              if(counts[key].forward<1||counts[key].reverse<1)
+                throw Error('Missing real map-visible '+key+' direction on '+day+': '+JSON.stringify(counts[key]));
+            console.log('VERIFIED 24-HOUR THREE-CORRIDOR MAP',day,JSON.stringify(counts));
+          }
+          JS
+      - name: Upload exact release website, only after every test passed
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/configure-pages@v5
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Publish verified 11-system Stockholm Rail with only three new Mälartåg routes
+        id: deploy
+        uses: actions/deploy-pages@v4
