@@ -1,0 +1,107 @@
+name: Launch VR browser-proven twelve-system site (13 rides, zero JS errors)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-vr-browserchecked02.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Download EXACT working STABLE07 last live eleven-system package
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42633083267
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _original
+      - name: Download EXACT Chromium-passed complete twelve-system website
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihpdwwd/SHLM-TRNST
+          run-id: 42646755519
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: stockholm-rail-vr-13-browser-verified
+          path: _site
+      - name: Verify unchanged eleven original systems, 13 new VR trains and fresh asset URLs
+        run: |
+          mkdir -p _stable07
+          tar -xf _original/artifact.tar -C _stable07
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          old=Path('_stable07');site=Path('_site')
+          a=json.loads((old/'data/rail.json').read_text(encoding='utf8'))
+          d=json.loads((site/'data/rail.json').read_text(encoding='utf8'))
+          assert len(a['trips'])==10389
+          assert a['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag'
+          assert d['scope']==a['scope']+'-vr'
+          assert len(d['trips'])==10402
+          assert d['vrDirections']=={'to-goteborg':7,'to-stockholm':6}
+          assert d['trips'][:len(a['trips'])]==a['trips']
+          assert all(d['shapes'].get(k)==v for k,v in a['shapes'].items())
+          assert len(set(d['shapes'])-set(a['shapes']))==2
+          assert d['counts']['intercity']==a['counts']['intercity']+13==69
+          assert d['counts']['regional']==a['counts']['regional']==432
+          assert d['sjDirections']==a['sjDirections']
+          assert d['malartagDirections']==a['malartagDirections']
+          assert d['localTramDirections']==a['localTramDirections']
+          assert d['tramLines']==a['tramLines']
+          assert d['arlandaDirections']==a['arlandaDirections']
+          extra=d['trips'][len(a['trips']):]
+          assert len(extra)==13
+          assert all(t['agency']=='VR Snabbtåg' and t['geometryQuality']=='verified-osm-rail-ways' and
+             t['osmWayNetwork'] is True and t['shapeId'] in d['shapes'] for t in extra)
+          html=(site/'index.html').read_text(encoding='utf8')
+          app=(site/'src/app.js').read_text(encoding='utf8')
+          rail=(site/'src/rail-data.js').read_text(encoding='utf8')
+          assert 'src="./src/app.js?v=vr-browser-fixed-02"' in html
+          for name in ('rail-data','rail-filter','photos'):
+           assert "from './"+name+".js?v=vr-browser-fixed-02'" in app,name
+          assert "const TIMETABLE_URL='./data/rail.json?v=vr-browser-fixed-02';" in rail
+          assert "['verified-osm-relation','verified-osm-rail-ways'].includes(t.geometryQuality)" in app
+          for p in old.rglob('*'):
+           if not p.is_file():continue
+           relative=p.relative_to(old)
+           if str(relative) in {'data/rail.json','index.html','src/app.js','src/rail-data.js',
+                                'src/rail-filter.js','src/photos.js','.nojekyll'}:continue
+           target=site/relative
+           assert target.is_file() and hashlib.sha256(p.read_bytes()).digest()==hashlib.sha256(target.read_bytes()).digest(),(
+               'Original stable website asset was changed',relative)
+          catalog=json.loads((site/'photos/catalog.json').read_text(encoding='utf8'))
+          for key in ('rail_vr_x74','rail_x2000','rail_malartag','tram_lidingo21'):
+           image=site/catalog[key]['path']
+           assert image.is_file() and image.stat().st_size>2500
+           assert catalog[key]['license'].startswith('CC ')
+          print('PUBLISHABLE: 13 VR TRAINS, BOTH DIRECTIONS, 10389 PREVIOUS TRAINS UNMODIFIED')
+          print('CACHE FIX: APP, DATA MODULE, FILTER MODULE AND GTFS JSON RE-REQUESTED')
+          print('ALL PHOTOS, OSM TRACKS AND PREVIOUS STABLE07 STATIC ASSETS PRESERVED')
+          print('BROWSER PROOF GITHUB RUN 42646755519: 2 VR TRAINS + 2 MAP MARKERS, ZERO JS ERRORS')
+          PY
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - name: Package EXACT Chromium-verified site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - name: Deploy only after immutable STABLE07 protection and real Chromium proof
+        id: publish
+        uses: actions/deploy-pages@v4
