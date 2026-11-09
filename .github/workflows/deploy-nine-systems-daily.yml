@@ -54,7 +54,7 @@ jobs:
       - name: Assert sidebar and map both select lines 12 and 21
         run: |
           npm test
-          grep -F "const showing=realActive.filter(v=>matchesRailFilter(v,state.filter));" src/app.js
+          grep -F "const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)));" src/app.js
       - name: Build public historical Stockholm rail timetable (no API key)
         run: python -u scripts/build_rail_keyless.py
       - name: Keep immutable snapshot of historic metro timetable candidates
