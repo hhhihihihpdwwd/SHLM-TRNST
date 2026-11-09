@@ -409,6 +409,22 @@ function tick(){
  const time=performance.now();
  if(state.selected&&time-lastDetailUpdate>1900){lastDetailUpdate=time;refreshSelected()}
 }
+// The SJ expansion can leave the camera zoomed out over Scandinavia.
+// Keep Lidingöbanan focused on the verified Ropsten–Gåshaga endpoints,
+// including when there is a temporary gap in the historical timetable.
+function focusLidingoLine(){
+ if(!map||!railDataset)return;
+ const journey=railDataset.trips.find(t=>
+   matchesRailFilter(t,'lidingo') &&
+   t.geometryQuality==='verified-osm-relation' &&
+   Array.isArray(t.stops)&&t.stops.length>=2);
+ if(!journey)return;
+ const points=journey.stops.map(stop=>[Number(stop[0]),Number(stop[1])])
+   .filter(p=>p.every(Number.isFinite));
+ if(points.length<2)return;
+ const bounds=L.latLngBounds(points);
+ if(bounds.isValid())map.flyToBounds(bounds,{padding:[65,65],maxZoom:13,duration:1.0});
+}
 function start(){
  setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg-, Tunnelbana- och Tvärbanan-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
@@ -418,6 +434,7 @@ function start(){
   if(heading)heading.textContent=railFilterTitle(state.filter);
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
   if(state.selected&&!matchesRailFilter(state.selected,state.filter))clearSelected();
+  if(state.filter==='lidingo')focusLidingoLine();
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
