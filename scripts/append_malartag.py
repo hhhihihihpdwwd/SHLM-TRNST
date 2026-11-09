@@ -386,7 +386,7 @@ def integrate(base,archive,provider=relation_shapes):
    if project_stops(t["stops"],geom,MAX_ERROR) is None:continue
    # Explicitly do NOT assert model if historical GTFS has no vehicle assignment.
    from_graph=rid.startswith("osm-railway-ways:")
-   added.append({**t,"mode":"regional","vehicleModel":"ER1 (typical; not trip-confirmed)",
+   added.append({**t,"mode":"regional","direction":direction,"vehicleModel":"ER1 (typical; not trip-confirmed)",
      "vehiclePhotoStatus":"approved-model-reference",
      "shapeId":sid,"osmRelation":None if from_graph else rid,
      "osmWayNetwork":from_graph,
