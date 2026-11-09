@@ -56,6 +56,15 @@ class PilotTests(unittest.TestCase):
    self.assertEqual(result["counts"][key],value)
   self.assertTrue(all(t["geometryQuality"]=="verified-osm-relation"
      for t in result["trips"][len(frozen["trips"]):]))
+ def test_osm_discovery_uses_real_whole_word_place_names(self):
+  self.assertTrue(pilot.corridor_relation_match("gavle",{
+    "name":"Uppsala - Gävle","from":"Uppsala","to":"Gävle"}))
+  self.assertTrue(pilot.corridor_relation_match("gavle",{
+    "name":"Tierp - Gävle"}))
+  self.assertFalse(pilot.corridor_relation_match("gavle",{
+    "name":"Stockholm - Göteborg","operator":"Mälartåg"}))
+  self.assertFalse(pilot.corridor_relation_match("gavle",{
+    "name":"Gävlehus","operator":"Mälartåg"}))
  def test_missing_direction_and_nonexistent_tracks_cannot_pass(self):
   base,archive,provider=fixture()
   with self.assertRaisesRegex(ValueError,"gavle"):
