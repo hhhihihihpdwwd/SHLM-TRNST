@@ -1,0 +1,65 @@
+name: EMERGENCY ROLLBACK - restore exact working STABLE 07 11 systems
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/emergency-rollback-stable07.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download EXACT previously working STABLE 07 website (no rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42633083267
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _original
+      - name: Extract exactly the historical working public site
+        run: |
+          mkdir -p _site
+          tar -xf _original/artifact.tar -C _site
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('_site')
+          d=json.loads((p/'data/rail.json').read_text(encoding='utf8'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag'
+          assert d['type']=='historical-daily-repeating-simulation'
+          assert len(d['trips'])==10389
+          assert d['counts']['intercity']==56
+          assert d['counts']['regional']==432
+          assert d['tramLines']['21']>350
+          assert set(d['malartagDirections'])=={'orebro-uppsala','nykoping','uven'}
+          assert 'vrDirections' not in d
+          for path in ('index.html','src/app.js','src/photos.js','src/rail-data.js','src/rail-filter.js','photos/catalog.json'):
+           assert (p/path).is_file(),path
+          assert 'data-filter="vr"' not in (p/'index.html').read_text(encoding='utf8')
+          print('EMERGENCY RESTORE VERIFIED: 11 SYSTEMS, 10389 HISTORIC TRAINS, EXACT PRE-VR SITE')
+          PY
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: restore
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.rollback.outputs.page_url }}
+    steps:
+      - name: ROLLBACK to proven STABLE 07, no VR
+        id: rollback
+        uses: actions/deploy-pages@v4
