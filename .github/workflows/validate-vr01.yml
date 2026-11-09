@@ -1,4 +1,4 @@
-name: Validate VR Snabbtåg 12-system preview, corrected OSM fixture tests (NO DEPLOY)
+name: Retest VR cache-safe module imports in isolation (NO DEPLOY)
 on:
   push:
     branches: [main]
