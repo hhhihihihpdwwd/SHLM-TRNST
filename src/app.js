@@ -1,7 +1,7 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js';
-import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=malartag-full-03';
+import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=vr-snabbtag-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js';
 const $=id=>document.getElementById(id);
@@ -149,7 +149,7 @@ function showVerifiedPhoto(v){
  link.textContent=(pic.author||'Foto')+' · '+(pic.license||'Wikimedia Commons');link.style.cssText='font-size:10px;color:#587B74;margin-top:8px';
  if(pic.illustrative){
   const note=document.createElement('div');
-  note.textContent=v.agency==='Mälartåg'?'Exempelbild av Mälartåg · exakt fordon för avgången ej verifierat':'Exempelbild av SJ-tåg · fordonstyp för denna avgång ej verifierad';
+  note.textContent=v.agency==='VR Snabbtåg'?'Exempelbild av VR Snabbtåg X74 · exakt fordon för avgången ej verifierat':v.agency==='Mälartåg'?'Exempelbild av Mälartåg · exakt fordon för avgången ej verifierat':'Exempelbild av SJ-tåg · fordonstyp för denna avgång ej verifierad';
   note.style.cssText='font-size:11px;color:#587B74;line-height:1.45;margin-top:5px';
   el.append(img,note,link);
  }else el.append(img,link);
@@ -182,6 +182,7 @@ function miniRailIcon(v,chosen=false){
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#E78B35',rail:'#C89D52'};
 function realColor(v){
  if(v.mode==='regional')return '#8066A3';
+ if(v.mode==='intercity'&&v.agency==='VR Snabbtåg')return '#326E78';
  if(v.mode==='intercity')return '#9D565F';
  if(v.mode==='express')return '#E4AE20';
  if(v.mode==='saltsjo')return '#517BA0';
@@ -208,6 +209,7 @@ function displayOrder(trips){
   ['saltsjo',t=>t.mode==='saltsjo'],
   ['arlanda',t=>t.mode==='express'],
   ['sj',t=>t.mode==='intercity'&&t.agency==='SJ'],
+  ['vr',t=>t.mode==='intercity'&&t.agency==='VR Snabbtåg'],
   ['malartag',t=>t.mode==='regional'&&t.agency==='Mälartåg']
  ];
  const queues=keys.map(([_,match])=>trips.filter(match));
@@ -371,7 +373,7 @@ async function initializeReal(){
    if(data.type?.startsWith('historical-')){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
      const total=data.trips.length;
-     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan + '+data.tramLines['7']+' Spårväg City + '+data.counts.localrail+' Roslagsbanan + '+data.counts.saltsjo+' Saltsjöbanan + '+data.counts.express+' Arlanda Express + '+(data.counts.intercity||0)+' SJ + '+(data.counts.regional||0)+' Mälartåg · historisk tidtabell, simulerade positioner';
+     hint.textContent=data.counts.commuter+' Pendeltåg + '+data.counts.metro+' Tunnelbana + '+(data.tramLines['30']+data.tramLines['31'])+' Tvärbanan + '+data.tramLines['12']+' Nockebybanan + '+data.tramLines['21']+' Lidingöbanan + '+data.tramLines['7']+' Spårväg City + '+data.counts.localrail+' Roslagsbanan + '+data.counts.saltsjo+' Saltsjöbanan + '+data.counts.express+' Arlanda Express + '+(data.counts.intercity||0)+' SJ + '+(data.vrDirections?Object.values(data.vrDirections).reduce((a,n)=>a+n,0):0)+' VR Snabbtåg + '+(data.counts.regional||0)+' Mälartåg · historisk tidtabell, simulerade positioner';
    }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  }
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent=railFilterTitle(state.filter);
@@ -438,6 +440,19 @@ function focusMalartagPilot(){
  const bounds=L.latLngBounds(points);
  if(bounds.isValid())map.flyToBounds(bounds,{padding:[50,50],maxZoom:10,duration:1});
 }
+// Zoom to the verified Stockholm–Göteborg corridor while leaving Follow,
+// satellite tiles, train times and all other railway cameras untouched.
+function focusVrSnabbtag(){
+ if(!map||!railDataset)return;
+ const trip=railDataset.trips.find(t=>matchesRailFilter(t,'vr')&&
+   t.geometryQuality==='verified-osm-relation'&&Array.isArray(t.stops));
+ if(!trip)return;
+ const points=trip.stops.map(s=>[Number(s[0]),Number(s[1])])
+  .filter(p=>p.every(Number.isFinite));
+ if(points.length<2)return;
+ const bounds=L.latLngBounds(points);
+ if(bounds.isValid())map.flyToBounds(bounds,{padding:[50,50],maxZoom:8,duration:1.1});
+}
 function start(){
  setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg-, Tunnelbana- och Tvärbanan-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
@@ -449,6 +464,7 @@ function start(){
   if(state.selected&&!matchesRailFilter(state.selected,state.filter))clearSelected();
   if(state.filter==='lidingo')focusLidingoLine();
   if(state.filter==='malartag')focusMalartagPilot();
+  if(state.filter==='vr')focusVrSnabbtag();
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
