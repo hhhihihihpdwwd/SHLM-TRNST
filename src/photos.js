@@ -7,6 +7,15 @@ export async function loadPhotoCatalog(){
  return Object.keys(photoCatalog).length;
 }
 export function photoForVehicle(v){
+ // Historical SJ GTFS identifies the operator, but not the carriage class.
+ // Show a licensed, locally packaged real SJ train photo as an explicit
+ // illustrative image. Never claim the exact X2000 model ran this service.
+ if(v.mode==='intercity' && v.agency==='SJ'){
+  const example=photoCatalog.rail_x2000||photoCatalog.rail_sj3000||photoCatalog.rail_sj_rc6;
+  return example?{...example,
+   label:'SJ-tåg – exempelbild (fordonstyp för avgången ej verifierad)',
+   illustrative:true}:null;
+ }
  const line=String(v.line||'').trim(),name=(v.destination||'').toLowerCase();
  let key=null;
  if(v.mode==='metro')key=['13','14'].includes(line)?'metro_c30':line==='10'||line==='11'?'metro_c20_blue':'metro_c20_green';
