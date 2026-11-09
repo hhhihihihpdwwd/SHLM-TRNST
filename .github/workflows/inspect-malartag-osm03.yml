@@ -1,0 +1,24 @@
+name: Inspect Mälartåg OSM rail geometry gaps (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/inspect-malartag-osm03.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/malartag-full-03
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Examine direct OSM relation geometry structures
+        run: |
+          python -m py_compile scripts/inspect_malartag_osm_gaps.py
+          python -u scripts/inspect_malartag_osm_gaps.py
