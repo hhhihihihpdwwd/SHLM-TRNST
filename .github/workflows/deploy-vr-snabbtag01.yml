@@ -1,0 +1,186 @@
+name: Launch Stockholm Rail STABLE07 plus VERIFIED VR Snabbtåg (12 systems)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-vr-snabbtag01.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout EXACT SHA of successful VR full 13 train source, never change STABLE07
+        uses: actions/checkout@v4
+        with:
+          ref: 3b00127ad2575ab848d23ab09de6490aeaa15eff
+          path: _tested_vr
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Independently run all original and VR unit/UI/rail geometry safety tests
+        run: |
+          cd _tested_vr
+          python -m py_compile scripts/build_vr_candidates.py scripts/append_vr_rail.py scripts/build_vr_real_osm_bridge.py
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          npm test
+      - name: Download exact 12-system VR package from successful green proof
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42642058744
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: stockholm-rail-vr-full-13-verified-preview
+          path: _site
+      - name: Download exact last successfully DEPLOYED eleven-system STABLE07
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42633083267
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _frozen_artifact
+      - name: Re-verify original 11 systems, 13 genuine VR rides and physical OSM
+        run: |
+          mkdir -p _stable07
+          tar -xf _frozen_artifact/artifact.tar -C _stable07
+          python - <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+          sys.path.insert(0,"_tested_vr/scripts")
+          from refine_osm_routes import project_stops
+          prev=Path("_stable07")
+          new=Path("_site")
+          old=json.loads((prev/"data/rail.json").read_text(encoding="utf8"))
+          d=json.loads((new/"data/rail.json").read_text(encoding="utf8"))
+          assert old["scope"]=="pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag"
+          assert len(old["trips"])==10389
+          assert d["scope"]==old["scope"]+"-vr"
+          assert d["type"]==old["type"]=="historical-daily-repeating-simulation"
+          assert d["simulationTemplateDay"]==old["simulationTemplateDay"]
+          assert d["trips"][:len(old["trips"])]==old["trips"],"STABLE07 train timeline mutated"
+          assert all(d["shapes"].get(k)==v for k,v in old["shapes"].items()),"STABLE07 rail geometry mutated"
+          assert len({k for k in d["shapes"] if k not in old["shapes"]})==2
+          assert set(d["shapes"])-set(old["shapes"])=={
+           "vr-osm-rail-ways:katrineholm-hallsberg:forward",
+           "vr-osm-rail-ways:katrineholm-hallsberg:reverse"}
+          for key,val in old.items():
+           if key not in ("trips","shapes","scope","counts"):
+            assert d[key]==val,("STABLE07 metadata mutated",key)
+          for key,val in old["counts"].items():
+           if key!="intercity":assert d["counts"].get(key)==val,("STABLE07 count mutated",key)
+          assert d["counts"]["intercity"]==old["counts"]["intercity"]+13==69
+          assert d["vrDirections"]=={"to-goteborg":7,"to-stockholm":6}
+          assert len(d["trips"])==10402
+          vr=d["trips"][len(old["trips"]):]
+          assert len(vr)==13 and len({t["id"] for t in vr})==13
+          assert all(t["mode"]=="intercity" and t["agency"]=="VR Snabbtåg"
+             and t["line"]=="VR" and t["archiveDay"]=="2026-11-06"
+             and t["geometryQuality"]=="verified-osm-rail-ways"
+             and t["osmWayNetwork"] is True
+             and t["isLiveGPS"] is False
+             and t["shapeId"] in d["shapes"] and t["shapeId"] not in old["shapes"]
+             and t["id"].startswith("VR-ARCHIVE:")
+             for t in vr)
+          seen=set()
+          for t in vr:
+           key=(t["shapeId"],tuple(s[2] for s in t["stops"]))
+           if key not in seen:
+            assert project_stops(t["stops"],d["shapes"][t["shapeId"]],500) is not None,(
+              "VR not on exact verified OSM track",t["id"])
+            seen.add(key)
+          print("PASS: 13 AUTHENTIC VR TRAIN JOURNEYS, 7+6, REAL CONNECTED OSM")
+          print("PASS: ALL",len(old["trips"]),"PREVIOUS TRIPS +",len(old["shapes"]),"EXISTING TRACKS IMMUTABLE")
+          # The historical release also carries licensed photos and other site
+          # files: preserve their exact bytes. Only four code files, HTML and
+          # rail.json were authorized to change, plus a .nojekyll marker.
+          allowed={"data/rail.json","index.html","src/app.js","src/rail-data.js",
+                   "src/rail-filter.js","src/photos.js",".nojekyll"}
+          for original in prev.rglob("*"):
+           if not original.is_file():continue
+           rel=original.relative_to(prev)
+           if str(rel) in allowed:continue
+           counterpart=new/rel
+           assert counterpart.is_file(),("Missing STABLE07 file",str(rel))
+           assert hashlib.sha256(original.read_bytes()).digest()==hashlib.sha256(counterpart.read_bytes()).digest(),(
+             "Changed original website asset",str(rel))
+          extras={str(p.relative_to(new)) for p in new.rglob("*") if p.is_file()} - {
+             str(p.relative_to(prev)) for p in prev.rglob("*") if p.is_file()}
+          assert extras<={".nojekyll"},("Unexpected release files",extras)
+          catalog=json.loads((new/"photos/catalog.json").read_text(encoding="utf8"))
+          for name in ("rail_vr_x74","rail_x2000","rail_malartag","tram_lidingo21"):
+           meta=catalog[name]
+           path=new/meta["path"]
+           assert path.is_file() and path.stat().st_size>2500
+           assert meta["license"].startswith("CC ")
+          html=(new/"index.html").read_text(encoding="utf8")
+          app=(new/"src/app.js").read_text(encoding="utf8")
+          photos=(new/"src/photos.js").read_text(encoding="utf8")
+          for mark in ('data-filter="vr"','data-filter="sj"','data-filter="malartag"',
+                       'id="follow"','id="satellite"','id="speed-value"','id="occupancy-value"'):
+           assert mark in html,("Missing control",mark)
+          for mark in ("focusVrSnabbtag()","focusLidingoLine()",
+                       "focusMalartagPilot()","Exempelbild av VR Snabbtåg X74"):
+           assert mark in app,("Missing UI",mark)
+          assert "v.mode==='intercity' && v.agency==='VR Snabbtåg'" in photos
+          print("PASS: ALL PRIOR WEBSITE FILES AND PHOTOS EXACTLY PRESERVED")
+          PY
+      - name: Independently confirm day/weekend/summer visibility of 12 systems
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './_tested_vr/src/rail-data.js';
+          import {matchesRailFilter} from './_tested_vr/src/rail-filter.js';
+          const before=JSON.parse(fs.readFileSync('_stable07/data/rail.json','utf8'));
+          const after=JSON.parse(fs.readFileSync('_site/data/rail.json','utf8'));
+          for(const [date,tz] of [['2026-11-09','+01:00'],['2026-11-15','+01:00'],['2027-07-13','+02:00']]){
+           const counts={'to-goteborg':0,'to-stockholm':0};
+           for(let hour=0;hour<24;hour++)for(const min of [0,15,30,45]){
+            const epoch=Date.parse(date+'T'+String(hour).padStart(2,'0')+':'+String(min).padStart(2,'0')+':00'+tz)/1000;
+            const old=activeRailTrips(before,epoch,20000);
+            const all=activeRailTrips(after,epoch,20000);
+            const noVr=all.filter(t=>t.agency!=='VR Snabbtåg');
+            if(old.length!==noVr.length||old.some((t,i)=>t.id!==noVr[i].id)){
+             throw Error('STABLE07 train unexpectedly changed '+date+' '+hour+':'+min)
+            }
+            for(const t of all.filter(t=>matchesRailFilter(t,'vr'))){
+             const p=railAt(t,epoch);
+             if(!p.pos.every(Number.isFinite)||!Number.isFinite(p.kmh)||
+                p.kmh<0||p.kmh>350)throw Error('Bad VR speed/position '+t.id);
+             if(!Object.hasOwn(counts,t.direction))throw Error('Unknown VR direction '+t.id);
+             counts[t.direction]++;
+            }
+           }
+           if(counts['to-goteborg']<1||counts['to-stockholm']<1)
+            throw Error('VR not visible in both directions '+date);
+           console.log('PASS VERIFIED VR IN BOTH DIRECTIONS',date,counts);
+          }
+          JS
+      - uses: actions/configure-pages@v5
+      - name: Upload the PRECISE audited twelve-system package
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.release.outputs.page_url }}
+    steps:
+      - name: Deploy 12 verified systems from complete green pipeline only
+        id: release
+        uses: actions/deploy-pages@v4
