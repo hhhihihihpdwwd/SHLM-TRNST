@@ -1,0 +1,29 @@
+name: Audit alternate VR Snabbtåg OSM route relations (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/audit-vr-osm01.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vr-snabbtag-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Discover VR/MTRX OSM route geometry and check every archived stop
+        run: |
+          python -m py_compile scripts/discover_vr_osm.py
+          python -u scripts/discover_vr_osm.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vr-osm-track-audit
+          path: data/vr_osm_audit.json
+          if-no-files-found: warn
