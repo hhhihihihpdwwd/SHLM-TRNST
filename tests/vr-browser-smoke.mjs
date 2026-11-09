@@ -49,6 +49,7 @@ const server=createServer(async(req,res)=>{
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const port=server.address().port;
 const origin='http://127.0.0.1:'+port;
+const target=(process.env.SMOKE_URL||origin).replace(/\/+$/,'');
 let browser;
 const errors=[];
 const fetches=[];
@@ -59,8 +60,8 @@ try{
  const page=await ctx.newPage();
  page.on('pageerror',err=>errors.push('JS exception: '+String(err)));
  page.on('console',event=>{if(event.type()==='error'&&!/tile|ERR_/i.test(event.text())) errors.push('Console: '+event.text());});
- page.on('request',request=>{if(request.url().startsWith(origin))fetches.push(request.url());});
- const response=await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:60000});
+ page.on('request',request=>{if(request.url().startsWith(target))fetches.push(request.url());});
+ const response=await page.goto(target+'/?vr-live-verify=vr-browser-fixed-02',{waitUntil:'domcontentloaded',timeout:60000});
  assert.equal(response.status(),200);
  console.log('BROWSER HTML LOADED',await page.title());
  await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,
