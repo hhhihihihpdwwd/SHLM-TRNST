@@ -1,4 +1,4 @@
-name: Validate VR Snabbtåg 12-system preview (NO DEPLOY)
+name: Validate VR Snabbtåg 12-system preview, final source regressions (NO DEPLOY)
 on:
   push:
     branches: [main]
