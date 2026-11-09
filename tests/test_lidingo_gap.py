@@ -67,4 +67,5 @@ class LidingoGapTests(unittest.TestCase):
   bad["stops"][0][:2]=[50.0,10.0]
   with self.assertRaises(ValueError):
    repair.integrate(old,[bad,trip("back",8,30)])
- if __name__=="__main__":unittest.main()
+
+if __name__=="__main__":unittest.main()
