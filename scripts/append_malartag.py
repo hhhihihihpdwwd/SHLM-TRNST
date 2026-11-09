@@ -347,7 +347,7 @@ def integrate(base,archive,provider=relation_shapes):
   key=(c,tuple(s[2] for s in t["stops"]))
   records[key].append(t)
  added=[];shape_map={};counts=collections.Counter();directions=collections.defaultdict(lambda:collections.Counter())
- cache={};composite_cache={}
+ cache={};composite_cache={};rail_way_cache={}
  for (corridor,stopnames),group in sorted(records.items(),key=lambda row:-len(row[1])):
   first,last=stopnames[0],stopnames[-1]
   direction=direction_of(group[0])
@@ -365,6 +365,18 @@ def integrate(base,archive,provider=relation_shapes):
    if winner:
     print("MÄLARTÅG VERIFIED CONNECTED OSM ROUTES",corridor,
           first,last,winner[0],flush=True)
+  if not winner and os.environ.get("MALARTAG_ENABLE_GRAPH_ROUTER") and provider is relation_shapes:
+   # This path is sourced ONLY from real OSM railway=rail way vertices
+   # connected by their OSM node IDs. Never draw station-to-station lines.
+   if corridor not in rail_way_cache:
+    from osm_railway_way_router import build_full_corridor
+    try:
+     rail_way_cache[corridor]=build_full_corridor(corridor,archive["trips"])
+    except (RuntimeError,ValueError,OSError,TimeoutError) as exc:
+     print("MÄLARTÅG REAL RAIL GRAPH UNAVAILABLE",corridor,str(exc)[:340],flush=True)
+     rail_way_cache[corridor]=[]
+   if rail_way_cache[corridor]:
+    winner=choose_directional_shape(group[0]["stops"],rail_way_cache[corridor],MAX_ERROR)
   if not winner:
    print("MÄLARTÅG REJECT incomplete OSM",corridor,first,last,len(group),flush=True)
    continue
@@ -373,9 +385,12 @@ def integrate(base,archive,provider=relation_shapes):
   for t in group:
    if project_stops(t["stops"],geom,MAX_ERROR) is None:continue
    # Explicitly do NOT assert model if historical GTFS has no vehicle assignment.
+   from_graph=rid.startswith("osm-railway-ways:")
    added.append({**t,"mode":"regional","vehicleModel":"ER1 (typical; not trip-confirmed)",
      "vehiclePhotoStatus":"approved-model-reference",
-     "shapeId":sid,"osmRelation":rid,"geometryQuality":"verified-osm-relation"})
+     "shapeId":sid,"osmRelation":None if from_graph else rid,
+     "osmWayNetwork":from_graph,
+     "geometryQuality":"verified-osm-rail-ways" if from_graph else "verified-osm-relation"})
    shape_map[sid]=geom
    counts[corridor]+=1
    directions[corridor][direction]+=1
@@ -417,5 +432,5 @@ def main():
  payload=json.dumps(out,ensure_ascii=False,separators=(",",":"))
  if len(payload.encode())>MAX_FILE:raise ValueError("Mälartåg total railway payload exceeds size limit")
  DATA.write_text(payload,encoding="utf8")
- print("MÄLARTÅG VERIFIED GÄVLE PILOT",out["malartagDirections"],flush=True)
+ print("MÄLARTÅG VERIFIED SELECTED CORRIDORS",out["malartagDirections"],flush=True)
 if __name__=="__main__":main()
