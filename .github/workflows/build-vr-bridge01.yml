@@ -1,0 +1,47 @@
+name: Build real VR Katrineholm-Hallsberg OSM railway node bridge (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-vr-bridge01.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vr-snabbtag-01
+          path: _vr
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/cache@v4
+        with:
+          path: _vr/data/malartag_osm_ways
+          key: stockholm-rail-vr-osm-katrineholm-hallsberg-v1
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42633083267
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _frozen
+      - name: Use exact STABLE07 11-system published OSM track geometry
+        run: |
+          mkdir -p _site
+          tar -xf _frozen/artifact.tar -C _site
+          python -m py_compile _vr/scripts/build_vr_real_osm_bridge.py _vr/scripts/osm_railway_way_router.py
+          python -u _vr/scripts/build_vr_candidates.py 2026-11-09
+      - name: Match exact OSM node IDs on existing real tracks and route missing segment
+        run: |
+          python -u _vr/scripts/build_vr_real_osm_bridge.py \
+            _site/data/rail.json _vr/data/vr_candidates.json _vr/data/vr_osm_bridge.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vr-katrineholm-hallsberg-real-rail
+          path: _vr/data/vr_osm_bridge.json
