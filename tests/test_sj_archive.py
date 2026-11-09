@@ -15,21 +15,23 @@ def archive():
   z.writestr("agency.txt","agency_id,agency_name\nsj,SJ\n")
   z.writestr("routes.txt","route_id,agency_id,route_short_name,route_long_name,route_type\nr,sj,400,Stockholm Göteborg,2\n")
   z.writestr("calendar.txt","service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\ns,0,0,0,0,1,0,0,20261104,20261110\n")
-  z.writestr("stops.txt","stop_id,stop_name,stop_lat,stop_lon\na,Stockholm Centralstation,59.33,18.05\nb,Södertälje Syd station,59.20,17.65\nc,Göteborg Centralstation,57.71,11.97\n")
-  z.writestr("trips.txt","trip_id,route_id,service_id,trip_headsign\nout,r,s,Göteborg Centralstation\nback,r,s,Stockholm Centralstation\n")
-  z.writestr("stop_times.txt","trip_id,arrival_time,departure_time,stop_id,stop_sequence\nout,10:00:00,10:00:00,a,1\nout,10:20:00,10:21:00,b,2\nout,12:50:00,12:50:00,c,3\nback,13:00:00,13:00:00,c,1\nback,15:10:00,15:11:00,b,2\nback,15:40:00,15:40:00,a,3\n")
+  z.writestr("stops.txt","stop_id,stop_name,stop_lat,stop_lon\na,Stockholm Centralstation,59.33,18.05\nb,Södertälje Syd station,59.20,17.65\nc,Göteborg Centralstation,57.71,11.97\nd,Malmö Centralstation,55.61,13.00\n")
+  z.writestr("trips.txt","trip_id,route_id,service_id,trip_headsign\nout,r,s,Göteborg Centralstation\nback,r,s,Stockholm Centralstation\ntomalmo,r,s,Malmö Centralstation\nfrommalmo,r,s,Stockholm Centralstation\n")
+  z.writestr("stop_times.txt","trip_id,arrival_time,departure_time,stop_id,stop_sequence\nout,10:00:00,10:00:00,a,1\nout,10:20:00,10:21:00,b,2\nout,12:50:00,12:50:00,c,3\nback,13:00:00,13:00:00,c,1\nback,15:10:00,15:11:00,b,2\nback,15:40:00,15:40:00,a,3\ntomalmo,16:00:00,16:00:00,a,1\ntomalmo,16:20:00,16:21:00,b,2\ntomalmo,20:00:00,20:00:00,d,3\nfrommalmo,20:30:00,20:30:00,d,1\nfrommalmo,23:45:00,23:46:00,b,2\nfrommalmo,24:05:00,24:05:00,a,3\n")
  buffer.seek(0)
  return zipfile.ZipFile(buffer)
 
 class SjTests(unittest.TestCase):
  def test_goteborg_full_route_both_directions(self):
   self.assertEqual(sj.direction(["Stockholm Centralstation","Södertälje Syd station","Göteborg Centralstation"]),"to-goteborg")
-  self.assertEqual(sj.direction(["Göteborg Centralstation","Södertälje Syd station","Stockholm Centralstation"]),"to-stockholm")
+  self.assertEqual(sj.direction(["Göteborg Centralstation","Södertälje Syd station","Stockholm Centralstation"]),"from-goteborg")
+  self.assertEqual(sj.direction(["Stockholm Centralstation","Södertälje Syd station","Malmö Centralstation"]),"to-malmo")
+  self.assertEqual(sj.direction(["Malmö Centralstation","Södertälje Syd station","Stockholm Centralstation"]),"from-malmo")
   self.assertIsNone(sj.direction(["Stockholm Centralstation","Sundbyberg station","Västerås Centralstation"]))
  def test_reference_friday_repeats_with_all_original_stops(self):
   with archive() as z:data=sj.build(z,dt.date(2026,11,9))
-  self.assertEqual(data["counts"],{"to-goteborg":3,"to-stockholm":3})
-  self.assertEqual(len(data["trips"]),6)
+  self.assertEqual(data["counts"],{"to-goteborg":3,"from-goteborg":3,"to-malmo":3,"from-malmo":3})
+  self.assertEqual(len(data["trips"]),12)
   for t in data["trips"]:
    self.assertEqual(t["archiveDay"],"2026-11-06")
    self.assertEqual(len(t["stops"]),3)
