@@ -92,4 +92,6 @@ const output={source:data.scope,templates:data.trips.length,shapes:Object.keys(d
  categories,operators:counts,findings:findings.slice(0,1500)};
 writeFileSync(process.argv[3]||'/tmp/rail-network-audit.json',JSON.stringify(output,null,2));
 console.log('FULL NETWORK AUDIT',JSON.stringify({...output,findings:undefined},null,2));
-console.log('EXAMPLE FAILURES',JSON.stringify(findings.slice(0,35),null,2));
+for(const category of Object.keys(categories))console.log('CATEGORY SAMPLES',category,JSON.stringify(findings.filter(x=>x.category===category).slice(0,4)));
+console.log('SNALL SPECIFIC',JSON.stringify(findings.filter(x=>x.agency==='Snälltåget'),null,2));
+console.log('SAMPLE TRIP ANCHORS',JSON.stringify([...activeAt.values()].filter(x=>['Snälltåget','Storstockholms Lokaltrafik','SJ'].includes(x.agency)).slice(0,5).map(x=>({id:x.id,agency:x.agency,start:x.start,stop0:x.stops[0],stop1:x.stops[1],anchors:x._anchors.slice(0,5),serviceDay:x.serviceDay})),null,2));
