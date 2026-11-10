@@ -84,7 +84,7 @@ try{
   assert(await icons.first().evaluate(n=>n.complete&&n.naturalWidth>0),'RDC EuroNight distinctive marker not decoded');
   await rows.first().click();
   await page.locator('#selected-detail:not([hidden])').waitFor();
-  assert((await page.locator('#train-heading').textContent()).includes('RDC EuroNight'));
+  assert(/^EN 34[45] · /.test((await page.locator('#train-heading').textContent()).trim()),'Wrong RDC EuroNight 344/345 heading');
   await page.waitForFunction(()=>document.querySelector('#selected-detail img')?.naturalWidth>0,null,{timeout:20000});
   assert((await page.locator('#selected-detail img').first().getAttribute('src')).includes('rail_rdc_euronight'));
   assert(/^\d+\s*km\/h$/.test((await page.locator('#speed-value').textContent()).trim()));
