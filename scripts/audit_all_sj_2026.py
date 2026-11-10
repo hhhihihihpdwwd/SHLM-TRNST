@@ -14,7 +14,7 @@ RAIL_TYPES={'2','100','101','102','103','106','109'}
 def norm(s):return (s or '').strip().casefold()
 def valid_sj(name):
     name=norm(name)
-    return name=='sj' or name=='sj ab' or name.startswith('sj ab ') or name.startswith('sj ')
+    return name=='sj' or name=='sj ab'
 def stockholm(s):
     return 'stockholm central' in norm(s) or norm(s)=='stockholm c'
 def main():
