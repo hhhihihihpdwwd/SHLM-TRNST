@@ -27,7 +27,14 @@ jobs:
         run: |
           cd _source
           python -u scripts/rdc_official_timetable.py data/rdc_official_2026.json
+      - name: Restore verified railway-only OSM PBF graph inputs for repeatable debugging
+        id: track-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: _pbf/rails
+          key: rdc-geofabrik-rail-20261110-01
       - name: Download OSM Sweden, Denmark, Germany regional corridor and filter ALL railway ways
+        if: steps.track-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -55,6 +62,12 @@ jobs:
           wait
           test "$(find _pbf/rails -name '*.pbf' | wc -l)" -eq 7
           du -h _pbf/rails/*.pbf
+      - name: Preserve railway-only source extracts independently of downstream routing validation
+        if: steps.track-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: _pbf/rails
+          key: rdc-geofabrik-rail-20261110-01
       - name: Verify exact physical connected OSM railway=rail node paths for all 4 EN344/345 historical variants
         run: |
           cd _source
