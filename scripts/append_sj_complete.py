@@ -66,7 +66,7 @@ def integrate(base,report,routes):
     'start':int((midnight+dt.timedelta(seconds=first)).timestamp()),
     'end':int((midnight+dt.timedelta(seconds=last)).timestamp()),
     'stops':t['stops'],'shapeId':sid,
-    'geometryQuality':'verified-osm-rail-ways','osmWayNetwork':True,
+    'geometryQuality':'verified-osm-rail-ways','osmWayNetwork':True,'sjCompleteVerified':True,
     'source':'GTFS Sverige 2 historic 2026-11-04 archive, authenticated SJ operator',
     'sourceDays':t['sourceDays'],
     'historicPattern':'Original historical GTFS journey repeated daily as illustrative simulation',
