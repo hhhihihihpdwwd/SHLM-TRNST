@@ -1,0 +1,59 @@
+name: Archive exact STABLE12 published fifteen-system Tågab site (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-stable12-site.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/12
+          fetch-depth: 0
+      - name: Assert stable source is identical to proven Tågab release
+        run: test "$(git rev-parse HEAD)" = "cc1f638c6d1b57071e2e8c351ae549cec3c91694"
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42831847214
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _production
+      - name: Extract exact 15-system website and record complete SHA256 manifest
+        run: |
+          mkdir -p website
+          tar -xf _production/artifact.tar -C website
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('website')
+          d=json.loads((p/'data/rail.json').read_text())
+          assert len(d['trips'])==10433 and len(d['shapes'])==67 and d['scope'].endswith('-vr-snalltaget-vy-tagab')
+          assert len([t for t in d['trips'] if t.get('agency')=='Vy Tåg'])==10
+          assert len([t for t in d['trips'] if t.get('agency')=='Tågab'])==16
+          assert 'app.js?v=tagab-01' in (p/'index.html').read_text()
+          for name in ('src/app.js','src/rail-data.js','src/rail-filter.js','src/approved-train-markers.js',
+                       'src/vy-marker-sprite.js','src/tagab-marker-sprite.js','src/vehicle-front-sprites.js','src/photos.js',
+                       'photos/images/rail_vy_train.webp','photos/images/rail_tagab_rc3.webp','photos/catalog.json'):
+           assert (p/name).is_file(),name
+          manifest={str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest() for f in p.rglob('*') if f.is_file()}
+          (p/'STABLE12-MANIFEST.json').write_text(json.dumps({
+            'sourceCommit':'cc1f638c6d1b57071e2e8c351ae549cec3c91694',
+            'deploymentRun':42831847214,'publicBrowserVerificationRun':42831934042,
+            'originalFiles':manifest},indent=2))
+          print('COMPLETE STABLE12 ARCHIVE: 15 systems,',len(manifest),'original website files')
+          PY
+      - name: Create isolated full website archive branch, do not deploy
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable12-website
+          git add -f website
+          git commit -m "archive: exact live-tested STABLE12 Tågab 15-system GitHub Pages bundle"
+          git push origin HEAD:refs/heads/archive/stable12-website
