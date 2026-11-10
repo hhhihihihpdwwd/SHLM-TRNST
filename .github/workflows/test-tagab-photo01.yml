@@ -1,0 +1,44 @@
+name: Verify real licensed Tågab passenger-train photograph (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-tagab-photo01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  photograph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/tagab-stockholm-goteborg-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare exact live photo catalog from latest 14-system version
+        run: |
+          mkdir -p _site/photos
+          curl -fLsS --max-time 60 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/photos/catalog.json?v=vy-01' -o _site/photos/catalog.json
+      - run: python -m pip install pillow
+      - name: Download and license-check genuine Tågab Rc3 passenger-train photo
+        run: |
+          python _source/scripts/download_tagab_photo.py _site
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('_site/photos/catalog.json').read_text())
+          d=c['rail_tagab_rc3']
+          assert d['author']=='G och J' and d['license']=='CC BY 4.0'
+          assert (Path('_site')/d['path']).stat().st_size>6500
+          print('GENUINE TÅGAB PASSENGER-TRAIN PHOTO AND CC BY ATTRIBUTION VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tagab-licensed-passenger-photo-01
+          path: |
+            _site/photos/images/rail_tagab_rc3.webp
+            _site/photos/catalog.json
+          if-no-files-found: error
