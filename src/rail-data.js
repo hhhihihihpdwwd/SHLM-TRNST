@@ -133,7 +133,10 @@ export function activeRailTrips(dataset,epoch,limit=900){
 }
 export function railAt(trip,epoch){
  const stops=trip.stops,anchor=trip._anchors,geom=trip._geom;
- const base=trip.start-stops[0][3];
+ // A through train may arrive at its first displayed station long before it
+ // departs (e.g. Snälltåget Malmö). The published trip.start is its DEPARTURE.
+ // Using the first arrival delays the simulated departure by the platform dwell.
+ const base=trip.start-stops[0][4];
  const seconds=epoch-base;
  let next=0;
  while(next<stops.length-1 && seconds>=stops[next][4])next++;
