@@ -309,14 +309,14 @@ function clearReal(){
 function showRealDetail(){
  const v=state.selected;if(!v||!railDataset)return;
  const epoch=Date.now()/1000,current=railAt(v,epoch),idx=current.next;
- const stops=v.stops,first=stops[0][3],base=v.start-first;
+ const stops=v.stops,firstDeparture=stops[0][4],base=v.start-firstDeparture;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
  $('train-sub').textContent=(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema som simulerad reservavgång · OSM-spår, ingen GPS':v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(['verified-osm-relation','verified-osm-rail-ways'].includes(v.geometryQuality)?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  if(v.stopAlignmentCaveat)$('train-sub').textContent+=' · Enebybergs stationspunkt avviker cirka 690 m från OSM-linjen';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
- $('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);
+ $('next-stop-time').textContent='Plan '+toTime(stops[idx][idx===0?4:3]);
  const mock={id:v.id,stops:stops.map(s=>({name:s[2]}))},now=stockholmTime();
  const occ=occupancy(mock,idx,now.weekday,Math.floor(now.seconds/3600));
  $('occupancy-value').textContent=occ+'%';$('occupancy-fill').style.width=occ+'%';
@@ -325,7 +325,7 @@ function showRealDetail(){
  for(let i=0;i<stops.length;i++){
   const node=document.createElement('div');node.className='stop'+(i<idx?' passed':i===idx?' next':'');
   const label=document.createElement('span');label.textContent=stops[i][2];
-  const time=document.createElement('span');time.textContent=toTime(stops[i][3]);
+  const time=document.createElement('span');time.textContent=toTime(stops[i][i===0?4:3]);
   node.append(label,time);container.append(node);
  }
  if(map){
