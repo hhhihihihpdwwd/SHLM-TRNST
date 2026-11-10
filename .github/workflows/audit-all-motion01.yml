@@ -33,7 +33,7 @@ jobs:
           node --check _source/tests/audit-all-rail-motion.mjs
           cd _source
           node tests/audit-all-rail-motion.mjs ../_site/data/rail.json ../rail-motion-findings.json
-          echo 'Completed operator-specific station-time diagnostics'
+          echo 'Completed exact original-departure 48-hour operator diagnostics'
       - name: Publish diagnostic report as artifact, never deploy from audit
         if: always()
         uses: actions/upload-artifact@v4
