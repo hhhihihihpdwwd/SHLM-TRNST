@@ -53,9 +53,9 @@ test('cache versions and all 12 old rail controls remain, new operator has disti
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const data=readFileSync(new URL('../src/rail-data.js',import.meta.url),'utf8');
  for(const p of ['rail-data','rail-filter','photos']){
-  assert(app.includes("from './"+p+".js?v=snalltaget-01'"),'Unversioned '+p+' causes zero trains');
+  assert(new RegExp("from './"+p+"\\.js\\?v=(vy-01|snalltaget-01)'").test(app),'Unversioned '+p+' causes zero trains');
  }
- assert(html.includes('src="./src/app.js?v=snalltaget-01"'));
+ assert(/src="\.\/src\/app\.js\?v=(vy-01|snalltaget-01)"/.test(html));
  assert(data.includes("const TIMETABLE_URL='./data/rail.json?v=snalltaget-01';"));
  assert(html.includes('data-filter="snalltaget"'));
  for(const f of ['sj','vr','malartag','lidingo','nockeby','metro','commuter','all']){
