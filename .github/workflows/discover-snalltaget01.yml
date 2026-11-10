@@ -1,0 +1,23 @@
+name: Discover authentic Snälltåget November 2026 GTFS (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/discover-snalltaget01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/snalltaget-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check exact GTFS Friday Snälltåget operator and Stockholm–Malmö service
+        run: |
+          python -m py_compile scripts/discover_snalltaget_archive.py
+          python -u scripts/discover_snalltaget_archive.py
