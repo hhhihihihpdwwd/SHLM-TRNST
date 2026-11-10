@@ -1,0 +1,71 @@
+name: Verify RDC EuroNight Berlin–Hamburg–Stockholm REAL international OSM rail tracks (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/route-rdc01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rdc-euronight-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install native OSM rail extraction and Python router
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          python -m pip install osmium
+      - name: Encode four authenticated RDC EuroNight 2026 overnight train patterns
+        run: |
+          cd _source
+          python -u scripts/rdc_official_timetable.py data/rdc_official_2026.json
+      - name: Download OSM Sweden, Denmark, Germany regional corridor and filter ALL railway ways
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _pbf/rails
+          URLS=(
+            "https://download.geofabrik.de/europe/sweden-latest.osm.pbf"
+            "https://download.geofabrik.de/europe/denmark-latest.osm.pbf"
+            "https://download.geofabrik.de/europe/germany/brandenburg-latest.osm.pbf"
+            "https://download.geofabrik.de/europe/germany/mecklenburg-vorpommern-latest.osm.pbf"
+            "https://download.geofabrik.de/europe/germany/hamburg-latest.osm.pbf"
+            "https://download.geofabrik.de/europe/germany/schleswig-holstein-latest.osm.pbf"
+            "https://download.geofabrik.de/europe/germany/niedersachsen-latest.osm.pbf"
+          )
+          for url in "${URLS[@]}";do
+            (
+             name="$(basename "$url" .osm.pbf)"
+             curl --fail --location --retry 3 --retry-delay 8 --connect-timeout 25 --max-time 1100 "$url" -o "_pbf/$name.osm.pbf"
+             test "$(stat -c%s "_pbf/$name.osm.pbf")" -gt 20000000
+             osmium tags-filter "_pbf/$name.osm.pbf" w/railway=rail -o "_pbf/rails/$name.osm.pbf" --overwrite
+             echo "EXTRACTED AUTHENTIC OSM RAILWAY TRACKS $name"
+             rm -f "_pbf/$name.osm.pbf"
+            ) &
+            while [ "$(jobs -rp | wc -l)" -ge 3 ];do wait -n;done
+          done
+          wait
+          test "$(find _pbf/rails -name '*.pbf' | wc -l)" -eq 7
+          du -h _pbf/rails/*.pbf
+      - name: Verify exact physical connected OSM railway=rail node paths for all 4 EN344/345 historical variants
+        run: |
+          cd _source
+          python -u scripts/route_rdc_geofabrik.py data/rdc_official_2026.json data/rdc_verified_tracks.json ../_pbf/rails/*.pbf
+      - name: Preserve proven four international routes as audit artefact ONLY
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdc-2026-real-gtfs-operator-schedule-verified-osm-01
+          path: |
+            _source/data/rdc_official_2026.json
+            _source/data/rdc_verified_tracks.json
+          if-no-files-found: error
+      - name: No deployment allowed
+        run: echo 'STABLE12 public 15-system website remains unchanged'
