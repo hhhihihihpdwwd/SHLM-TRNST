@@ -12,7 +12,7 @@ def integrate(base,candidates,osm):
  if candidates.get('operator')!='Vy Tåg' or not candidates.get('weekdayService'):
   raise ValueError('No authenticated Vy historical weekday GTFS')
  shape=osm.get('shape')
- if not isinstance(shape,list) or len(shape)<100 or osm.get('maxSegmentMetres',1e9)>1500:
+ if not isinstance(shape,list) or len(shape)<100 or osm.get('maxSegmentMetres',1e9)>4000:
   raise ValueError('Missing fully connected original physical OSM railway graph')
  accepted=[];counts=collections.Counter();skipped=collections.Counter()
  geometries=(('to-oslo',shape),('to-stockholm',list(reversed(shape))))
