@@ -68,7 +68,12 @@ try{
      await page.waitForFunction(()=>!document.querySelector('#selected-detail')?.hidden,null,{timeout:10000});
      const station=(await page.locator('#next-stop-name').textContent()).trim();
      const speed=parseInt((await page.locator('#speed-value').textContent()).trim(),10);
-     if(station==='Lund Centralstation'&&speed>0){verified=true;break}
+     if(station==='Eslöv station'&&speed>0){
+      const names=await page.locator('#stops .stop').allTextContents();
+      assert(names[0].includes('16:18'),'Origin displayed departure must be 16:18');
+      assert(names[1].includes('16:28'),'Lund must show true 16:28 historical GTFS, not former wrong 17:11');
+      verified=true;break
+     }
      await page.locator('#clear').click();
     }
     assert(verified,'Real Chromium still shows Malmö or 0 km/h at 16:37 for 16:18 departure');
