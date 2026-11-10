@@ -1,0 +1,132 @@
+name: Verify ALL 10611 train records, exact active services and motion in Chromium (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/browser-network-motion01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/network-wide-motion-visibility-audit-01
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Recover EXACT PUBLIC verified STABLE14 website including all photos
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42844555219
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _deployed
+      - name: Recover independently verified original connected OSM Mälartåg repair for every affected train
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42848846430
+          name: malartag-actual-real-osm-geometry-no-332km-detour
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _corrected
+      - name: Build corrected immutable 16-system website without touching anything else
+        run: |
+          mkdir -p _site _original
+          tar -xf _deployed/artifact.tar -C _site
+          tar -xf _deployed/artifact.tar -C _original
+          ROUTE="$(find _corrected -name malartag-verified-geometry.json -type f -print -quit)"
+          test -n "$ROUTE"
+          ROUTE="$(realpath "$ROUTE")"
+          cd _source
+          python scripts/prepare_network_motion_release.py ../_site "$ROUTE"
+      - name: Strict byte comparison of ALL 16 original systems, sprites, photos and journeys
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_original');site=Path('_site')
+          allowed={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for p in old.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(old));now=site/rel
+           assert now.is_file(),('ORIGINAL FILE REMOVED',rel)
+           if rel not in allowed:assert now.read_bytes()==p.read_bytes(),('ORIGINAL FILE MODIFIED',rel)
+          a=json.loads((old/'data/rail.json').read_text());b=json.loads((site/'data/rail.json').read_text())
+          assert len(a['trips'])==len(b['trips'])==10611
+          assert len(a['shapes'])==len(b['shapes'])==95
+          assert b['trips']==a['trips']
+          assert b['counts']==a['counts']
+          assert b['scope']==a['scope']
+          bad='malartag-osm:4755734:f+4755735:f+3177328:r'
+          assert all(v==b['shapes'][k] for k,v in a['shapes'].items() if k!=bad)
+          assert a['shapes'][bad]!=b['shapes'][bad]
+          assert len([x for x in b['trips'] if x['shapeId']==bad])==27
+          assert len(b['shapes'][bad])>1500
+          assert 'app.js?v=motion-fix-01' in (site/'index.html').read_text()
+          app=(site/'src/app.js').read_text()
+          assert ".slice(0,90)" not in app and "from './rail-data.js?v=motion-fix-01'" in app
+          parser=(site/'src/rail-data.js').read_text()
+          assert "const base=trip.start-stops[0][4]" in parser
+          assert 'epoch<source.start+delta||epoch>=source.end+delta' in parser
+          assert "TIMETABLE_URL='./data/rail.json?v=motion-fix-01'" in parser
+          print('BYTE-LEVEL IMMUTABILITY PASS: ALL 10611 HISTORICAL TRAINS, 95 SHAPE IDS AND ALL 16 OPERATORS; ONLY 1 WRONG MÄLARTÅG SHAPE REPAIRED')
+          PY
+      - name: Audit EVERY historical train's next station, movement and projected physical speed
+        run: |
+          cd _source
+          node --check src/app.js
+          node --check src/rail-data.js
+          node --check tests/verify-every-train-active.mjs
+          node --check tests/all-trains-browser-smoke.mjs
+          node tests/audit-all-rail-motion.mjs ../_site/data/rail.json ../full-network-audit.json
+          python - <<'PY'
+          import json
+          d=json.load(open('../full-network-audit.json'))
+          blocked=['wrong_next_station_mid_leg','stopped_between_stations',
+            'implausible_segment_speed','stuck_at_origin_mid_leg','not_departed_after_start',
+            'missing_shape','invalid_epoch_times','start_time_mismatch','end_time_mismatch']
+          for name in blocked:assert d['categories'].get(name,0)==0,(name,d['categories'].get(name))
+          assert d['templates']==10611 and d['eligible']==3722
+          print('ALL 10611 SOURCE TRAIN DEFINITIONS AUDITED, ZERO STUCK/MIS-TIMED/IMPLAUSIBLE RUNNING TRAINS')
+          PY
+      - name: Independently verify every source train at a real operating timestamp, plus seven days of full expected-vs-actual active train sets
+        run: |
+          cd _source
+          node tests/verify-every-train-active.mjs ../_site/data/rail.json
+      - name: Run every prior system regression and motion source tests
+        run: |
+          cd _source
+          npm test
+      - name: Install actual desktop/mobile Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test actual 16-system map ALL visible trains without 90-row cap, plus corrected Malmö departure at 16:37 on desktop and mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node tests/all-trains-browser-smoke.mjs
+      - name: Upload ONLY completed genuine public-ready site (no public deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-motion-all-trains-browser-approved
+          path: _site/
+          if-no-files-found: error
+      - name: Upload full operator motion audit for reproducibility
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-motion-comprehensive-report
+          path: full-network-audit.json
+          if-no-files-found: warn
