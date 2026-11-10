@@ -6,6 +6,7 @@ import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {operatorMarkerSprites} from './operator-marker-sprites.js?v=operator-markers-01';
 import {approvedTrainMarkers} from './approved-train-markers.js?v=train-icons-02';
 import {vyMarkerSprites} from './vy-marker-sprite.js?v=vy-01';
+import {tagabMarker} from './tagab-marker-sprite.js?v=tagab-01';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=vy-01';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
@@ -152,7 +153,7 @@ function showVerifiedPhoto(v){
  link.textContent=(pic.author||'Foto')+' · '+(pic.license||'Wikimedia Commons');link.style.cssText='font-size:10px;color:#587B74;margin-top:8px';
  if(pic.illustrative){
   const note=document.createElement('div');
-  note.textContent=v.agency==='Vy Tåg'?'Exempelbild av Vy-tåg i Oslo · exakt fordon för avgången ej verifierat':v.agency==='Snälltåget'?'Exempelbild av Snälltåget · exakt fordonsmodell ej bekräftad':v.agency==='VR Snabbtåg'?'Exempelbild av VR Snabbtåg X74 · exakt fordon för avgången ej verifierat':v.agency==='Mälartåg'?'Exempelbild av Mälartåg · exakt fordon för avgången ej verifierat':'Exempelbild av SJ-tåg · fordonstyp för denna avgång ej verifierad';
+  note.textContent=v.agency==='Tågab'?'Exempelbild av Tågab Rc3 med persontåg · exakt fordon för avgången ej verifierat':v.agency==='Vy Tåg'?'Exempelbild av Vy-tåg i Oslo · exakt fordon för avgången ej verifierat':v.agency==='Snälltåget'?'Exempelbild av Snälltåget · exakt fordonsmodell ej bekräftad':v.agency==='VR Snabbtåg'?'Exempelbild av VR Snabbtåg X74 · exakt fordon för avgången ej verifierat':v.agency==='Mälartåg'?'Exempelbild av Mälartåg · exakt fordon för avgången ej verifierat':'Exempelbild av SJ-tåg · fordonstyp för denna avgång ej verifierad';
   note.style.cssText='font-size:11px;color:#587B74;line-height:1.45;margin-top:5px';
   el.append(img,note,link);
  }else el.append(img,link);
@@ -181,6 +182,7 @@ function markerSpriteKey(v){
  if(agency==='vr snabbtåg')return 'vr';
  if(agency==='snälltåget')return 'snalltaget';
  if(agency==='vy tåg')return 'vy';
+ if(agency==='tågab')return 'tagab';
  if(agency==='sj'){
   // Select a specific SJ front only when the record actually identifies it.
   const type=String(v.vehicleType||v.vehicle_type||v.rollingStock||v.rolling_stock||v.trainType||'').toLowerCase();
@@ -206,7 +208,7 @@ function miniRailIcon(v,chosen=false){
  const operatorKey=markerSpriteKey(v);
  const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
   v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
- const img=operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey]||vyMarkerSprites[operatorKey])?originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey);
+ const img=operatorKey==='tagab'?tagabMarker:operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey]||vyMarkerSprites[operatorKey])?originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey);
  const size=chosen?27:19;
  const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
  return L.divIcon({className:'rail-photo-icon'+(chosen?' is-selected':''),html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
@@ -217,6 +219,7 @@ function realColor(v){
  if(v.mode==='intercity'&&v.agency==='VR Snabbtåg')return '#326E78';
   if(v.mode==='intercity'&&v.agency==='Snälltåget')return '#B93A43';
  if(v.mode==='intercity'&&v.agency==='Vy Tåg')return '#167D79';
+ if(v.mode==='intercity'&&v.agency==='Tågab')return '#A24837';
  if(v.mode==='intercity')return '#9D565F';
  if(v.mode==='express')return '#E4AE20';
  if(v.mode==='saltsjo')return '#517BA0';
@@ -246,6 +249,7 @@ function displayOrder(trips){
   ['vr',t=>t.mode==='intercity'&&t.agency==='VR Snabbtåg'],
   ['snalltaget',t=>t.mode==='intercity'&&t.agency==='Snälltåget'],
   ['vy',t=>t.mode==='intercity'&&t.agency==='Vy Tåg'],
+  ['tagab',t=>t.mode==='intercity'&&t.agency==='Tågab'],
   ['malartag',t=>t.mode==='regional'&&t.agency==='Mälartåg']
  ];
  const queues=keys.map(([_,match])=>trips.filter(match));
@@ -271,7 +275,7 @@ function showRealList(){
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=(v.line||v.mode.slice(0,2).toUpperCase());
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
-  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.agency==='Vy Tåg'?'Historiska Vy-avgångar · upprepas dagligen · ingen live-GPS':(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema · simulerad reservavgång':v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
+  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.agency==='Tågab'?'Historiska Tågab-avgångar · upprepas dagligen · ingen live-GPS':v.agency==='Vy Tåg'?'Historiska Vy-avgångar · upprepas dagligen · ingen live-GPS':(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema · simulerad reservavgång':v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
   t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
  }
  list.append(frag);
@@ -279,7 +283,7 @@ function showRealList(){
   const empty=document.createElement('div');
   empty.className='vehicle-sub';
   empty.style.cssText='padding:18px 4px;line-height:1.6';
-  empty.textContent=state.filter==='vy'?'Inga historiska Vy-avgångar vid denna tidpunkt. Avgångarna upprepas varje dag i simuleringen.': 'Inga verifierade tåg för den valda linjen vid aktuell tid. Historiska tidtabeller kan sakna avgångar; inga tågpositioner hittas på.';
+  empty.textContent=state.filter==='tagab'?'Inga historiska Tågab-avgångar vid denna tidpunkt. Avgångarna upprepas dagligen i simuleringen.':state.filter==='vy'?'Inga historiska Vy-avgångar vid denna tidpunkt. Avgångarna upprepas varje dag i simuleringen.': 'Inga verifierade tåg för den valda linjen vid aktuell tid. Historiska tidtabeller kan sakna avgångar; inga tågpositioner hittas på.';
   list.append(empty);
  }
 }
@@ -510,6 +514,16 @@ function focusVyTåg(){
  const pts=t.stops.map(s=>[Number(s[0]),Number(s[1])]).filter(p=>p.every(Number.isFinite));
  const b=L.latLngBounds(pts);if(b.isValid())map.flyToBounds(b,{padding:[50,50],maxZoom:7,duration:1.1});
 }
+// Only frame actual historical Tågab stations, never use synthetic route lines.
+function focusTagab(){
+ if(!map||!railDataset)return;
+ const t=railDataset.trips.find(v=>v.agency==='Tågab'&&v.destination?.includes('Göteborg')&&v.geometryQuality==='verified-osm-rail-ways');
+ if(!t)return;
+ const pts=t.stops.map(s=>[Number(s[0]),Number(s[1])]).filter(p=>p.every(Number.isFinite));
+ if(pts.length<2)return;
+ const b=L.latLngBounds(pts);
+ if(b.isValid())map.flyToBounds(b,{padding:[50,50],maxZoom:7,duration:1.1});
+}
 function start(){
  setupMap();$('vehicle-list').textContent='Läser in verifierade Pendeltåg-, Tunnelbana- och Tvärbanan-rutter…';
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
@@ -524,6 +538,7 @@ function start(){
   if(state.filter==='vr')focusVrSnabbtag();
   if(state.filter==='snalltaget')focusSnalltaget();
   if(state.filter==='vy')focusVyTåg();
+  if(state.filter==='tagab')focusTagab();
   refreshList();tick();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
