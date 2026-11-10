@@ -17,8 +17,8 @@ const v=data.trips.filter(t=>t.agency==='Vy Tåg');
 assert(v.some(x=>x.direction==='to-stockholm')&&v.some(x=>x.direction==='from-stockholm'));
 assert(v.every(t=>t.shapeId&&t.osmWayNetwork&&t.geometryQuality==='verified-osm-rail-ways'));
 const archive=JSON.parse(await readFile(join(root,'photos/catalog.json'),'utf8'));
-assert(archive.rail_vy_x52,'Licensed illustrative real Vy photo is not in catalog');
-const photo=archive.rail_vy_x52;
+assert(archive.rail_vy_train,'Licensed illustrative real Vy photo is not in catalog');
+const photo=archive.rail_vy_train;
 assert((await stat(join(root,photo.path))).size>6500,'Vy real photo missing');
 const epochs=[];
 for(const day of ['2026-11-13','2026-11-14','2026-11-15']){
@@ -85,7 +85,7 @@ try{
   assert(/^\d+%$/.test((await page.locator('#occupancy-value').textContent()).trim()));
   const detailPhoto=page.locator('#selected-detail img').first();
   await page.waitForFunction(()=>document.querySelector('#selected-detail img')?.naturalWidth>0,null,{timeout:30000});
-  assert((await detailPhoto.getAttribute('src')).includes('rail_vy_x52'),'Wrong photo');
+  assert((await detailPhoto.getAttribute('src')).includes('rail_vy_train'),'Wrong photo');
   await page.locator('#follow').click();
   await page.locator('#satellite').click();
   await page.waitForTimeout(600);
