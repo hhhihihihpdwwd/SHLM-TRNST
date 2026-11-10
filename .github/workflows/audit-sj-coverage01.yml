@@ -1,0 +1,49 @@
+name: Audit all authentic SJ trains against STABLE13 OSM tracks (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/audit-sj-coverage01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/sj-complete-network-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42838379615
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _frozen
+      - name: Recover exact previously deployed 16-system website without changes
+        run: |
+          mkdir -p _site
+          tar -xf _frozen/artifact.tar -C _site
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('_site/data/rail.json').read_text())
+          assert len(d['trips'])==10437 and len(d['shapes'])==71
+          print('STABLE13 IMMUTABLE: ALL 16 SYSTEMS PRESERVED')
+          PY
+      - name: Read operator-authenticated real seven-day GTFS inventory
+        run: python -u scripts/audit_all_sj_2026.py data/sj-full-network-audit.json
+      - name: Audit full network against prior physically verified OSM routes and identify remaining rails
+        run: python -u scripts/audit_sj_existing_osm.py _site/data/rail.json data/sj-full-network-audit.json data/sj-cover-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sj-full-network-service-and-osm-gap-report
+          path: |
+            data/sj-full-network-audit.json
+            data/sj-cover-report.json
+          if-no-files-found: error
