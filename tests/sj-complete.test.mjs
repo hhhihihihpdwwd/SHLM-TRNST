@@ -21,14 +21,14 @@ test('Full SJ rollout changes no existing filter and new SJ OSM-way train is val
 test('Actual GTFS SJ North overnight journey can remain visible after midnight and every day',()=>{
  const date='2026-11-06',begin=Date.parse('2026-11-06T21:00:00+01:00')/1000;
  const end=Date.parse('2026-11-07T09:00:00+01:00')/1000;
- const trip={id:'sj-night-example',mode:'intercity',agency:'SJ',line:'SJ',train:'93',
+ const trip={id:'SJ-FULL-20261106:sj-night-example',sourceTripId:'sj-night-example',sjCompleteVerified:true,mode:'intercity',agency:'SJ',line:'SJ',train:'93',
   start:begin,end,serviceDay:date,geometryQuality:'verified-osm-rail-ways',
   osmWayNetwork:true,shapeId:'real-osm-test',direction:'to-stockholm',
   stops:[[59.33014,18.058154,'Stockholm Centralstation',21*3600,21*3600],
     [59.849,17.638,'Uppsala Centralstation',22*3600,22*3600],
     [60.674,17.142,'Gävle Centralstation',23*3600,23*3600],
     [62.39,17.31,'Sundsvall Centralstation',33*3600,33*3600]]};
- const dataset={type:'historical-daily-repeating-simulation',
+ const dataset={scope:'pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy-tagab-rdc-sj-complete',type:'historical-daily-repeating-simulation',
   simulationTemplateDay:date,
   shapes:{'real-osm-test':[[59.33014,18.058154],[59.849,17.638],[60.674,17.142],[62.39,17.31]]},
   trips:[trip]};
