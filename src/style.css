@@ -11,3 +11,6 @@
 .rail-photo-icon{background:transparent!important;border:0!important;pointer-events:auto}
 .rail-photo-marker{width:19px;height:19px;display:block;object-fit:contain;filter:drop-shadow(0 1px 2px #21343b77);user-select:none}
 .rail-photo-icon.is-selected .rail-photo-marker{width:27px;height:27px;filter:drop-shadow(0 0 3px #f5cf6e) drop-shadow(0 2px 3px #13242e80)}
+
+/* Only Snälltåget: feather the hard lower sprite crop without changing geometry or other icons. */
+.rail-photo-marker-snalltaget{-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 71%,rgba(0,0,0,.85) 79%,rgba(0,0,0,.35) 89%,transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 71%,rgba(0,0,0,.85) 79%,rgba(0,0,0,.35) 89%,transparent 100%);}
