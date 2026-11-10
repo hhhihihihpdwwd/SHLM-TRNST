@@ -1,4 +1,4 @@
-name: Snälltåget Chromium desktop + mobile + full map smoke (NO DEPLOY)
+name: Snälltåget Chromium desktop/mobile with corrected 13-system scope (NO DEPLOY)
 on:
   push:
     branches: [main]
