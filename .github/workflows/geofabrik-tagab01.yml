@@ -1,0 +1,53 @@
+name: Verify actual Tågab Stockholm–Göteborg OSM rails both corridors (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/geofabrik-tagab01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/tagab-stockholm-goteborg-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install OSMium and Python OSM graph reader
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          python -m pip install osmium
+      - name: Get authoritative full Sweden OSM dataset directly from Geofabrik
+        run: |
+          mkdir -p _pbf
+          curl --fail --location --retry 3 --retry-delay 10 --connect-timeout 20 --max-time 1150 \
+            https://download.geofabrik.de/europe/sweden-latest.osm.pbf -o _pbf/sweden.osm.pbf
+          test "$(stat -c%s _pbf/sweden.osm.pbf)" -gt 300000000
+          osmium tags-filter _pbf/sweden.osm.pbf w/railway=rail -o _pbf/sweden-rail.osm.pbf --overwrite
+          rm -f _pbf/sweden.osm.pbf
+          osmium fileinfo -e _pbf/sweden-rail.osm.pbf
+      - name: Extract original Tågab train IDs and stops from historical GTFS
+        run: |
+          cd _source
+          python -u scripts/build_tagab_candidates.py data/tagab_candidates.json
+      - name: Reconstruct BOTH Stockholm–Göteborg original connected OSM routes and validate every Tågab journey
+        run: |
+          cd _source
+          python -u scripts/route_tagab_geofabrik.py data/tagab_candidates.json ../_pbf/sweden-rail.osm.pbf data/tagab_osm.json
+      - name: Preserve proven candidate route data and source GTFS for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: tagab-gtfs-and-real-rail-route-01
+          path: |
+            _source/data/tagab_candidates.json
+            _source/data/tagab_osm.json
+          if-no-files-found: error
+      - name: Public website remains untouched
+        run: echo 'OSM verification only; no deployment.'
