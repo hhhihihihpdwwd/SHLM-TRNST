@@ -1,0 +1,56 @@
+name: Check PUBLIC Snälltåget edge marker desktop and mobile after release
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-snall-edge-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 901a4fd84b5970bcba88c0470564c638414643e4
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42781593400
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: snall-edge-13-browser-approved
+          path: _site
+      - name: Wait for actual public GitHub Pages to serve fixed marker assets
+        run: |
+          for i in $(seq 1 36); do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?snall-edge-check=01' | grep -Fq 'app.js?v=snall-edge-01'; then
+              echo 'PUBLIC SITE UPDATED TO SNALL EDGE RELEASE'
+              break
+            fi
+            if [ "$i" = 36 ]; then echo 'PUBLIC SITE DID NOT UPDATE';exit 1;fi
+            sleep 8
+          done
+      - name: Install real Chromium desktop and mobile
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify actual public website with train list map markers photo and controls
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=snalltaget-01|/src/app.js?v=snall-edge-01|g' tests/snalltaget-browser-smoke.mjs
+          node tests/snalltaget-browser-smoke.mjs
+      - name: Confirm patched CSS is actually served from the PUBLIC website
+        run: |
+          curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/style.css?v=snall-edge-01' | grep -Fq '.rail-photo-marker-snalltaget{'
+          curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=snall-edge-01' | grep -Fq "operatorKey==='snalltaget'"
+          echo 'LIVE WEBSITE HAS THE NEW SMOOTH SNÄLLTÅGET EDGE AND WORKING TRAIN MARKERS'
