@@ -1,0 +1,28 @@
+name: SJ full-network historical timetable and operator audit – single comprehensive expansion (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/audit-sj-complete-01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/sj-complete-network-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Audit all seven actual GTFS service days, train IDs and stop sequences
+        run: python -u scripts/audit_all_sj_2026.py data/sj-full-network-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sj-authentic-2026-all-stockholm-train-inventory
+          path: data/sj-full-network-audit.json
+          if-no-files-found: error
+      - name: Freeze deployment during combined SJ expansion
+        run: echo 'All original 16 systems and STABLE13 public Pages release unchanged'
