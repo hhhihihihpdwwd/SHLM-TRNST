@@ -1,0 +1,58 @@
+name: Archive exact STABLE10 published fourteen-system Vy site (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-stable10-site.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/10
+          fetch-depth: 0
+      - name: Assert stable source is identical to proven Vy release
+        run: test "$(git rev-parse HEAD)" = "d7a395031ffc8493ac945b75bfcb55285e14efa1"
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42818695666
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _production
+      - name: Extract exact 14-system website and record complete SHA256 manifest
+        run: |
+          mkdir -p website
+          tar -xf _production/artifact.tar -C website
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('website')
+          d=json.loads((p/'data/rail.json').read_text())
+          assert len(d['trips'])==10417 and len(d['shapes'])==63 and d['scope'].endswith('-vr-snalltaget-vy')
+          assert len([t for t in d['trips'] if t.get('agency')=='Vy Tåg'])==10
+          assert 'app.js?v=vy-01' in (p/'index.html').read_text()
+          for name in ('src/app.js','src/rail-data.js','src/rail-filter.js','src/approved-train-markers.js',
+                       'src/vy-marker-sprite.js','src/vehicle-front-sprites.js','src/photos.js',
+                       'photos/images/rail_vy_train.webp','photos/catalog.json'):
+           assert (p/name).is_file(),name
+          manifest={str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest() for f in p.rglob('*') if f.is_file()}
+          (p/'STABLE10-MANIFEST.json').write_text(json.dumps({
+            'sourceCommit':'d7a395031ffc8493ac945b75bfcb55285e14efa1',
+            'deploymentRun':42818695666,'publicBrowserVerificationRun':42818875229,
+            'originalFiles':manifest},indent=2))
+          print('COMPLETE STABLE10 ARCHIVE: 14 systems,',len(manifest),'original website files')
+          PY
+      - name: Create isolated full website archive branch, do not deploy
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable10-website
+          git add -f website
+          git commit -m "archive: exact live-tested STABLE10 Vy 14-system GitHub Pages bundle"
+          git push origin HEAD:refs/heads/archive/stable10-website
