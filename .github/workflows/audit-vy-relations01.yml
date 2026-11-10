@@ -1,0 +1,23 @@
+name: Vy Stockholm–Oslo read-only OSM railway relation audit (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/audit-vy-relations01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vy-stockholm-oslo-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check existing OSM Stockholm–Oslo railway relations for full GTFS stop coverage
+        run: python -u scripts/audit_vy_osm_relations.py
+      - name: Keep deployed production unmodified
+        run: echo 'Readonly route audit completed without deployment'
