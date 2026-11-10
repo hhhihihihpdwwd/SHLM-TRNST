@@ -274,7 +274,7 @@ function showRealList(){
  if(!railDataset)return;
  const list=$('vehicle-list');list.innerHTML='';
  const frag=document.createDocumentFragment();
- for(const v of displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)){
+ for(const v of displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))){
   const btn=document.createElement('button');btn.className='vehicle'+(state.selected&&state.selected.id!==v.id?' muted':'');
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=(v.line||v.mode.slice(0,2).toUpperCase());
   const t=document.createElement('span');
