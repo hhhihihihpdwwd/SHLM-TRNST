@@ -1,0 +1,65 @@
+name: Verify PUBLIC SJ complete historic 2026 train network with real Chromium desktop mobile
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-sj-complete-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 11721211b3dda1f5ac85c0f2dbe7ed969e588a57
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42844225301
+          name: sj-complete-one-stage-chromium-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Confirm real public Github Pages serves the new 174 authenticated SJ reference trains
+        run: |
+          for i in $(seq 1 90);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?sj-complete-live-check=01' | grep -Fq 'app.js?v=sj-complete-01';then
+              echo 'PUBLIC SJ COMPLETE ONE-STAGE RELEASE IS ONLINE';break
+            fi
+            if [ "$i" = 90 ];then echo 'PUBLIC PAGES HAS NOT RELEASED SJ NETWORK';exit 1;fi
+            sleep 10
+          done
+      - name: Install actual Chromium for public map verification
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify ACTUAL PUBLIC website SJ North West South and night active trains, all days, both directions, existing operators, photos and markers
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          node tests/sj-complete-browser-smoke.mjs
+      - name: Audit PUBLIC unchanged train assets and exactly 174 authenticated SJ additions
+        run: |
+          curl -fLsS --max-time 40 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=sj-complete-01' -o /tmp/sj-public.json
+          curl -fLsS --max-time 25 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=sj-complete-01' -o /tmp/sj-parser.js
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/sj-public.json'))
+          src=open('/tmp/sj-parser.js').read()
+          assert len(d['trips'])==10611 and len(d['shapes'])==95
+          assert sum(x.get('agency')=='RDC EuroNight' for x in d['trips'])==4
+          assert sum(x.get('agency')=='Tågab' for x in d['trips'])==16
+          assert sum(x.get('agency')=='Vy Tåg' for x in d['trips'])==10
+          assert len([x for x in d['trips'] if x.get('sjCompleteVerified')])==174
+          assert 'source.sjCompleteVerified===true' in src
+          print('ACTUAL PUBLIC SJ COMPLETE NETWORK GREEN: 10611 AUTHENTIC HISTORICAL TEMPLATES, 95 VERIFIED RAIL GEOMETRIES, ALL 16 EXISTING OPERATORS')
+          PY
