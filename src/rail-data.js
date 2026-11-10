@@ -105,7 +105,9 @@ export function activeRailTrips(dataset,epoch,limit=900){
  for(const source of dataset.trips){
   const verified=source.geometryQuality==='verified-osm-relation'||
       (source.mode==='regional'&&source.geometryQuality==='verified-osm-rail-ways')||
-      (source.mode==='intercity'&&['VR Snabbtåg','Vy Tåg','Tågab','RDC EuroNight','SJ'].includes(source.agency)&&
+      (source.mode==='intercity'&&(['VR Snabbtåg','Vy Tåg','Tågab','RDC EuroNight'].includes(source.agency)||
+        (source.agency==='SJ'&&dataset.scope.endsWith('-sj-complete')&&source.sjCompleteVerified===true&&
+         String(source.id).startsWith('SJ-FULL-20261106:')&&!!source.sourceTripId))&&
        source.osmWayNetwork===true&&source.geometryQuality==='verified-osm-rail-ways');
   if(!['commuter','metro','tram','localrail','saltsjo','express','intercity','regional'].includes(source.mode)||!verified)continue;
   if(repeating && source.serviceDay!==templateDay)continue;
