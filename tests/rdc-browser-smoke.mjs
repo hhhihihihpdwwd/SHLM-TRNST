@@ -10,7 +10,7 @@ import {matchesRailFilter} from '../src/rail-filter.js';
 
 const root=resolve(process.env.SITE_ROOT||'_site');
 const timetable=JSON.parse(await readFile(join(root,'data/rail.json'),'utf8'));
-assert.equal(timetable.scope.endsWith('-snalltaget-vy-rdc'),true);
+assert.equal(timetable.scope.endsWith('-snalltaget-vy-tagab-rdc'),true);
 assert.equal(timetable.trips.length,10437);
 assert.equal(Object.keys(timetable.shapes).length,71);
 assert.equal(timetable.trips.filter(t=>t.agency!=='RDC EuroNight').length,10433);
