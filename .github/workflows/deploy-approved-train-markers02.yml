@@ -1,0 +1,64 @@
+name: Deploy ONLY approved transparent Snälltåget and VR map icons
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-approved-train-markers02.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2554bc57c977ea014538c925c2ba447e1c6f8cd5
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42783879146
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: approved-train-markers-13-chromium
+          path: _site
+      - name: Confirm exact tested assets, unmodified timetable and original markers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s=Path('_site');src=Path('_source')
+          for p in ('src/app.js','src/style.css','src/approved-train-markers.js'):
+           assert (s/p).read_bytes()==(src/p).read_bytes(),p
+          h=(s/'index.html').read_text()
+          assert 'app.js?v=train-icons-02' in h and 'style.css?v=train-icons-02' in h
+          app=(s/'src/app.js').read_text()
+          assert "from './approved-train-markers.js?v=train-icons-02'" in app
+          assert "from './operator-marker-sprites.js?v=operator-markers-01'" in app
+          assert 'rail-photo-marker-snalltaget' not in app
+          d=json.loads((s/'data/rail.json').read_text())
+          assert len(d['trips'])==10407 and len(d['shapes'])==61
+          assert d['scope'].endswith('-vr-snalltaget')
+          for p in ('src/vehicle-front-sprites.js','src/operator-marker-sprites.js','src/rail-data.js'):
+           assert (s/p).is_file(),p
+          print('EXACT 13-SYSTEM CHROMIUM VERIFIED ARTIFACT: TWO APPROVED MAP IMAGES ONLY')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
