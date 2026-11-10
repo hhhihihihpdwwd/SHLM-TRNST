@@ -68,6 +68,8 @@ test('cache versions and all 12 old rail controls remain, new operator has disti
  assert(app.includes('focusMalartagPilot()'));
  assert(app.includes('focusVrSnabbtag()'));
  assert(app.includes("['snalltaget',t=>t.mode==='intercity'&&t.agency==='Snälltåget']"));
- assert(app.includes("v.agency==='Snälltåget'?' style="),'Dedicated marker not visible');
+ assert(app.includes("if(agency==='snälltåget')return 'snalltaget'"),'Dedicated Snälltåget photo marker missing');
+ assert(app.includes("if(agency==='mälartåg')return 'malartag'"),'Dedicated Mälartåg photo marker missing');
+ assert(app.includes("if(agency==='vr snabbtåg')return 'vr'"),'Dedicated VR photo marker missing');
  assert(app.includes('Exempelbild av Snälltåget'));
 });
