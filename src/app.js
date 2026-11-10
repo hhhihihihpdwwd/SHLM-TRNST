@@ -4,6 +4,7 @@ import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-dat
 import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=snalltaget-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {operatorMarkerSprites} from './operator-marker-sprites.js?v=operator-markers-01';
+import {approvedTrainMarkers} from './approved-train-markers.js?v=train-icons-02';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=snalltaget-01';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
@@ -191,7 +192,7 @@ function markerSpriteKey(v){
 const operatorSpriteUrls=new Map();
 function originalOperatorSpriteUrl(key){
  if(operatorSpriteUrls.has(key))return operatorSpriteUrls.get(key);
- const data=operatorMarkerSprites[key];
+ const data=approvedTrainMarkers[key]||operatorMarkerSprites[key];
  if(!data)return originalSpriteUrl('rail');
  const binary=atob(data.split(',')[1]);
  const bytes=new Uint8Array(binary.length);
@@ -203,10 +204,9 @@ function miniRailIcon(v,chosen=false){
  const operatorKey=markerSpriteKey(v);
  const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
   v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
- const img=operatorKey&&operatorMarkerSprites[operatorKey]?originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey);
+ const img=operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey])?originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey);
  const size=chosen?27:19;
- const edgeClass=operatorKey==='snalltaget'?' rail-photo-marker-snalltaget':'';
- const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker'+edgeClass+'" src="'+img+'">';
+ const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
  return L.divIcon({className:'rail-photo-icon'+(chosen?' is-selected':''),html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#E78B35',rail:'#C89D52'};
