@@ -1,0 +1,127 @@
+name: Validate exact 15-system Tågab release in real desktop/mobile Chromium (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/browser-tagab01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/tagab-stockholm-goteborg-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download exact public 14-system STABLE11 site including all originals
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42824741896
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published
+      - name: Download all 16 authenticated Tågab GTFS trains and both real connected OSM corridors
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42829795405
+          name: tagab-gtfs-and-real-rail-route-01
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _routing
+      - name: Download separately verified CC BY 4.0 real Tågab passenger-train photo
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42830950854
+          name: tagab-licensed-passenger-photo-01
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _photograph
+      - name: Overlay only new Tågab website files, preserve entire old site
+        run: |
+          mkdir -p _site _base
+          tar -xf _published/artifact.tar -C _site
+          tar -xf _published/artifact.tar -C _base
+          TAGAB_GTFS="$(find _routing -name tagab_candidates.json -type f -print -quit)"
+          TAGAB_OSM="$(find _routing -name tagab_osm.json -type f -print -quit)"
+          test -n "$TAGAB_GTFS" && test -n "$TAGAB_OSM"
+          TAGAB_GTFS="$(realpath "$TAGAB_GTFS")"
+          TAGAB_OSM="$(realpath "$TAGAB_OSM")"
+          cd _source
+          python scripts/prepare_tagab_site.py . ../_site "$TAGAB_GTFS" "$TAGAB_OSM"
+          cd ..
+          TPHOTO="$(find _photograph -name rail_tagab_rc3.webp -type f -print -quit)"
+          TCATALOG="$(find _photograph -name catalog.json -type f -print -quit)"
+          test -n "$TPHOTO" && test -n "$TCATALOG"
+          cp "$TPHOTO" _site/photos/images/rail_tagab_rc3.webp
+          cp "$TCATALOG" _site/photos/catalog.json
+      - name: Byte-for-byte check of the frozen 14 system timetables, routes, photos and script assets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          base=Path('_base');new=Path('_site')
+          allowed={'index.html','src/app.js','src/rail-filter.js','src/rail-data.js','src/photos.js','photos/catalog.json','data/rail.json'}
+          for p in base.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(base));q=new/rel
+           assert q.is_file(),('MISSING EXISTING ASSET',rel)
+           if rel not in allowed:assert p.read_bytes()==q.read_bytes(),('EXISTING ASSET MODIFIED',rel)
+          old=json.loads((base/'data/rail.json').read_text())
+          d=json.loads((new/'data/rail.json').read_text())
+          assert d['scope']==old['scope']+'-tagab'
+          assert len(old['trips'])==10417 and len(d['trips'])==10433
+          assert len(old['shapes'])==63 and len(d['shapes'])==67
+          assert d['trips'][:10417]==old['trips']
+          assert all(d['shapes'][k]==v for k,v in old['shapes'].items())
+          assert d['simulationTemplateDay']==old['simulationTemplateDay']
+          assert sum(t.get('agency')=='Tågab' for t in d['trips'])==16
+          assert len(set(t['corridor'] for t in d['trips'][-16:]))==2
+          for key,value in old.items():
+           if key not in ('trips','shapes','counts','scope'):assert d[key]==value,key
+          old_catalog=json.loads((base/'photos/catalog.json').read_text())
+          catalog=json.loads((new/'photos/catalog.json').read_text())
+          for key,value in old_catalog.items():assert catalog[key]==value,key
+          image=catalog['rail_tagab_rc3']
+          assert image['author']=='G och J' and image['license']=='CC BY 4.0'
+          assert (new/image['path']).stat().st_size>6500
+          for file in ('src/tagab-marker-sprite.js','src/operator-marker-sprites.js','src/approved-train-markers.js','src/vehicle-front-sprites.js'):
+           assert (new/file).is_file(),file
+          assert 'app.js?v=tagab-01' in (new/'index.html').read_text()
+          print('PASS: 10417 ORIGINAL TRAIN SCHEDULES, 63 SHAPES, ALL PHOTOS INTACT; 16 TAGAB TRAIN TEMPLATES AND 4 REAL OSM RAIL SHAPES ADDED')
+          PY
+      - name: Unit regressions for every original operator and new historical daily Tågab departures
+        run: |
+          cd _source
+          node --check src/app.js
+          node --check src/rail-data.js
+          node --check src/tagab-marker-sprite.js
+          node --check tests/tagab-browser-smoke.mjs
+          node --test tests/tagab-daily.test.mjs
+          npm test
+      - name: Install real Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify REAL Tågab front marker, photo, route and old 14 systems with Chromium on desktop and mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node tests/tagab-browser-smoke.mjs
+      - name: Preserve exact finished Chromium-proven 15-system candidate; DO NOT DEPLOY
+        uses: actions/upload-artifact@v4
+        with:
+          name: tagab-15-browser-approved
+          path: _site/
+          if-no-files-found: error
