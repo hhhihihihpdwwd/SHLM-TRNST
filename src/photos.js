@@ -25,6 +25,10 @@ export function photoForVehicle(v){
    label:'VR Snabbtåg X74 – exempelbild (exakt fordon för avgången ej verifierat)',
    illustrative:true}:null;
  }
+ if(v.mode==='intercity' && v.agency==='RDC EuroNight'){
+  const sample=photoCatalog.rail_rdc_euronight;
+  return sample?{...sample,label:'RDC EuroNight i Stockholm – verkligt tåg som exempelbild (exakt avgång ej verifierad)',illustrative:true}:null;
+ }
  if(v.mode==='intercity' && v.agency==='Tågab'){
   const photo=photoCatalog.rail_tagab_rc3;
   return photo?{...photo,label:'Tågab Rc3 med personvagnar – exempelbild (exakt lok för avgången ej bekräftat)',illustrative:true}:null;
