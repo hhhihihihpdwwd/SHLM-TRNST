@@ -1,0 +1,72 @@
+name: Snälltåget Chromium desktop + mobile + full map smoke (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/browser-snalltaget01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/snalltaget-01
+          path: _snall
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download EXACT GTFS and OSM-verified 13-system preview
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42771550540
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: snalltaget-13-system-gtfs-osm-preview
+          path: _site
+      - name: Confirm exact five Snälltåget and existing 10402 protected trains
+        run: |
+          cd _snall
+          node --check tests/snalltaget-browser-smoke.mjs
+          npm test
+          cd ..
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('_site')
+          d=json.loads((p/'data/rail.json').read_text(encoding='utf8'))
+          assert len(d['trips'])==10407
+          assert d['scope'].endswith('-vr-snalltaget')
+          assert d['snalltagetDirections']=={'to-malmo':2,'to-stockholm':3}
+          assert len([t for t in d['trips'] if t.get('agency')=='Snälltåget'])==5
+          assert (p/'photos/images/rail_snalltaget.webp').is_file()
+          html=(p/'index.html').read_text()
+          app=(p/'src/app.js').read_text()
+          rail=(p/'src/rail-data.js').read_text()
+          assert 'src="./src/app.js?v=snalltaget-01"' in html
+          assert "from './rail-data.js?v=snalltaget-01'" in app
+          assert "from './rail-filter.js?v=snalltaget-01'" in app
+          assert "from './photos.js?v=snalltaget-01'" in app
+          assert "const TIMETABLE_URL='./data/rail.json?v=snalltaget-01';" in rail
+          print('BROWSER INPUT APPROVED: FIVE REAL TRAINS, ALL CACHE VERSIONS MATCH')
+          PY
+      - name: Install real Chromium and automation dependencies
+        run: |
+          cd _snall
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Actually open whole 13-system site in Chromium desktop and mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _snall
+          node tests/snalltaget-browser-smoke.mjs
+      - name: Save only exactly tested preview artifact, NOT deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: snalltaget-13-chromium-verified
+          path: _site/
+          if-no-files-found: error
