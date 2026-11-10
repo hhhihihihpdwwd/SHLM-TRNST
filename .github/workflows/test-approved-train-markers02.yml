@@ -1,0 +1,124 @@
+name: Validate approved VR and Snälltåget standalone icons, frozen thirteen-system site (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-approved-train-markers02.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/approved-train-marker-assets-02
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42781593400
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: snall-edge-13-browser-approved
+          path: _site
+      - name: Apply only approved standalone sprites and remove old mask from prior release
+        run: |
+          cp -a _site _before
+          cp _source/src/app.js _site/src/app.js
+          cp _source/src/style.css _site/src/style.css
+          cp _source/src/approved-train-markers.js _site/src/approved-train-markers.js
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          old=Path('_before');new=Path('_site')
+          html=new/'index.html';t=html.read_text()
+          assert 'app.js?v=snall-edge-01' in t and 'style.css?v=snall-edge-01' in t
+          html.write_text(t.replace('app.js?v=snall-edge-01','app.js?v=train-icons-02').replace('style.css?v=snall-edge-01','style.css?v=train-icons-02'))
+          allowed={'src/app.js','src/style.css','index.html','src/approved-train-markers.js'}
+          for p in old.rglob('*'):
+           if p.is_file():
+            rel=str(p.relative_to(old));q=new/rel
+            assert rel in allowed or (q.is_file() and q.read_bytes()==p.read_bytes()),rel
+          d=json.loads((new/'data/rail.json').read_text())
+          assert len(d['trips'])==10407 and len(d['shapes'])==61 and d['scope'].endswith('-vr-snalltaget')
+          assert "from './approved-train-markers.js?v=train-icons-02'" in (new/'src/app.js').read_text()
+          assert 'rail-photo-marker-snalltaget' not in (new/'src/style.css').read_text()
+          print('ONLY ICON PATCH APPLIED: 10407 HISTORICAL TRAINS, 61 REAL OSM SHAPES RETAINED')
+          PY
+      - name: Assert two isolated transparent WebP images with correct dimensions, signatures and alpha
+        run: |
+          cd _source
+          node --check src/app.js
+          node --check src/approved-train-markers.js
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {approvedTrainMarkers} from './src/approved-train-markers.js';
+          assert.deepEqual(Object.keys(approvedTrainMarkers).sort(),['snalltaget','vr']);
+          for(const [name,src] of Object.entries(approvedTrainMarkers)){
+           assert(src.startsWith('data:image/webp;base64,'));
+           const b=Buffer.from(src.split(',')[1],'base64');
+           assert(b.length>=1200&&b.length<10000,name+' suspicious size');
+           assert.equal(b.toString('ascii',0,4),'RIFF');
+           assert.equal(b.toString('ascii',8,12),'WEBP');
+           assert.equal(b.toString('ascii',12,16),'VP8X');
+           const width=1+b[24]+(b[25]<<8)+(b[26]<<16);
+           const height=1+b[27]+(b[28]<<8)+(b[29]<<16);
+           assert.equal(width,48,name+' width');assert.equal(height,48,name+' height');
+           assert((b[20]&16)!==0,name+' transparency metadata missing');
+           console.log(name,'approved standalone WebP',width,height,b.length,'bytes');
+          }
+          JS
+          npm test
+      - name: Install real Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Prove exact website in real Chromium, desktop/mobile, maps and photos
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=snalltaget-01|/src/app.js?v=train-icons-02|g' tests/snalltaget-browser-smoke.mjs
+          node tests/snalltaget-browser-smoke.mjs
+      - name: Verify decoded icon alpha edges and browser display for BOTH operators
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {chromium} from 'playwright';
+          import {approvedTrainMarkers} from './src/approved-train-markers.js';
+          const browser=await chromium.launch({args:['--no-sandbox']});
+          const page=await browser.newPage();
+          for(const [name,src] of Object.entries(approvedTrainMarkers)){
+            const r=await page.evaluate(async u=>{
+              const img=new Image();img.src=u;await img.decode();
+              const canvas=document.createElement('canvas');canvas.width=48;canvas.height=48;
+              const c=canvas.getContext('2d',{willReadFrequently:true});c.drawImage(img,0,0);
+              const d=c.getImageData(0,0,48,48).data;
+              const a=(x,y)=>d[(y*48+x)*4+3];
+              let opaque=0,edgeOpaque=0;
+              for(let y=0;y<48;y++)for(let x=0;x<48;x++){
+                if(a(x,y)>200)opaque++;
+                if((x===0||y===0||x===47||y===47)&&a(x,y)>48)edgeOpaque++;
+              }
+              return {w:img.naturalWidth,h:img.naturalHeight,opaque,edgeOpaque};
+            },src);
+            assert.deepEqual([r.w,r.h],[48,48]);assert(r.opaque>100,name+' train absent');
+            assert.equal(r.edgeOpaque,0,name+' image touches edge; crop still broken');
+            console.log(name,'IMAGE DECODED, SINGLE TRAIN FULLY INSIDE FRAME',r);
+          }
+          await browser.close();
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: approved-train-markers-13-chromium
+          path: _site/
+          if-no-files-found: error
