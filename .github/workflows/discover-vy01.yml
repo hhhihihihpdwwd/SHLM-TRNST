@@ -1,0 +1,23 @@
+name: Audit real November 2026 Vy Tåg Stockholm–Oslo historical GTFS (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/discover-vy01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vy-stockholm-oslo-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Read authentic public historical GTFS 6–15 November; confirm actual operator, train IDs, stations and service days
+        run: python -u scripts/discover_vy_archive.py
+      - name: Do not deploy or change historical train datasets
+        run: echo 'Historic Vy discovery ONLY – existing 13-system public website untouched'
