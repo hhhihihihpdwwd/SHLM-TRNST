@@ -1,0 +1,63 @@
+name: Deploy verified Snälltåget photo-marker edge fix ONLY
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-snall-edge01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 901a4fd84b5970bcba88c0470564c638414643e4
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42781593400
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: snall-edge-13-browser-approved
+          path: _site
+      - name: Require exactly the browser-tested Snälltåget edge patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          s=Path('_site');src=Path('_source')
+          for p in ('src/app.js','src/style.css'):
+           assert (s/p).read_bytes()==(src/p).read_bytes(),p
+          html=(s/'index.html').read_text()
+          assert 'app.js?v=snall-edge-01' in html and 'style.css?v=snall-edge-01' in html
+          app=(s/'src/app.js').read_text()
+          assert 'rail-photo-marker-snalltaget' in app
+          assert "from './operator-marker-sprites.js?v=operator-markers-01'" in app
+          css=(s/'src/style.css').read_text()
+          assert css.count('.rail-photo-marker-snalltaget{')==1
+          d=json.loads((s/'data/rail.json').read_text())
+          assert len(d['trips'])==10407 and len(d['shapes'])==61
+          assert d['scope'].endswith('-vr-snalltaget')
+          print('EXACT BROWSER-VERIFIED PATCH: ONLY SNALL EDGE, 13 SYSTEMS UNCHANGED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.published.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: published
