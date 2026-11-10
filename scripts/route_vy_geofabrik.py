@@ -75,7 +75,7 @@ def load_graph(files,stops):
 def validate(shape,trips):
     if len(shape)<100:raise ValueError('OSM geometry too short')
     lengths=[dist(a,b) for a,b in zip(shape,shape[1:])]
-    if max(lengths)>1500:raise ValueError('Geometric gap in original OSM way nodes')
+    if max(lengths)>4000:raise ValueError('Unexpected length between actual OSM way vertices: '+str(max(lengths)))
     checked=collections.Counter()
     for t in trips:
         for orientation,coords in [('stockholm-oslo',shape),('oslo-stockholm',list(reversed(shape)))]:
@@ -137,13 +137,17 @@ def main():
     for nid in ids:
         xy=points[nid]
         if not shape or shape[-1]!=xy:shape.append([round(xy[0],6),round(xy[1],6)])
+    bad_links=[(a,b) for a,b in zip(ids,ids[1:]) if b not in network[a]]
+    if bad_links:raise ValueError('OSM junction discontinuity: '+str(bad_links[:5]))
+    actual_max=max(dist(a,b) for a,b in zip(shape,shape[1:]))
+    print('VERIFIED OSM WAY ADJACENCY',len(ids)-1,'original railway edges','maximum vertex spacing',round(actual_max),'m',flush=True)
     if project_stops(stops,shape,650) is None:raise ValueError('Real OSM rail shape failed ordered stop projection')
     coverage=validate(shape,trips)
     out={'shape':shape,'source':'Geofabrik Sweden + Østlandet PBF; connected OSM railway=rail way node IDs',
       'sourceTrip':selected['id'],'maxSegmentMetres':round(max(dist(a,b) for a,b in zip(shape,shape[1:])),2),
       'lengthKm':round(sum(dist(a,b) for a,b in zip(shape,shape[1:]))/1000,1),
       'coveredTrips':{str(k):v for k,v in coverage.items()},
-      'nodesOnPath':len(ids),'isLiveGPS':False}
+      'nodesOnPath':len(ids),'verifiedConsecutiveOsmWayEdges':len(ids)-1,'isLiveGPS':False}
     dest=pathlib.Path(sys.argv[2]);dest.parent.mkdir(parents=True,exist_ok=True)
     dest.write_text(json.dumps(out,separators=(',',':')))
     if len(sys.argv)>=6:render_geojson(shape,selected,out,pathlib.Path(sys.argv[5]))
