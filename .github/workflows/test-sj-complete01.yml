@@ -1,0 +1,31 @@
+name: Validate all SJ operators, northern overnight clocks and unchanged existing filters (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-sj-complete01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  code:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/sj-complete-network-01
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Source syntax and all historical SJ network unit tests
+        run: |
+          python -m py_compile scripts/audit_all_sj_2026.py scripts/audit_sj_existing_osm.py scripts/route_sj_complete.py scripts/append_sj_complete.py scripts/prepare_sj_complete_site.py
+          node --check src/rail-data.js
+          node --check tests/sj-complete-browser-smoke.mjs
+          node --test tests/sj-complete.test.mjs
+          npm test
+      - name: Original public STABLE13 remains unchanged
+        run: echo 'One comprehensive SJ expansion, no deploy until all real OSM tracks and Chromium tests are green.'
