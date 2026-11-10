@@ -1,0 +1,86 @@
+name: Deploy EXACT Chromium-approved 16-system RDC EuroNight international trains, preserving STABLE12
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-rdc01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a46fd03555028f05b70a943ef2bac9a3cdc8e478
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42837541518
+          name: rdc-16-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42831847214
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _previous
+      - name: Require exact vetted new RDC files and byte-identical original 15 systems
+        run: |
+          mkdir -p _old
+          tar -xf _previous/artifact.tar -C _old
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          site=Path('_site');old=Path('_old')
+          allow={'index.html','src/app.js','src/rail-filter.js','src/rail-data.js','src/photos.js','data/rail.json','photos/catalog.json'}
+          for f in old.rglob('*'):
+           if not f.is_file():continue
+           name=str(f.relative_to(old));n=site/name
+           assert n.is_file(),('PRIOR ASSET REMOVED',name)
+           if name not in allow:assert n.read_bytes()==f.read_bytes(),('EXISTING FILE MODIFIED',name)
+          d=json.loads((site/'data/rail.json').read_text())
+          before=json.loads((old/'data/rail.json').read_text())
+          assert d['scope']==before['scope']+'-rdc'
+          assert len(d['trips'])==10437 and len(d['shapes'])==71
+          assert d['trips'][:10433]==before['trips']
+          assert all(d['shapes'][k]==v for k,v in before['shapes'].items())
+          assert sum(t.get('agency')=='RDC EuroNight' for t in d['trips'])==4
+          assert d['rdcDirections']=={'to-stockholm':2,'from-stockholm':2}
+          assert all(t['geometryQuality']=='verified-osm-rail-ways' and t['osmWayNetwork'] and not t['isLiveGPS'] for t in d['trips'][-4:])
+          assert d['rdcOfficialSchedule']=='https://www.nachtexpress.de/de/fahrplan/'
+          cat=json.loads((site/'photos/catalog.json').read_text())
+          assert cat['rail_rdc_euronight']['license']=='CC BY 4.0'
+          assert cat['rail_rdc_euronight']['author']=='G och J'
+          assert (site/cat['rail_rdc_euronight']['path']).stat().st_size>6500
+          for p in ('src/rdc-marker-sprite.js','src/tagab-marker-sprite.js','src/vy-marker-sprite.js',
+                    'src/approved-train-markers.js','src/operator-marker-sprites.js','src/vehicle-front-sprites.js'):
+           assert (site/p).is_file(),p
+          assert 'app.js?v=rdc-01' in (site/'index.html').read_text()
+          assert "from './rail-data.js?v=rdc-01'" in (site/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=rdc-01'" in (site/'src/rail-data.js').read_text()
+          print('EXACT CHROMIUM-VERIFIED 16 SYSTEM WEBSITE: 10437 HISTORIC SERVICES, 71 ORIGINAL CONNECTED RAIL SHAPES')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
