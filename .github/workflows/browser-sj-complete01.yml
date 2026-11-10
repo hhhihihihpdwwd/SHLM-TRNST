@@ -1,0 +1,112 @@
+name: FULL SJ network all regions, shared final Chromium gate (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/browser-sj-complete01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/sj-complete-network-01
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42838379615
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _baseline
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42842274397
+          name: sj-full-network-service-and-osm-gap-report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _cover
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42842792121
+          name: sj-full-one-stage-authentic-connected-osm-track-audit
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _tracks
+      - name: Prepare exact existing 16-system release and immutable baseline
+        run: |
+          mkdir -p _site _original
+          tar -xf _baseline/artifact.tar -C _site
+          tar -xf _baseline/artifact.tar -C _original
+      - name: Apply authenticated SJ 2026 southern western northern and overnight trains as one single additive release
+        run: |
+          COVER="$(find _cover -type f -name sj-cover-report.json -print -quit)"
+          OSM="$(find _tracks -type f -name sj-complete-real-osm.json -print -quit)"
+          test -n "$COVER" && test -n "$OSM"
+          COVER="$(realpath "$COVER")"
+          OSM="$(realpath "$OSM")"
+          cd _source
+          python scripts/prepare_sj_complete_site.py . ../_site "$COVER" "$OSM"
+      - name: Prove prior 10437 train templates and 71 railway shapes are EXACT, all icons and photos preserved
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_original');site=Path('_site')
+          allow={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for p in old.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(old));new=site/rel
+           assert new.is_file(),('DELETED ORIGINAL',rel)
+           if rel not in allow:assert new.read_bytes()==p.read_bytes(),('MODIFIED ORIGINAL',rel)
+          baseline=json.loads((old/'data/rail.json').read_text())
+          d=json.loads((site/'data/rail.json').read_text())
+          assert d['scope']==baseline['scope']+'-sj-complete'
+          assert len(d['trips'])==10611 and len(d['trips'])-len(baseline['trips'])==174
+          assert d['trips'][:10437]==baseline['trips']
+          assert all(d['shapes'][k]==v for k,v in baseline['shapes'].items())
+          assert d['simulationTemplateDay']==baseline['simulationTemplateDay']
+          for k,v in baseline.items():
+           if k not in ('trips','shapes','counts','scope'):assert d[k]==v,k
+          for k,v in baseline['counts'].items():
+           assert d['counts'][k]==v+(174 if k=='intercity' else 0)
+          assert d['sjCompleteAdded']==174
+          assert d['sjCompleteNight']>=1
+          assert 'app.js?v=sj-complete-01' in (site/'index.html').read_text()
+          assert "from './rail-data.js?v=sj-complete-01'" in (site/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=sj-complete-01'" in (site/'src/rail-data.js').read_text()
+          print('ALL 16 ORIGINAL SYSTEMS IMMUTABLE, 174 AUTHENTIC NEW SJ HISTORICAL SERVICES')
+          PY
+      - name: Check source, genuine rail parser, code syntax and existing regression suites
+        run: |
+          cd _source
+          node --check src/rail-data.js
+          node --check tests/sj-complete-browser-smoke.mjs
+          npm test
+      - name: Install actual desktop/mobile Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test live simulated SJ South West North Oslo and all 2026 night trains, all weekdays and unchanged 16 filters in real Chromium
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node tests/sj-complete-browser-smoke.mjs
+      - name: Save exact tested entire new site, do not deploy until public release gate
+        uses: actions/upload-artifact@v4
+        with:
+          name: sj-complete-one-stage-chromium-approved
+          path: _site/
+          if-no-files-found: error
