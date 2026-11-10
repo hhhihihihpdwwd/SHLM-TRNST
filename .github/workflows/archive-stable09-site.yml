@@ -1,0 +1,59 @@
+name: Archive exact STABLE09 thirteen-system public Pages site (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-stable09-site.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/09
+          fetch-depth: 0
+      - name: Verify STABLE09 is the exact approved 13-system source
+        run: test "$(git rev-parse HEAD)" = "2554bc57c977ea014538c925c2ba447e1c6f8cd5"
+      - name: Download exact successfully deployed public GitHub Pages release
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42784031054
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _deployed
+      - name: Extract complete deployed website and assert 13 protected systems and photos
+        run: |
+          mkdir -p website
+          tar -xf _deployed/artifact.tar -C website
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('website')
+          d=json.loads((p/'data/rail.json').read_text())
+          assert len(d['trips'])==10407 and len(d['shapes'])==61
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget'
+          assert d['snalltagetDirections']=={'to-malmo':2,'to-stockholm':3}
+          html=(p/'index.html').read_text()
+          assert 'app.js?v=train-icons-02' in html and 'style.css?v=train-icons-02' in html
+          for file in ('src/app.js','src/approved-train-markers.js','src/operator-marker-sprites.js','src/vehicle-front-sprites.js','src/rail-data.js','src/rail-filter.js','photos/catalog.json'):
+           assert (p/file).is_file(),file
+          cat=json.loads((p/'photos/catalog.json').read_text())
+          for key in ('rail_snalltaget','rail_vr_x74','rail_x2000','rail_malartag'):
+           assert (p/cat[key]['path']).is_file(),key
+          manifest={str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest() for f in p.rglob('*') if f.is_file()}
+          (p/'STABLE09-MANIFEST.json').write_text(json.dumps({'sourceCommit':'2554bc57c977ea014538c925c2ba447e1c6f8cd5','deployedWorkflow':42784031054,'publicChromiumWorkflow':42784110502,'originalFiles':manifest},indent=2))
+          print('STABLE09: EXACT DEPLOYED 13 SYSTEM SITE,',len(manifest),'FILES ARCHIVED')
+          PY
+      - name: Commit full website on independent archive branch without changing production
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable09-website
+          git add -f website
+          git commit -m "archive: exact Chromium-verified STABLE09 Pages website including data and train images"
+          git push origin HEAD:refs/heads/archive/stable09-website
