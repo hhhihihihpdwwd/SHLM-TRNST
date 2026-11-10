@@ -1,4 +1,4 @@
-name: Test photographic operator markers against frozen 13-system production site (NO DEPLOY)
+name: Recheck photographic operator markers against frozen 13-system production site (NO DEPLOY)
 on:
   push:
     branches: [main]
