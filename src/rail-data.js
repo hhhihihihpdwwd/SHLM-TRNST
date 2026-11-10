@@ -1,6 +1,6 @@
 // GTFS timetable adapter: UTC epoch for times, source shape coordinates for positions.
 // No fallback straight-track geometry for actual services.
-const TIMETABLE_URL='./data/rail.json?v=vr-browser-fixed-02';
+const TIMETABLE_URL='./data/rail.json?v=snalltaget-01';
 const pathCache=new Map(),projectionCache=new Map();
 export async function loadRailTimetable(){
  try {
@@ -8,7 +8,7 @@ export async function loadRailTimetable(){
   if(!response.ok)return null;
   const data=await response.json();
   if(data.schema!==1||!Array.isArray(data.trips)||!data.shapes||!data.trips.length)return null;
-  if(!['pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr'].includes(data.scope)||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
+  if(!['pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget'].includes(data.scope)||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
   return data;
  }catch(e){console.warn('Verified timetable unavailable; preserving current release',e);return null}
 }
