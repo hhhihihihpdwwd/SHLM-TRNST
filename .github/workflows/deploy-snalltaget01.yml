@@ -1,0 +1,173 @@
+name: Launch fully Chromium-verified Snälltåget 13-system Stockholm Rail
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-snalltaget01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - name: Checkout EXACT source commit from passed Snälltåget browser release
+        uses: actions/checkout@v4
+        with:
+          ref: f194ecea014e863ed4e7df9e3c70452369704202
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Independently rerun all old and new Python/JS regression tests
+        run: |
+          cd _source
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          npm test
+      - name: Retrieve exact last working twelve-system STABLE08 site
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42647082311
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _original
+      - name: Retrieve EXACT thirteen-system site that Chromium tested on desktop and mobile
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42771861126
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: snalltaget-13-chromium-verified
+          path: _site
+      - name: Assert unmodified STABLE08 data, authentic five Snälltåget GTFS trains and OSM
+        run: |
+          mkdir -p _stable08
+          tar -xf _original/artifact.tar -C _stable08
+          python - <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          sys.path.insert(0,"_source/scripts")
+          from refine_osm_routes import project_stops
+          old=Path('_stable08');new=Path('_site')
+          a=json.loads((old/'data/rail.json').read_text(encoding='utf8'))
+          d=json.loads((new/'data/rail.json').read_text(encoding='utf8'))
+          assert a['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr'
+          assert d['scope']==a['scope']+'-snalltaget'
+          assert a['type']==d['type']=='historical-daily-repeating-simulation'
+          assert len(a['trips'])==10402 and len(d['trips'])==10407
+          assert d['trips'][:10402]==a['trips'], 'STABLE08 historical train services mutated'
+          assert d['shapes']==a['shapes'],'STABLE08 railway tracks mutated'
+          assert d['counts']['intercity']==a['counts']['intercity']+5==74
+          for key,v in a['counts'].items():
+           if key!='intercity':assert d['counts'][key]==v,('old mode corrupted',key)
+          for key,v in a.items():
+           if key in ('scope','trips','counts'):continue
+           assert d[key]==v,('old system metadata corrupted',key)
+          assert d['snalltagetDirections']=={'to-malmo':2,'to-stockholm':3}
+          newtrains=d['trips'][10402:]
+          assert len(newtrains)==5
+          seen=set()
+          for t in newtrains:
+           assert t['mode']=='intercity' and t['agency']=='Snälltåget' and t['line']=='Snälltåget'
+           assert t['archiveDay']=='2026-11-06' and t['serviceDay']==d['simulationTemplateDay']
+           assert t['id'].startswith('SNALL-GTFS:') and t['domesticSegmentOnly'] is True
+           assert t['geometryQuality']=='verified-osm-relation'
+           assert t['shapeId'] in a['shapes'] and t['shapeId'].startswith('sj-osm:')
+           assert t['isLiveGPS'] is False and len(t['stops'])>=3
+           key=(t['direction'],t['stops'][0][4],t['stops'][-1][3],tuple(s[2] for s in t['stops']))
+           assert key not in seen,('duplicate simulated journey',t['id'])
+           seen.add(key)
+           assert project_stops(t['stops'],d['shapes'][t['shapeId']],600) is not None,(
+              'No complete physical OSM geometry',t['id'])
+          # All original photos/scripts/shapes except the explicitly authorised
+          # client release files must be IDENTICAL, byte-for-byte.
+          mutable={'data/rail.json','index.html','src/app.js','src/rail-data.js',
+                   'src/rail-filter.js','src/photos.js','.nojekyll'}
+          for source in old.rglob('*'):
+           if not source.is_file():continue
+           rel=source.relative_to(old)
+           if str(rel) in mutable:continue
+           target=new/rel
+           assert target.is_file(),('STABLE08 file missing',str(rel))
+           assert hashlib.sha256(source.read_bytes()).digest()==hashlib.sha256(target.read_bytes()).digest(),(
+              'STABLE08 original photo or script changed',str(rel))
+          print('RELEASE GATE GREEN: 10402 EXACT OLD TRAINS + 5 HISTORIC SNÄLLTÅGET; ALL 61 OSM TRACKS PRESERVED')
+          PY
+      - name: Confirm real Snälltåget photograph, cache safety and original map controls
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('_site')
+          catalog=json.loads((root/'photos/catalog.json').read_text(encoding='utf8'))
+          for key in ('rail_snalltaget','rail_vr_x74','rail_x2000','rail_malartag','tram_lidingo21'):
+           meta=catalog[key]
+           picture=root/meta['path']
+           assert picture.is_file() and picture.stat().st_size>2500,(key,picture)
+           assert meta['license'].startswith('CC '),(key,meta['license'])
+          html=(root/'index.html').read_text(encoding='utf8')
+          app=(root/'src/app.js').read_text(encoding='utf8')
+          rail=(root/'src/rail-data.js').read_text(encoding='utf8')
+          assert 'src="./src/app.js?v=snalltaget-01"' in html
+          for part in ('photos','rail-filter','rail-data'):
+           assert "from './"+part+".js?v=snalltaget-01'" in app,part
+          assert "const TIMETABLE_URL='./data/rail.json?v=snalltaget-01';" in rail
+          for line in ('commuter','metro','nockeby','lidingo','sj','vr','malartag','snalltaget','all'):
+           assert 'data-filter="'+line+'"' in html,line
+          assert all('id="'+k+'"' in html for k in ('follow','satellite','speed-value','occupancy-value'))
+          assert all(x in app for x in ('focusSnalltaget()','focusVrSnabbtag()','focusLidingoLine()','focusMalartagPilot()'))
+          print('CACHE-COMPATIBLE 13-SYSTEM WEBSITE AND ORIGINAL PHOTO ASSETS CONFIRMED')
+          PY
+      - name: Re-prove daily, Sunday, summer Snälltåget real train markers and immutable original 12
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './_source/src/rail-data.js';
+          import {matchesRailFilter} from './_source/src/rail-filter.js';
+          const a=JSON.parse(fs.readFileSync('_stable08/data/rail.json','utf8'));
+          const d=JSON.parse(fs.readFileSync('_site/data/rail.json','utf8'));
+          for(const [date,tz] of [['2026-11-09','+01:00'],['2026-11-15','+01:00'],['2027-07-13','+02:00']]){
+            const visible={'to-malmo':0,'to-stockholm':0};
+            for(let h=0;h<24;h++)for(const m of [0,15,30,45]){
+              const epoch=Date.parse(date+'T'+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':00'+tz)/1000;
+              const before=activeRailTrips(a,epoch,20000);
+              const after=activeRailTrips(d,epoch,20000);
+              const old=after.filter(t=>t.agency!=='Snälltåget');
+              if(before.length!==old.length||before.some((t,i)=>t.id!==old[i].id))
+                throw Error('Old 12 systems changed: '+date+' '+h+':'+m);
+              for(const train of after.filter(t=>matchesRailFilter(t,'snalltaget'))){
+                const x=railAt(train,epoch);
+                if(!x.pos.every(Number.isFinite)||!Number.isFinite(x.kmh)||x.kmh<0||x.kmh>320)
+                  throw Error('Invalid train position or speed '+train.id);
+                visible[train.direction]++;
+              }
+            }
+            if(!visible['to-malmo']||!visible['to-stockholm'])throw Error('Missing direction '+date);
+            console.log('13-SYSTEM MAP FULL DAY OK',date,visible);
+          }
+          JS
+      - uses: actions/configure-pages@v5
+      - name: Upload EXACT Chromium-verified package
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - name: Publish 13 systems ONLY after all green tests
+        id: publish
+        uses: actions/deploy-pages@v4
