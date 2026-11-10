@@ -1,0 +1,82 @@
+name: Deploy EXACT Chromium-verified Tågab 15-system release with original STABLE11 preserved
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-tagab01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cc1f638c6d1b57071e2e8c351ae549cec3c91694
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42831401614
+          name: tagab-15-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42824741896
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable
+      - name: Reject any non-Tågab mutation to prior 14-system release
+        run: |
+          mkdir -p _old
+          tar -xf _stable/artifact.tar -C _old
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('_site');old=Path('_old')
+          allowed={'index.html','src/app.js','src/rail-filter.js','src/rail-data.js','src/photos.js','data/rail.json','photos/catalog.json'}
+          for file in old.rglob('*'):
+           if not file.is_file():continue
+           rel=str(file.relative_to(old));new=p/rel
+           assert new.is_file(),rel
+           assert rel in allowed or file.read_bytes()==new.read_bytes(),('SILENT MODIFICATION',rel)
+          d=json.loads((p/'data/rail.json').read_text())
+          b=json.loads((old/'data/rail.json').read_text())
+          assert d['scope']==b['scope']+'-tagab'
+          assert len(d['trips'])==10433 and len(d['shapes'])==67
+          assert d['trips'][:10417]==b['trips']
+          assert all(d['shapes'][k]==v for k,v in b['shapes'].items())
+          assert len([x for x in d['trips'] if x.get('agency')=='Tågab'])==16
+          assert d['tagabDirections']['from-stockholm']>0 and d['tagabDirections']['to-stockholm']>0
+          assert len([x for x in d['trips'] if x.get('agency')=='Vy Tåg'])==10
+          for file in ('src/tagab-marker-sprite.js','src/vy-marker-sprite.js','src/approved-train-markers.js','src/vehicle-front-sprites.js','src/rail-data.js','photos/images/rail_tagab_rc3.webp'):
+           assert (p/file).is_file(),file
+          cat=json.loads((p/'photos/catalog.json').read_text())
+          assert cat['rail_tagab_rc3']['license']=='CC BY 4.0'
+          assert 'app.js?v=tagab-01' in (p/'index.html').read_text()
+          assert "from './rail-data.js?v=tagab-01'" in (p/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=tagab-01'" in (p/'src/rail-data.js').read_text()
+          print('15-SYSTEM RELEASE APPROVED: 10433 HISTORIC GTFS TRIPS, 67 REAL OSM RAIL SHAPES, ALL ORIGINALS PRESERVED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
