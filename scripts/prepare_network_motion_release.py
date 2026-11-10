@@ -37,6 +37,28 @@ def main(site,proof):
    "$('next-stop-time').textContent='Plan '+toTime(stops[idx][idx===0?4:3]);",'detail next-station clock')
  a=replace_once(a,'time.textContent=toTime(stops[i][3]);',
    'time.textContent=toTime(stops[i][i===0?4:3]);','detail station time list')
+ old_marker_cull=""" const bounds=map.getBounds().pad(.12);
+ let drawn=0;
+ for(const v of showing){
+  const p=railAt(v,epoch).pos;
+  const selectedHere=selected?.id===v.id;
+  let marker=markers.get(v.id);
+  if(!bounds.contains(p)&&!selectedHere){
+   if(marker){map.removeLayer(marker);markers.delete(v.id)}
+   continue;
+  }
+  // Keep the selected train even when crowded, prevent excessive DOM markers.
+  if(drawn>=280&&!selectedHere){
+   if(marker){map.removeLayer(marker);markers.delete(v.id)}continue;
+  }
+  drawn++;"""
+ new_marker_render=""" // Render every historically active train marker, not just first 280 or those
+ // inside the current viewport. Leaflet handles clipping naturally.
+ for(const v of showing){
+  const p=railAt(v,epoch).pos;
+  const selectedHere=selected?.id===v.id;
+  let marker=markers.get(v.id);"""
+ a=replace_once(a,old_marker_cull,new_marker_render,'all train marker culling/cap')
  a=replace_once(a,"from './rail-data.js?v=sj-complete-01'",
    "from './rail-data.js?v=motion-fix-01'",'parser cache import')
  app.write_text(a)
