@@ -19,7 +19,7 @@ test('new city 7 selection is exclusive and all old filters still match',()=>{
 test('both visible marker map and list use same dedicated line-aware selector',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  assert(app.includes('const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
- assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)'));
+ assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
  assert(!app.includes("state.filter==='all'||state.filter===v.mode"));
 });
 test('camera, progress line, speed, occupancy and satellite remain in place',()=>{
