@@ -86,7 +86,7 @@ WAYPOINTS={
  'Fredericia':[55.567,9.757,'Fredericia (track waypoint)'],
  'Odense':[55.401,10.386,'Odense (track waypoint)'],
  'Nyborg':[55.312,10.788,'Nyborg (track waypoint)'],
- 'Korsør':[55.331,11.137,'Korsør (track waypoint)'],
+ 'Korsør':[55.35691,11.13535,'Korsør (track waypoint)'],
  'Ringsted':[55.443,11.787,'Ringsted (track waypoint)'],
  'København H':[55.6728,12.565,'København H (track waypoint)'],
  'Malmö Hyllie':[55.5639,12.975,'Malmö Hyllie (track waypoint)'],
@@ -112,7 +112,7 @@ def waypoints(trip):
   # include it at the correct location in ordered geography.
   idx=next(i for i,x in enumerate(danish) if x[2].startswith('Malmö Hyllie'))
   danish.insert(idx,stop(trip,'København Lufthavn'))
-  danish.insert(idx,WAYPOINTS['København H'] if False else [55.649,12.512,'København Syd (route only)'])
+  danish.insert(idx,[55.649,12.512,'København Syd (route only)'])
   swedish=[stop(trip,x) for x in ('Lund C','Hässleholm C','Alvesta','Nässjö C','Linköping C','Norrköping C','Stockholm C')]
   return [first]+pre+german2+danish+swedish
  # Southbound, the exact physical route is the reverse main corridor.
