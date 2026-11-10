@@ -25,6 +25,10 @@ export function photoForVehicle(v){
    label:'VR Snabbtåg X74 – exempelbild (exakt fordon för avgången ej verifierat)',
    illustrative:true}:null;
  }
+ if(v.mode==='intercity' && v.agency==='Vy Tåg'){
+  const photo=photoCatalog.rail_vy_x52;
+  return photo?{...photo,label:'Vy Tåg / Värmlandstrafik X52 – exempelbild (exakt fordon för avgången ej bekräftat)',illustrative:true}:null;
+ }
  if(v.mode==='intercity' && v.agency==='SJ'){
   const example=photoCatalog.rail_x2000||photoCatalog.rail_sj3000||photoCatalog.rail_sj_rc6;
   return example?{...example,
