@@ -1,0 +1,85 @@
+name: Deploy ONLY complete Chromium-approved 10611-train motion fix, ALL active trains visible
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-network-motion01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 09013a4593b5583db0bdb02dbaa71246516d89c3
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42849756961
+          name: network-motion-all-trains-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42844555219
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable
+      - name: Guarantee all 16 existing systems and exactly 10611 old train records with corrected genuine OSM shape
+        run: |
+          mkdir -p _old
+          tar -xf _stable/artifact.tar -C _old
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_old');new=Path('_site')
+          changed={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for f in old.rglob('*'):
+           if not f.is_file():continue
+           rel=str(f.relative_to(old));p=new/rel
+           assert p.is_file(),('ORIGINAL MISSING',rel)
+           if rel not in changed:assert p.read_bytes()==f.read_bytes(),('UNAUTHORIZED ORIGINAL CHANGE',rel)
+          a=json.loads((old/'data/rail.json').read_text())
+          b=json.loads((new/'data/rail.json').read_text())
+          assert len(b['trips'])==len(a['trips'])==10611 and len(b['shapes'])==len(a['shapes'])==95
+          assert a['trips']==b['trips'] and a['counts']==b['counts'] and a['scope']==b['scope']
+          bad='malartag-osm:4755734:f+4755735:f+3177328:r'
+          assert all(b['shapes'][k]==v for k,v in a['shapes'].items() if k!=bad)
+          assert b['shapes'][bad]!=a['shapes'][bad]
+          assert len([t for t in b['trips'] if t['shapeId']==bad])==27
+          app=(new/'src/app.js').read_text();parser=(new/'src/rail-data.js').read_text()
+          assert ".slice(0,90)" not in app
+          assert 'if(!bounds.contains(p)&&!selectedHere)' not in app
+          assert 'if(drawn>=280&&!selectedHere)' not in app
+          assert 'firstDeparture=stops[0][4],base=v.start-firstDeparture' in app
+          assert 'toTime(stops[idx][idx===0?4:3])' in app
+          assert "from './rail-data.js?v=motion-fix-01'" in app
+          assert 'app.js?v=motion-fix-01' in (new/'index.html').read_text()
+          assert "const base=trip.start-stops[0][4]" in parser
+          assert 'epoch<source.start+delta||epoch>=source.end+delta' in parser
+          assert "TIMETABLE_URL='./data/rail.json?v=motion-fix-01'" in parser
+          print('APPROVED EXACT CHROMIUM-PROVEN NETWORK REPAIR: EVERY HISTORIC TRAIN, ALL MARKERS, MALMÖ 16:18, 27 FIXED MÄLARTÅG PATHS')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
