@@ -1,0 +1,64 @@
+name: Archive exact public Chromium-verified STABLE15 ALL-train motion and visibility release
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-stable15-site.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/15
+          fetch-depth: 0
+      - name: Verify original completed comprehensive motion repair source
+        run: test "$(git rev-parse HEAD)" = "09013a4593b5583db0bdb02dbaa71246516d89c3"
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42851115094
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published
+      - name: Save every exact released file, train photograph, route and immutable source checksum
+        run: |
+          mkdir -p website
+          tar -xf _published/artifact.tar -C website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('website')
+          data=json.loads((p/'data/rail.json').read_text())
+          assert len(data['trips'])==10611 and len(data['shapes'])==95
+          assert data['scope'].endswith('-snalltaget-vy-tagab-rdc-sj-complete')
+          assert len([x for x in data['trips'] if x.get('agency')=='Tågab'])==16
+          assert len([x for x in data['trips'] if x.get('agency')=='RDC EuroNight'])==4
+          assert len([x for x in data['trips'] if x.get('sjCompleteVerified')])==174
+          assert len(data['shapes']['malartag-osm:4755734:f+4755735:f+3177328:r'])>1500
+          app=(p/'src/app.js').read_text()
+          assert "firstDeparture=stops[0][4]" in app
+          assert ".slice(0,90)" not in app and 'if(drawn>=280&&!selectedHere)' not in app
+          assert 'app.js?v=motion-fix-01' in (p/'index.html').read_text()
+          assert 'trip.start-stops[0][4]' in (p/'src/rail-data.js').read_text()
+          original={str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest()
+           for f in p.rglob('*') if f.is_file()}
+          manifest={'sourceCommit':'09013a4593b5583db0bdb02dbaa71246516d89c3',
+           'productionDeployRun':42851115094,'publicChromiumAuditRun':42851212549,
+           'allHistoricTrainDefinitions':10611,'dailyReferenceTrainTemplates':3722,
+           'allOriginalFiles':original}
+          (p/'STABLE15-MANIFEST.json').write_text(json.dumps(manifest,indent=2))
+          print('STABLE15 COMPLETE PUBLIC WEBSITE VERIFIED AND SECURED',len(original),'EXACT PUBLISHED ASSETS')
+          PY
+      - name: Commit complete live backup on archive/stable15-website without touching production
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable15-website
+          git add -f website
+          git commit -m "archive: exact publicly Chromium-tested 10611-train STABLE15 complete motion and visibility repair"
+          git push origin HEAD:refs/heads/archive/stable15-website
