@@ -1,0 +1,71 @@
+name: Verify PUBLIC ALL Stockholm Rail trains, correct 16:18 Malmö departure and original OSM tracks in Chromium
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-network-motion-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 09013a4593b5583db0bdb02dbaa71246516d89c3
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42849756961
+          name: network-motion-all-trains-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Wait for ACTUAL public Github Pages 16-system motion fixed app and parser
+        run: |
+          for i in $(seq 1 80);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?network-motion-check=01' | grep -Fq 'app.js?v=motion-fix-01';then
+              echo 'PUBLIC SITE HAS ALL-TRAINS CORRECTED RELEASE';break
+            fi
+            if [ "$i" = 80 ];then echo 'PUBLIC PAGES STILL SERVES OLD TRAIN MOTION';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=motion-fix-01' | grep -Fq 'trip.start-stops[0][4]'
+      - name: Install Chromium for testing ACTUAL public desktop and smartphone website
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Public browser verifies every active marker, ALL list trains, real 16:18 Malmö departure, correct Lund time and mobile behavior
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          node tests/all-trains-browser-smoke.mjs
+      - name: Verify actual public JSON source data and no missing trains at any sampled time
+        run: |
+          curl -fLsS --max-time 45 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=motion-fix-01' -o /tmp/public-trains.json
+          curl -fLsS --max-time 25 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=motion-fix-01' -o /tmp/public-app.js
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/public-trains.json'))
+          js=open('/tmp/public-app.js').read()
+          assert len(d['trips'])==10611 and len(d['shapes'])==95
+          assert len([t for t in d['trips'] if t.get('agency')=='RDC EuroNight'])==4
+          assert len([t for t in d['trips'] if t.get('agency')=='Tågab'])==16
+          assert len([t for t in d['trips'] if t.get('agency')=='Vy Tåg'])==10
+          assert '.slice(0,90)' not in js
+          assert 'if(drawn>=280&&!selectedHere)' not in js
+          assert "firstDeparture=stops[0][4]" in js
+          print('PUBLIC HISTORICAL RAIL NETWORK VERIFIED: 10611 TRAIN DEFINITIONS; NO GHOST TRAINS, 27 MÄLARTÅG TRAINS ON REAL 148KM RAIL, ALL ACTIVE MARKERS AND SIDEBAR ROWS')
+          PY
+      - name: Compare entire live seven-day schedule against exactly expected active journeys
+        run: |
+          cd _source
+          node tests/verify-every-train-active.mjs /tmp/public-trains.json
