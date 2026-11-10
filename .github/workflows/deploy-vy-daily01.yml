@@ -1,0 +1,79 @@
+name: Deploy ONLY browser-approved Vy DAILY historical repetition, unchanged 14 systems
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-vy-daily01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8e6dd0076882e93374ef35bc0a00d0296e97ee97
+          path: _fix
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42823653868
+          name: vy-daily-14-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42818695666
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable
+      - name: Require 14 systems and BYTE-identical old data, routes and photos, only daily simulator code changed
+        run: |
+          mkdir -p _original
+          tar -xf _stable/artifact.tar -C _original
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          new=Path('_site');old=Path('_original')
+          allowed={'index.html','src/app.js','src/rail-data.js'}
+          for p in old.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(old))
+           q=new/rel
+           assert q.is_file(),rel
+           if rel not in allowed:assert q.read_bytes()==p.read_bytes(),('REGRESSION',rel)
+          d=json.loads((new/'data/rail.json').read_text())
+          assert len(d['trips'])==10417 and len(d['shapes'])==63
+          assert len([t for t in d['trips'] if t['agency']=='Vy Tåg'])==10
+          assert (new/'data/rail.json').read_bytes()==(old/'data/rail.json').read_bytes()
+          assert 'app.js?v=vy-daily-01' in (new/'index.html').read_text()
+          app=(new/'src/app.js').read_text()
+          assert "from './rail-data.js?v=vy-daily-01'" in app
+          assert "if(agency==='vy tåg')return 'vy'" in app
+          assert 'Historiskt helgschema' not in app
+          rail=(new/'src/rail-data.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=vy-01'" in rail
+          assert "source.historicWeekday!==actualWeekday" not in rail
+          print('DEPLOY EXACT SUCCESSFULLY BROWSER-TESTED DAILY VY RELEASE')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
