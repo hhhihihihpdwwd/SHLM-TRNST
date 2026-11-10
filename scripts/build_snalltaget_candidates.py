@@ -76,8 +76,11 @@ def build(archive,template_day):
   first=(stops[0][3] if stops[0][3] is not None else stops[0][2])
   last=(stops[-1][2] if stops[-1][2] is not None else stops[-1][3])
   if last<=first:continue
-  # Dedup by the complete actual segment schedule, not just start/arrival.
-  sig=(direction,tuple((s[1][2],s[2],s[3]) for s in stops))
+  # One physical departure can have two almost-identical GTFS records:
+  # domestic Stockholm–Malmö and international Stockholm–Dresden.
+  # Exact end-to-end time and complete station sequence define a single
+  # displayed movement even if an intermediate advertised minute differs.
+  sig=(direction,stops[0][3],stops[-1][2],tuple(s[1][2] for s in stops))
   all_names=[s[1][2] for s in seq]
   direct=int(all_names[0].casefold()==STOCKHOLM and all_names[-1].casefold()==MALMO or
              all_names[0].casefold()==MALMO and all_names[-1].casefold()==STOCKHOLM)
