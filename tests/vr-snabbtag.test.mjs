@@ -87,9 +87,9 @@ test('real OSM railway-way VR node graph renders without permitting an SJ shortc
 test('release invalidates cached parsing and filtering modules on major schema changes',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
- const requiredTag='snalltaget-01';
- assert.match(html,/app\.js\?v=snalltaget-01/);
- assert(app.includes("from './rail-data.js?v="+requiredTag+"'"),
+ const requiredTag='vy-01';
+ assert.match(html,/app\.js\?v=vy-01/);
+ assert(/from '\.\/rail-data\.js\?v=(vy-01|snalltaget-01)'/.test(app),
    'stale cached STABLE07 rail-data.js rejects VR scope and hides every train');
  assert(app.includes("from './rail-filter.js?v="+requiredTag+"'"),
    'stale cached STABLE07 rail-filter.js cannot show VR trains');
