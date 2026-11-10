@@ -113,12 +113,8 @@ export function activeRailTrips(dataset,epoch,limit=900){
    const delta=shifts[index];
    if(epoch<source.start+delta-60||epoch>source.end+delta+80)continue;
    const targetDay=targetDays[index];
-   // Vy runs only the real historical Friday/Saturday/Sunday patterns.
-   // For all original 13 systems, preserve the existing daily-repeat logic.
-   if(repeating&&source.agency==='Vy Tåg'&&Number.isInteger(source.historicWeekday)){
-    const actualWeekday=(new Date(targetDay+'T12:00:00Z').getUTCDay()+6)%7;
-    if(source.historicWeekday!==actualWeekday)continue;
-   }
+   // Apply the same historical daily repeat to Vy as to every existing
+   // Stockholm Rail operator. Source weekday remains archival metadata only.
    const trip=repeating?{...source,id:source.id+':DAILY:'+targetDay,
     serviceDay:targetDay,start:source.start+delta,end:source.end+delta,
     timetableProxy:'Same historical weekday service repeated daily',isLiveGPS:false}:source;
