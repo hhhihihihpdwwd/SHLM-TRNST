@@ -54,14 +54,17 @@ for(const t of data.trips){
 }
 // Inspect each genuine scheduled departure at a fixed reference time, never mix in assumed GPS data.
 const times=[];
-for(let i=0;i<24*4;i++)times.push(baseTime+i*900);
-const activeAt=new Map(),activeSizes=[];
+for(let i=0;i<48*4;i++)times.push(baseTime+i*900);
+const activeAt=new Map(),activeSizes=[];const originals=new Map(eligible.map(t=>[t.id,t]));
 for(const epoch of times){
  const active=activeRailTrips(data,epoch,20000);
  activeSizes.push(active.length);
- for(const t of active)if(!activeAt.has(t.id.replace(/:DAILY:.*/,'')))activeAt.set(t.id.replace(/:DAILY:.*/,''),t);
+ for(const t of active){
+  const id=t.id.replace(/:DAILY:.*/,''),original=originals.get(id);
+  if(original&&t.start===original.start)activeAt.set(id,t);
+ }
 }
-const ignored=eligible.filter(t=>t.start < baseTime+86400 && t.end>baseTime && !activeAt.has(t.id));
+const ignored=eligible.filter(t=>t.start < baseTime+172800 && t.end>baseTime && !activeAt.has(t.id));
 for(const t of ignored)add('never_visible_during_15_min_samples',t,{first:t.start-baseTime,last:t.end-baseTime});
 const timing=[];
 for(const t of eligible){
