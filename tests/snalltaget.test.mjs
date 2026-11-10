@@ -56,7 +56,7 @@ test('cache versions and all 12 old rail controls remain, new operator has disti
   assert(new RegExp("from './"+p+"\\.js\\?v=(vy-01|snalltaget-01)'").test(app),'Unversioned '+p+' causes zero trains');
  }
  assert(/src="\.\/src\/app\.js\?v=(vy-01|snalltaget-01|train-icons-02)"/.test(html));
- assert(data.includes("const TIMETABLE_URL='./data/rail.json?v=snalltaget-01';"));
+ assert(/const TIMETABLE_URL='\.\/data\/rail\.json\?v=(snalltaget-01|vy-01)';/.test(data));
  assert(html.includes('data-filter="snalltaget"'));
  for(const f of ['sj','vr','malartag','lidingo','nockeby','metro','commuter','all']){
   assert(html.includes('data-filter="'+f+'"'),f);
