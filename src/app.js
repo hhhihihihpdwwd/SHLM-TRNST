@@ -1,12 +1,12 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=snalltaget-01';
-import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=snalltaget-01';
+import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=vy-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {operatorMarkerSprites} from './operator-marker-sprites.js?v=operator-markers-01';
 import {approvedTrainMarkers} from './approved-train-markers.js?v=train-icons-02';
 import {vyMarkerSprites} from './vy-marker-sprite.js?v=vy-01';
-import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=snalltaget-01';
+import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=vy-01';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
