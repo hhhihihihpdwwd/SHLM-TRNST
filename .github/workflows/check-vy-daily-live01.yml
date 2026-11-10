@@ -1,0 +1,64 @@
+name: Confirm PUBLIC Vy trains EVERY day in Chromium after daily-repeat release
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-vy-daily-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8e6dd0076882e93374ef35bc0a00d0296e97ee97
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42823653868
+          name: vy-daily-14-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Wait until public website serves verified Vy daily-repeat release
+        run: |
+          for i in $(seq 1 80);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?vy-daily-live-check=01' | grep -Fq 'app.js?v=vy-daily-01';then
+              echo 'PUBLIC GITHUB PAGES DELIVERS DAILY VY RELEASE';break
+            fi
+            if [ "$i" = 80 ];then echo 'PUBLIC DEPLOY IS NOT YET VISIBLE';exit 1;fi
+            sleep 10
+          done
+      - name: Install actual Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test ACTUAL PUBLIC SITE Tuesday–Thursday and every weekday; real markers, photo, Follow, Satellite, mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=vy-01|/src/app.js?v=vy-daily-01|g; s|/src/rail-data.js?v=vy-01|/src/rail-data.js?v=vy-daily-01|g' tests/vy-browser-smoke.mjs
+          node tests/vy-browser-smoke.mjs
+      - name: Check PUBLIC data unchanged, Vy source corrected and cached parser updated
+        run: |
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=vy-01' -o /tmp/vy-production.json
+          curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=vy-daily-01' -o /tmp/vy-production.js
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/vy-production.json'))
+          s=open('/tmp/vy-production.js').read()
+          assert len(d['trips'])==10417 and len(d['shapes'])==63
+          assert sum(t.get('agency')=='Vy Tåg' for t in d['trips'])==10
+          assert "source.historicWeekday!==actualWeekday" not in s
+          assert "TIMETABLE_URL='./data/rail.json?v=vy-01'" in s
+          print('PUBLIC SITE GREEN: ALL 14 SYSTEMS, VY REPEATS DAILY, OLD DATA INTACT')
+          PY
