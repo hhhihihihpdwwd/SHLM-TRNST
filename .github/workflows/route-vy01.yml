@@ -1,0 +1,59 @@
+name: Vy 14th system – authentic GTFS and FULL connected Stockholm–Oslo OSM graph (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/route-vy01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vy-stockholm-oslo-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Retrieve exact frozen 13-system STABLE09 public website
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42784031054
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: github-pages
+          path: _archive
+      - name: Extract exact original 13-system dataset unchanged
+        run: |
+          mkdir -p _site
+          tar -xf _archive/artifact.tar -C _site
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          d=json.loads(Path('_site/data/rail.json').read_text())
+          assert len(d['trips'])==10407 and len(d['shapes'])==61
+          assert d['scope'].endswith('-vr-snalltaget')
+          print('ALL 13 SYSTEMS FROZEN')
+          Path('_source/data').mkdir(exist_ok=True)
+          PY
+      - name: Read real Vy weekend train times from historical archive and save candidates
+        run: |
+          cd _source
+          python -u scripts/build_vy_candidates.py 2026-11-06 data/vy_candidates.json
+      - name: Physically connect the full route along real OSM railway-way graph; reject missing junctions
+        run: |
+          cd _source
+          python -u scripts/build_vy_osm.py data/vy_candidates.json data/vy_osm.json
+      - name: Upload ONLY verified candidate data, no deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: vy-historic-gtfs-and-connected-osm-01
+          path: |
+            _source/data/vy_candidates.json
+            _source/data/vy_osm.json
+            _source/data/malartag_osm_ways/
+          if-no-files-found: error
