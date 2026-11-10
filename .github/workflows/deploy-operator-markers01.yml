@@ -1,0 +1,71 @@
+name: Deploy ONLY browser-proven operator photo markers, keep 13 train systems frozen
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-operator-markers01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9e87f8a00de4019f7885c5ae0e288fc310da89d6
+          path: _source
+      - name: Download ONLY exact marker candidate that passed Chromium desktop/mobile
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42780154353
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: operator-markers-13-browser-approved
+          path: _site
+      - name: Verify release candidate contains precisely the authorized visual patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          site=Path('_site'); src=Path('_source')
+          html=(site/'index.html').read_text()
+          assert 'src="./src/app.js?v=operator-markers-01"' in html
+          assert (site/'src/app.js').read_bytes()==(src/'src/app.js').read_bytes()
+          assert (site/'src/operator-marker-sprites.js').read_bytes()==(src/'src/operator-marker-sprites.js').read_bytes()
+          app=(site/'src/app.js').read_text()
+          assert "from './operator-marker-sprites.js?v=operator-markers-01'" in app
+          assert "from './rail-data.js?v=snalltaget-01'" in app
+          assert "from './rail-filter.js?v=snalltaget-01'" in app
+          assert "from './photos.js?v=snalltaget-01'" in app
+          for p in ['rail-data.js','rail-filter.js','photos.js','vehicle-front-sprites.js']:
+           assert (site/'src'/p).read_bytes()==(src/'src'/p).read_bytes(),p
+          data=json.loads((site/'data/rail.json').read_text())
+          assert data['scope'].endswith('-vr-snalltaget')
+          assert len(data['trips'])==10407
+          assert data['snalltagetDirections']=={'to-malmo':2,'to-stockholm':3}
+          assert len(data['shapes'])==61
+          for key in ['metro','commuter','tram','rail','rail_arlanda','localrail']:
+           assert ('"'+key+'"') in (site/'src/vehicle-front-sprites.js').read_text()
+          print('PRODUCTION RELEASE FROZEN: only new markers; 10407 trips, 61 OSM geometries, 13 systems retained')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - name: Deploy exact tested marker-only artifact
+        uses: actions/deploy-pages@v4
+        id: publish
