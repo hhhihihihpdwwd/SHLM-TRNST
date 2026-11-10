@@ -1,0 +1,23 @@
+name: Audit authentic Tågab Stockholm trains from November 2026 historic GTFS (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/discover-tagab01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/tagab-stockholm-goteborg-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify published archive operator and exact trips from Stockholm
+        run: python -u scripts/discover_tagab_archive.py
+      - name: No production change
+        run: echo 'Research only; the public 14-system STABLE11 site is untouched.'
