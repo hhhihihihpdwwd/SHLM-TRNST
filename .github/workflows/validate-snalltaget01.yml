@@ -1,4 +1,4 @@
-name: Snälltåget 13th system – historical GTFS + verified OSM (NO DEPLOY)
+name: Snälltåget verified OSM plus GTFS departure dedup (NO DEPLOY)
 on:
   push:
     branches: [main]
@@ -91,6 +91,8 @@ jobs:
           assert set(d['snalltagetDirections'])=={'to-malmo','to-stockholm'}
           assert all(v>=1 for v in d['snalltagetDirections'].values())
           assert len(added)==sum(d['snalltagetDirections'].values())
+          assert len(added)==5,('duplicate real train or missing authentic departure',len(added))
+          assert d['snalltagetDirections']=={'to-malmo':2,'to-stockholm':3}
           assert len({t['id'] for t in added})==len(added)
           for t in added:
            assert t['agency']=='Snälltåget'
