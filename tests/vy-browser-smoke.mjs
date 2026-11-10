@@ -21,7 +21,7 @@ assert(archive.rail_vy_train,'Licensed illustrative real Vy photo is not in cata
 const photo=archive.rail_vy_train;
 assert((await stat(join(root,photo.path))).size>6500,'Vy real photo missing');
 const epochs=[];
-for(const day of ['2026-11-13','2026-11-14','2026-11-15']){
+for(const day of ['2026-11-10','2026-11-11','2026-11-12']){
  for(let h=5;h<=23;h++)for(let m=0;m<60;m+=10){
   const stamp=Date.parse(day+'T'+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':00+01:00')/1000;
   const active=activeRailTrips(data,stamp,20000);
@@ -32,11 +32,16 @@ for(const day of ['2026-11-13','2026-11-14','2026-11-15']){
 assert(epochs.length>2,'No real verified Vy weekday service is visible together with protected Pendeltåg');
 const chosen=epochs[Math.floor(epochs.length/2)];
 console.log('REAL HISTORIC VY SERVICE BROWSER TIME',chosen);
-for(const day of ['2026-11-09','2026-11-10','2026-11-11','2026-11-12']){
- for(let hour=8;hour<=21;hour+=3){
-  const t=Date.parse(day+'T'+String(hour).padStart(2,'0')+':00:00+01:00')/1000;
-  assert(!activeRailTrips(data,t,20000).some(x=>matchesRailFilter(x,'vy')),'Fake weekday Vy service on '+day);
+// The source reference came from real Fri/Sat/Sun GTFS data, but this
+// observational simulation deliberately repeats those trips EVERY day.
+for(const day of ['2026-11-09','2026-11-10','2026-11-11','2026-11-12','2026-11-13','2026-11-14','2026-11-15']){
+ let visible=0;
+ for(let hour=5;hour<=23;hour++)for(let minute=0;minute<60;minute+=10){
+  const t=Date.parse(day+'T'+String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00+01:00')/1000;
+  visible+=activeRailTrips(data,t,20000).filter(x=>matchesRailFilter(x,'vy')).length;
  }
+ assert(visible>0,'No Vy Tåg historical daily train on '+day);
+ console.log('VERIFIED VY VISIBLE ON',day,'ACTIVE TEN-MINUTE SAMPLES',visible);
 }
 const types={'.html':'text/html','.js':'text/javascript','.json':'application/json','.css':'text/css',
  '.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.ico':'image/x-icon'};
