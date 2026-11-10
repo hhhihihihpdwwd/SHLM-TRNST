@@ -8,7 +8,7 @@ export async function loadRailTimetable(){
   if(!response.ok)return null;
   const data=await response.json();
   if(data.schema!==1||!Array.isArray(data.trips)||!data.shapes||!data.trips.length)return null;
-  if(!['pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy-tagab','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy-tagab-rdc'].includes(data.scope)||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
+  if(!['pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy-tagab','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy-tagab-rdc','pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy-tagab-rdc-sj-complete'].includes(data.scope)||!data.counts?.commuter||!data.counts?.metro||!data.counts?.tram||!['30','31','12','21','7'].every(line=>data.tramLines?.[line]>0))return null;
   return data;
  }catch(e){console.warn('Verified timetable unavailable; preserving current release',e);return null}
 }
@@ -105,7 +105,7 @@ export function activeRailTrips(dataset,epoch,limit=900){
  for(const source of dataset.trips){
   const verified=source.geometryQuality==='verified-osm-relation'||
       (source.mode==='regional'&&source.geometryQuality==='verified-osm-rail-ways')||
-      (source.mode==='intercity'&&['VR Snabbtåg','Vy Tåg','Tågab','RDC EuroNight'].includes(source.agency)&&
+      (source.mode==='intercity'&&['VR Snabbtåg','Vy Tåg','Tågab','RDC EuroNight','SJ'].includes(source.agency)&&
        source.osmWayNetwork===true&&source.geometryQuality==='verified-osm-rail-ways');
   if(!['commuter','metro','tram','localrail','saltsjo','express','intercity','regional'].includes(source.mode)||!verified)continue;
   if(repeating && source.serviceDay!==templateDay)continue;
