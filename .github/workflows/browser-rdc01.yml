@@ -1,0 +1,129 @@
+name: Validate exact 16-system RDC EuroNight release in Chromium (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/browser-rdc01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rdc-euronight-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Obtain exact public STABLE12 15-system train site as immutable base
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42831847214
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _original
+      - name: Retrieve four official RDC EN344/345 2026 timetables and fully connected German Danish Swedish OSM railway geometries
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42836429498
+          name: rdc-2026-real-gtfs-operator-schedule-verified-osm-01
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _routes
+      - name: Obtain authentic October 2026 RDC EuroNight CC BY 4.0 photograph
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42835898864
+          name: rdc-2026-licensed-real-train-photo
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _photo
+      - name: Prepare strictly additive 16th system using exact previous live website
+        run: |
+          mkdir -p _site _base
+          tar -xf _original/artifact.tar -C _site
+          tar -xf _original/artifact.tar -C _base
+          RDCTIMETABLE="$(find _routes -name rdc_official_2026.json -type f -print -quit)"
+          RDCOSM="$(find _routes -name rdc_verified_tracks.json -type f -print -quit)"
+          test -n "$RDCTIMETABLE" && test -n "$RDCOSM"
+          RDCTIMETABLE="$(realpath "$RDCTIMETABLE")"
+          RDCOSM="$(realpath "$RDCOSM")"
+          cd _source
+          python scripts/prepare_rdc_site.py . ../_site "$RDCTIMETABLE" "$RDCOSM"
+          cd ..
+          PHOTO="$(find _photo -name rail_rdc_euronight.webp -type f -print -quit)"
+          CAT="$(find _photo -name catalog.json -type f -print -quit)"
+          test -n "$PHOTO" && test -n "$CAT"
+          cp "$PHOTO" _site/photos/images/rail_rdc_euronight.webp
+          cp "$CAT" _site/photos/catalog.json
+      - name: Audit byte identity of every existing trip, rail shape, picture and website asset
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          base=Path('_base');site=Path('_site')
+          allowed={'index.html','src/app.js','src/rail-data.js','src/rail-filter.js','src/photos.js','photos/catalog.json','data/rail.json'}
+          for p in base.rglob('*'):
+           if not p.is_file():continue
+           name=str(p.relative_to(base));q=site/name
+           assert q.is_file(),('EXISTING FILE MISSING',name)
+           if name not in allowed:assert q.read_bytes()==p.read_bytes(),('PREVIOUS SYSTEM MODIFIED',name)
+          old=json.loads((base/'data/rail.json').read_text())
+          new=json.loads((site/'data/rail.json').read_text())
+          assert new['scope']==old['scope']+'-rdc'
+          assert len(old['trips'])==10433 and len(new['trips'])==10437
+          assert len(old['shapes'])==67 and len(new['shapes'])==71
+          assert new['trips'][:10433]==old['trips']
+          assert all(new['shapes'][k]==v for k,v in old['shapes'].items())
+          assert new['simulationTemplateDay']==old['simulationTemplateDay']
+          for key,val in old.items():
+           if key not in ('trips','shapes','scope','counts'):assert new[key]==val,key
+          assert new['rdcDirections']=={'to-stockholm':2,'from-stockholm':2}
+          assert all(x['geometryQuality']=='verified-osm-rail-ways' and x['osmWayNetwork'] for x in new['trips'][-4:])
+          oldcat=json.loads((base/'photos/catalog.json').read_text())
+          cat=json.loads((site/'photos/catalog.json').read_text())
+          for k,v in oldcat.items():assert cat[k]==v,k
+          assert cat['rail_rdc_euronight']['license']=='CC BY 4.0'
+          assert (site/cat['rail_rdc_euronight']['path']).stat().st_size>6500
+          assert 'app.js?v=rdc-01' in (site/'index.html').read_text()
+          assert "from './rail-data.js?v=rdc-01'" in (site/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=rdc-01'" in (site/'src/rail-data.js').read_text()
+          for file in ('src/rdc-marker-sprite.js','src/tagab-marker-sprite.js','src/vy-marker-sprite.js',
+                       'src/operator-marker-sprites.js','src/approved-train-markers.js','src/vehicle-front-sprites.js'):
+           assert (site/file).is_file(),file
+          print('ALL 15 OLD SYSTEMS BYTE-PRESERVED, EN344 AND EN345 FOUR ACTUAL NIGHT TRAINS, 4 CONNECTED REAL OSM INTERNATIONAL RAIL SHAPES')
+          PY
+      - name: Run new RDC nightly daily simulation unit and full previous regression suite
+        run: |
+          cd _source
+          node --check src/app.js
+          node --check src/rail-data.js
+          node --check src/rdc-marker-sprite.js
+          node --check tests/rdc-browser-smoke.mjs
+          node --test tests/rdc-daily.test.mjs
+          npm test
+      - name: Install real Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Drive actual 16-system night train map on desktop/mobile and test overmidnight operations
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node tests/rdc-browser-smoke.mjs
+      - name: Upload EXACT fully verified 16th RDC EuroNight website; NO deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdc-16-browser-approved
+          path: _site/
+          if-no-files-found: error
