@@ -1,0 +1,35 @@
+name: Unit-test Vy Tåg 14-system feature branch (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/validate-vy-source01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vy-stockholm-oslo-01
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check patched browser modules, protected 13 filters and new weekend regression
+        run: |
+          node --check src/app.js
+          node --check src/rail-data.js
+          node --check src/rail-filter.js
+          node --test tests/vy-weekend.test.mjs
+          npm test
+      - name: Check original sprite files and read-only development isolation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          assert Path('src/vehicle-front-sprites.js').is_file()
+          assert Path('src/approved-train-markers.js').is_file()
+          assert Path('src/vy-marker-sprite.js').is_file()
+          print('All legacy map images retained. No deployment.')
+          PY
