@@ -31,6 +31,12 @@ def main(site,proof):
  app=site/'src/app.js';a=app.read_text()
  a=replace_once(a,'displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)',
    'displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))','all trains list cap')
+ a=replace_once(a,'const stops=v.stops,first=stops[0][3],base=v.start-first;',
+   'const stops=v.stops,firstDeparture=stops[0][4],base=v.start-firstDeparture;','detail origin-time base')
+ a=replace_once(a,"$('next-stop-time').textContent='Plan '+toTime(stops[idx][3]);",
+   "$('next-stop-time').textContent='Plan '+toTime(stops[idx][idx===0?4:3]);",'detail next-station clock')
+ a=replace_once(a,'time.textContent=toTime(stops[i][3]);',
+   'time.textContent=toTime(stops[i][i===0?4:3]);','detail station time list')
  a=replace_once(a,"from './rail-data.js?v=sj-complete-01'",
    "from './rail-data.js?v=motion-fix-01'",'parser cache import')
  app.write_text(a)
