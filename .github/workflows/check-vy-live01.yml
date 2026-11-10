@@ -42,7 +42,7 @@ jobs:
           cd _source
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
-      - name: Test ACTUAL public site: exact Vy GTFS, both directions, marker, real photo, original trains, desktop/mobile
+      - name: 'Test ACTUAL public site: exact Vy GTFS, both directions, marker, real photo, original trains, desktop/mobile'
         env:
           SITE_ROOT: ${{ github.workspace }}/_site
           SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
