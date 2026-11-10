@@ -8,7 +8,8 @@ test('Full SJ rollout changes no existing filter and new SJ OSM-way train is val
  const rail=readFileSync(new URL('../src/rail-data.js',import.meta.url),'utf8');
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const filters=readFileSync(new URL('../src/rail-filter.js',import.meta.url),'utf8');
- assert(rail.includes("'RDC EuroNight','SJ'"));
+ assert(rail.includes("source.sjCompleteVerified===true"));
+ assert(rail.includes("dataset.scope.endsWith('-sj-complete')"));
  assert(rail.includes("-tagab-rdc-sj-complete"));
  assert(app.includes("if(agency==='sj')")||app.includes("agency==='sj'"));
  assert(filters.includes("filter==='sj'"));
