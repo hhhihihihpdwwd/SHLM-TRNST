@@ -1,0 +1,86 @@
+name: LIVE Chromium gate for approved clean VR and Snälltåget marker release
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-approved-train-markers-live02.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2554bc57c977ea014538c925c2ba447e1c6f8cd5
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42783879146
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: approved-train-markers-13-chromium
+          path: _site
+      - name: Wait for real public page to serve new release and clean icon module
+        run: |
+          for i in $(seq 1 36); do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?approved-icons=02' | grep -Fq 'app.js?v=train-icons-02';then
+              echo 'PUBLIC SITE DELIVERS APPROVED TRAIN ICONS V2';break
+            fi
+            if [ "$i" = 36 ];then echo 'PUBLIC SITE HAS NOT UPDATED';exit 1;fi
+            sleep 8
+          done
+          curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/approved-train-markers.js?v=train-icons-02' | grep -Fq 'approvedTrainMarkers'
+      - name: Install Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test real public Stockholm Rail website with trains, map markers and controls (desktop+mobile)
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=snalltaget-01|/src/app.js?v=train-icons-02|g' tests/snalltaget-browser-smoke.mjs
+          node tests/snalltaget-browser-smoke.mjs
+      - name: Verify both approved vehicle images load in PUBLIC browser, with transparent unobstructed edges
+        run: |
+          cd _source
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {chromium} from 'playwright';
+          const browser=await chromium.launch({args:['--no-sandbox']});
+          const page=await browser.newPage();
+          await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?clean-icon-verification=2',{waitUntil:'domcontentloaded'});
+          await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list .vehicle').length>0);
+          const result=await page.evaluate(async()=>{
+            const {approvedTrainMarkers}=await import('./src/approved-train-markers.js?v=train-icons-02');
+            const out={};
+            for(const [name,src] of Object.entries(approvedTrainMarkers)){
+              const img=new Image();img.src=src;await img.decode();
+              const c=document.createElement('canvas');c.width=48;c.height=48;const ctx=c.getContext('2d');
+              ctx.drawImage(img,0,0);
+              const p=ctx.getImageData(0,0,48,48).data;let nonzero=0,border=0;
+              for(let y=0;y<48;y++)for(let x=0;x<48;x++){
+                const a=p[(y*48+x)*4+3];
+                if(a>200)nonzero++;
+                if((x===0||x===47||y===0||y===47)&&a>48)border++;
+              }
+              out[name]={width:img.naturalWidth,height:img.naturalHeight,nonzero,border};
+            }
+            return out;
+          });
+          assert.deepEqual(Object.keys(result).sort(),['snalltaget','vr']);
+          for(const [name,r] of Object.entries(result)){
+            assert.equal(r.width,48);assert.equal(r.height,48);
+            assert(r.nonzero>100);assert.equal(r.border,0,'Clipped '+name);
+          }
+          console.log('PUBLIC CLEAN VEHICLE IMAGES CONFIRMED',result);
+          await browser.close();
+          JS
