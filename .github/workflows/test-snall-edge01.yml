@@ -1,0 +1,84 @@
+name: Validate Snälltåget cropped-edge fix on exact 13-system release (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-snall-edge01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/snalltaget-marker-edge-01
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve exact tested and deployed 13-system marker site
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42780154353
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: operator-markers-13-browser-approved
+          path: _site
+      - name: Patch only Snälltåget edge CSS and its class, version both modified assets
+        run: |
+          cp -a _site _baseline
+          cp _source/src/app.js _site/src/app.js
+          cp _source/src/style.css _site/src/style.css
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('_site')
+          html=p/'index.html'
+          s=html.read_text()
+          assert 'src="./src/app.js?v=operator-markers-01"' in s
+          assert 'href="./src/style.css?v=rail-arlanda-01"' in s
+          s=s.replace('src="./src/app.js?v=operator-markers-01"','src="./src/app.js?v=snall-edge-01"')
+          s=s.replace('href="./src/style.css?v=rail-arlanda-01"','href="./src/style.css?v=snall-edge-01"')
+          html.write_text(s)
+          allowed={'index.html','src/app.js','src/style.css'}
+          for a in Path('_baseline').rglob('*'):
+           if not a.is_file():continue
+           rel=str(a.relative_to('_baseline'))
+           if rel in allowed:continue
+           b=p/rel
+           assert b.is_file() and a.read_bytes()==b.read_bytes(),('OTHER ASSET MUTATED',rel)
+          data=json.loads((p/'data/rail.json').read_text())
+          assert len(data['trips'])==10407 and data['scope'].endswith('-vr-snalltaget') and len(data['shapes'])==61
+          css=(p/'src/style.css').read_text();app=(p/'src/app.js').read_text()
+          assert '.rail-photo-marker-snalltaget{' in css and "operatorKey==='snalltaget'" in app
+          assert css.count('.rail-photo-marker-snalltaget{')==1
+          assert 'mask-image:linear-gradient(to bottom' in css
+          assert 'rail-photo-marker\'+edgeClass' in app
+          print('ONLY Snälltåget visual edge changed; all 10407 historic services and 61 OSM routes preserved')
+          PY
+      - name: Run JavaScript syntax and regression suite
+        run: |
+          cd _source
+          node --check src/app.js
+          npm test
+      - name: Install Playwright Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Open exact patched site with real Chromium desktop/mobile and require existing train markers
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=snalltaget-01|/src/app.js?v=snall-edge-01|g' tests/snalltaget-browser-smoke.mjs
+          node tests/snalltaget-browser-smoke.mjs
+      - name: Preserve EXACT browser-tested candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: snall-edge-13-browser-approved
+          path: _site/
+          if-no-files-found: error
