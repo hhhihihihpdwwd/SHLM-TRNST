@@ -1,0 +1,66 @@
+name: Verify ACTUAL PUBLIC 16-system RDC EuroNight international night trains via Chromium
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-rdc-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a46fd03555028f05b70a943ef2bac9a3cdc8e478
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42837541518
+          name: rdc-16-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Wait for public GitHub Pages to serve exact RDC 16-system release
+        run: |
+          for i in $(seq 1 90);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?rdc-live-check=01' | grep -Fq 'app.js?v=rdc-01';then
+              echo 'PUBLIC SITE SERVES VERIFIED RDC EN344/345 16 SYSTEM RELEASE';break
+            fi
+            if [ "$i" = 90 ];then echo 'PUBLIC RELEASE NOT YET VISIBLE';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 25 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rdc-marker-sprite.js?v=rdc-01' | grep -Fq 'rdcMarker'
+      - name: Install actual Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Drive public real RDC EN344/345 map and preserve all original 15 operators (desktop + smartphone)
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          node tests/rdc-browser-smoke.mjs
+      - name: Verify public RDC historical timetable dataset and correct license provenance
+        run: |
+          curl -fLsS --max-time 50 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=rdc-01' -o /tmp/rdc-public-rail.json
+          curl -fLsS --max-time 25 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/photos/catalog.json?v=rdc-01' -o /tmp/rdc-public-photos.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/rdc-public-rail.json'))
+          photos=json.load(open('/tmp/rdc-public-photos.json'))
+          assert len(d['trips'])==10437 and len(d['shapes'])==71
+          assert sum(t.get('agency')=='RDC EuroNight' for t in d['trips'])==4
+          assert sum(t.get('agency')=='Tågab' for t in d['trips'])==16
+          assert sum(t.get('agency')=='Vy Tåg' for t in d['trips'])==10
+          assert photos['rail_rdc_euronight']['license']=='CC BY 4.0'
+          assert d['rdcDirections']=={'to-stockholm':2,'from-stockholm':2}
+          print('ACTUAL PUBLIC RDC EURONIGHT MAP: 16 SYSTEMS, 10437 HISTORICAL JOURNEYS, 71 VERIFIED OSM ROUTES, BOTH INTERNATIONAL DIRECTIONS, GREEN')
+          PY
