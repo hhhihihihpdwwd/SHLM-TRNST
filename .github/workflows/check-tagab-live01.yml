@@ -1,0 +1,63 @@
+name: Verify PUBLIC 15-system Tågab website in real Chromium desktop and mobile
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-tagab-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cc1f638c6d1b57071e2e8c351ae549cec3c91694
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42831401614
+          name: tagab-15-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Wait for actual public GitHub Pages to show the exact 15-system release
+        run: |
+          for i in $(seq 1 80);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?tagab-release-check=01' | grep -Fq 'app.js?v=tagab-01';then
+              echo 'PUBLIC SITE DELIVERS TAGAB 15 SYSTEM RELEASE';break
+            fi
+            if [ "$i" = 80 ];then echo 'PUBLIC TÅGAB SITE NOT YET ONLINE';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/tagab-marker-sprite.js?v=tagab-01' | grep -Fq 'tagabMarker'
+      - name: Install actual Chromium browser for public website
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Validate LIVE Stockholm Rail; authentic Tågab Tuesday trains, markers, photo, Follow, Satellite, mobile and protected 14 systems
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          node tests/tagab-browser-smoke.mjs
+      - name: Verify actual live 15-system JSON and real Tågab photo metadata
+        run: |
+          curl -fLsS --max-time 50 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=tagab-01' -o /tmp/tagab-trains.json
+          curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/photos/catalog.json?v=tagab-01' -o /tmp/tagab-photos.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/tagab-trains.json'));c=json.load(open('/tmp/tagab-photos.json'))
+          assert len(d['trips'])==10433 and len(d['shapes'])==67
+          assert sum(t.get('agency')=='Tågab' for t in d['trips'])==16
+          assert sum(t.get('agency')=='Vy Tåg' for t in d['trips'])==10
+          assert c['rail_tagab_rc3']['license']=='CC BY 4.0'
+          print('PUBLIC 15-SYSTEM RELEASE VERIFIED: 10433 TRAIN TEMPLATES, 67 TRACKS, 16 TAGAB DEPARTURES AND REAL PHOTO')
+          PY
