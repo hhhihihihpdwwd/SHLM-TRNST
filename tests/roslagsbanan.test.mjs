@@ -22,7 +22,7 @@ test('map and sidebar share same filter and preserve follow and satellite',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  assert(app.includes('const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
- assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)'));
+ assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
  for(const feature of ['followFrame','railPathSplit','showRealDetail','switchTiles','occupancy','speed-value'])assert(app.includes(feature));
  assert(html.includes('data-filter="roslags"'));
 });
