@@ -152,7 +152,7 @@ function showVerifiedPhoto(v){
  link.textContent=(pic.author||'Foto')+' · '+(pic.license||'Wikimedia Commons');link.style.cssText='font-size:10px;color:#587B74;margin-top:8px';
  if(pic.illustrative){
   const note=document.createElement('div');
-  note.textContent=v.agency==='Vy Tåg'?'Exempelbild av Värmlandstrafik X52 · exakt fordon för avgången ej verifierat':v.agency==='Snälltåget'?'Exempelbild av Snälltåget · exakt fordonsmodell ej bekräftad':v.agency==='VR Snabbtåg'?'Exempelbild av VR Snabbtåg X74 · exakt fordon för avgången ej verifierat':v.agency==='Mälartåg'?'Exempelbild av Mälartåg · exakt fordon för avgången ej verifierat':'Exempelbild av SJ-tåg · fordonstyp för denna avgång ej verifierad';
+  note.textContent=v.agency==='Vy Tåg'?'Exempelbild av Vy-tåg i Oslo · exakt fordon för avgången ej verifierat':v.agency==='Snälltåget'?'Exempelbild av Snälltåget · exakt fordonsmodell ej bekräftad':v.agency==='VR Snabbtåg'?'Exempelbild av VR Snabbtåg X74 · exakt fordon för avgången ej verifierat':v.agency==='Mälartåg'?'Exempelbild av Mälartåg · exakt fordon för avgången ej verifierat':'Exempelbild av SJ-tåg · fordonstyp för denna avgång ej verifierad';
   note.style.cssText='font-size:11px;color:#587B74;line-height:1.45;margin-top:5px';
   el.append(img,note,link);
  }else el.append(img,link);
