@@ -1,0 +1,87 @@
+name: SJ COMPLETE one-stage original Geofabrik OSM train-network verification (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/route-sj-complete01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  rail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/sj-complete-network-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install OSMium original railway way-node PBF graph tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          python -m pip install osmium
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42838379615
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42842274397
+          name: sj-full-network-service-and-osm-gap-report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _inventory
+      - name: Unpack immutable 16-system release without rebuilding it
+        run: |
+          mkdir -p _base
+          tar -xf _published/artifact.tar -C _base
+          test -f _base/data/rail.json
+      - name: Restore railway-only country extracts between repeated validation runs
+        uses: actions/cache/restore@v4
+        id: pbf-cache
+        with:
+          path: _rail
+          key: sj-full-network-geofabrik-20261110-01
+      - name: Download original complete Sweden and East Norway OSM country extracts, filter only actual rails
+        if: steps.pbf-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p _rail
+          curl --fail --location --retry 3 --retry-delay 10 --connect-timeout 25 --max-time 1600 \
+            https://download.geofabrik.de/europe/sweden-latest.osm.pbf -o _rail/sweden.osm.pbf
+          curl --fail --location --retry 3 --retry-delay 10 --connect-timeout 25 --max-time 1100 \
+            https://download.geofabrik.de/europe/norway/ostlandet-latest.osm.pbf -o _rail/ostlandet.osm.pbf
+          test "$(stat -c%s _rail/sweden.osm.pbf)" -gt 300000000
+          test "$(stat -c%s _rail/ostlandet.osm.pbf)" -gt 100000000
+          osmium tags-filter _rail/sweden.osm.pbf w/railway=rail -o _rail/sweden-rail.osm.pbf --overwrite
+          osmium tags-filter _rail/ostlandet.osm.pbf w/railway=rail -o _rail/norway-rail.osm.pbf --overwrite
+          rm _rail/sweden.osm.pbf _rail/ostlandet.osm.pbf
+          du -h _rail/*rail.osm.pbf
+      - name: Preserve country railway PBF inputs to avoid network dependency on debugging reruns
+        if: steps.pbf-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: _rail
+          key: sj-full-network-geofabrik-20261110-01
+      - name: Resolve seven-day genuine SJ departure inventory against full shared OSM rail graph, including north and Oslo
+        run: |
+          COVER="$(find _inventory -name sj-cover-report.json -type f -print -quit)"
+          test -n "$COVER"
+          cd _source
+          python -u scripts/route_sj_complete.py "../$COVER" ../_base/data/rail.json data/sj-complete-real-osm.json \
+            ../_rail/sweden-rail.osm.pbf ../_rail/norway-rail.osm.pbf
+      - name: Preserve all verified new northern, southern and western SJ OSM railway paths for one final release
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sj-full-one-stage-authentic-connected-osm-track-audit
+          path: _source/data/sj-complete-real-osm.json
+          if-no-files-found: warn
+      - name: Do NOT deploy unverified SJ services or modify STABLE13
+        run: echo 'The public 16-system Stockholm Rail site remains unchanged until comprehensive SJ Chromium tests pass'
