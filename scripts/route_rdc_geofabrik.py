@@ -107,11 +107,12 @@ def waypoints(trip):
   pre=[stop(trip,k) for k in german]
   # Hamburg Hbf is the northern endpoint of Germany's section.
   german2=[stop(trip,'Hamburg Hbf'),*(WAYPOINTS[x] for x in ('Neumünster','Flensburg'))]
-  danish=[stop(trip,'Padborg'),*(WAYPOINTS[x] for x in ('Kolding','Fredericia','Odense','Nyborg','Korsør','Ringsted','København H','Malmö Hyllie','Malmö C'))]
+  danish=[stop(trip,'Padborg'),*(WAYPOINTS[x] for x in ('Kolding','Fredericia','Odense','Nyborg','Korsør','Ringsted','Malmö Hyllie','Malmö C'))]
   # The Copenhagen Airport sits between København H and Malmö Hyllie;
   # include it at the correct location in ordered geography.
   idx=next(i for i,x in enumerate(danish) if x[2].startswith('Malmö Hyllie'))
   danish.insert(idx,stop(trip,'København Lufthavn'))
+  danish.insert(idx,WAYPOINTS['København H'] if False else [55.649,12.512,'København Syd (route only)'])
   swedish=[stop(trip,x) for x in ('Lund C','Hässleholm C','Alvesta','Nässjö C','Linköping C','Norrköping C','Stockholm C')]
   return [first]+pre+german2+danish+swedish
  # Southbound, the exact physical route is the reverse main corridor.
@@ -121,7 +122,7 @@ def waypoints(trip):
  swedish=[stop(trip,x) for x in ('Norrköping C','Linköping C','Nässjö C','Alvesta','Hässleholm C','Lund C')]
  danish=[*(WAYPOINTS[x] for x in ('Malmö C','Malmö Hyllie')),
          stop(trip,'København Lufthavn'),stop(trip,'København Syd'),
-         *(WAYPOINTS[x] for x in ('København H','Ringsted','Korsør','Nyborg','Odense','Fredericia','Kolding'))]
+         *(WAYPOINTS[x] for x in ('Ringsted','Korsør','Nyborg','Odense','Fredericia','Kolding'))]
  germany=[stop(trip,'Padborg'),WAYPOINTS['Flensburg'],WAYPOINTS['Neumünster'],stop(trip,'Hamburg Hbf') if trip['routeVariant']=='Berlin Hauptbahnhof' else WAYPOINTS['Büchen']]
  if trip['routeVariant']=='Hamburg-Altona':
   # The train to Altona does not necessarily call at Hauptbahnhof; its route
