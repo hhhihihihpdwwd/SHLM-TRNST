@@ -1,7 +1,7 @@
 let photoCatalog={};
 export async function loadPhotoCatalog(){
  try{
-  const response=await fetch('./photos/catalog.json',{cache:'default'});
+  const response=await fetch('./photos/catalog.json?v=snalltaget-01',{cache:'no-cache'});
   if(response.ok)photoCatalog=await response.json();
  }catch(e){console.warn('Local rail photos not available',e)}
  return Object.keys(photoCatalog).length;
@@ -13,6 +13,11 @@ export function photoForVehicle(v){
  if(v.mode==='regional' && v.agency==='Mälartåg'){
   const example=photoCatalog.rail_malartag;
   return example?{...example,label:'Mälartåg ER1 – exempelbild (fordonstyp för avgången ej verifierad)',illustrative:true}:null;
+ }
+ if(v.mode==='intercity' && v.agency==='Snälltåget'){
+  const sample=photoCatalog.rail_snalltaget;
+  return sample?{...sample,label:'Snälltåget – exempelbild (exakt fordonsmodell ej bekräftad)',
+   illustrative:true}:null;
  }
  if(v.mode==='intercity' && v.agency==='VR Snabbtåg'){
   const example=photoCatalog.rail_vr_x74;
