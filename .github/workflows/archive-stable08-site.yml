@@ -1,0 +1,70 @@
+name: Preserve exact STABLE 08 deployed website in GitHub archive branch
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/archive-stable08-site.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  preserve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/08
+          fetch-depth: 0
+      - name: Assert immutable STABLE 08 source commit
+        run: test "$(git rev-parse HEAD)" = "e2e71e87f5f9d899e7c187f30e302e40df8bc1c3"
+      - name: Download exact successful 12-system GitHub Pages site
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42647082311
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable08_artifact
+      - name: Restore entire deployed website into independent versioned archive tree
+        run: |
+          mkdir -p website
+          tar -xf _stable08_artifact/artifact.tar -C website
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('website')
+          d=json.loads((p/'data/rail.json').read_text(encoding='utf8'))
+          assert d['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr'
+          assert d['type']=='historical-daily-repeating-simulation'
+          assert len(d['trips'])==10402
+          assert d['counts']['intercity']==69 and d['counts']['regional']==432
+          assert d['tramLines']['21']>350
+          assert d['vrDirections']=={'to-goteborg':7,'to-stockholm':6}
+          assert all((p/'src'/name).is_file() for name in ('app.js','photos.js','rail-data.js','rail-filter.js'))
+          assert (p/'index.html').is_file()
+          cat=json.loads((p/'photos/catalog.json').read_text(encoding='utf8'))
+          for key in ('rail_vr_x74','rail_x2000','rail_malartag','tram_lidingo21'):
+           asset=p/cat[key]['path']
+           assert asset.is_file() and asset.stat().st_size>2500,(key,asset)
+          (p/'STABLE08-SOURCE.txt').write_text(
+           'STABLE 08 — exact original website from successful GitHub Pages run 42647082311\n'
+           'Pinned source commit e2e71e87f5f9d899e7c187f30e302e40df8bc1c3\n'
+           'Original GitHub Actions artifact 13688600868\n'
+           'Twelve systems, 10402 immutable historic rail trip records\n'
+           'Original public URL https://hhhihihihpdwwd.github.io/SHLM-TRNST/\n'
+           'Restore by uploading the website/ directory contents as a Pages artifact.\n',
+           encoding='utf8')
+          print('EXACT PRODUCTION STABLE08 ARCHIVED',len(d['trips']),
+                'trips; site files',len(list(p.rglob('*'))))
+          PY
+      - name: Push a NEW independent immutable website archive branch (no deployment)
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable08-website
+          git add -f website
+          git commit -m "archive: exact confirmed STABLE08 GitHub Pages site, no rebuilding"
+          git push origin HEAD:refs/heads/archive/stable08-website
+          echo "ARCHIVED TO archive/stable08-website — source stable/08 untouched"
