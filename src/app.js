@@ -374,21 +374,12 @@ function tickReal(){
  const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)));
  const seen=new Set(showing.map(v=>v.id));
  for(const [id,m] of markers)if(!seen.has(id)){map.removeLayer(m);markers.delete(id)}
- const bounds=map.getBounds().pad(.12);
- let drawn=0;
+ // Render every service that is historically en route. Leaflet clips
+ // offscreen images itself; don't silently discard remote trains or cap at 280.
  for(const v of showing){
   const p=railAt(v,epoch).pos;
   const selectedHere=selected?.id===v.id;
   let marker=markers.get(v.id);
-  if(!bounds.contains(p)&&!selectedHere){
-   if(marker){map.removeLayer(marker);markers.delete(v.id)}
-   continue;
-  }
-  // Keep the selected train even when crowded, prevent excessive DOM markers.
-  if(drawn>=280&&!selectedHere){
-   if(marker){map.removeLayer(marker);markers.delete(v.id)}continue;
-  }
-  drawn++;
   if(!marker){
    marker=L.marker(p,{icon:miniRailIcon(v,selectedHere),keyboard:false,riseOnHover:true}).addTo(map);
    marker.on('click',()=>selectReal(v));markers.set(v.id,marker);
