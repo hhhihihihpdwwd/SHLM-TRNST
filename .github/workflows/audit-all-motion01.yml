@@ -1,0 +1,42 @@
+name: AUDIT EVERY TRAIN – 10611 historic services, movement and expected visibility (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/audit-all-motion01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/network-wide-motion-visibility-audit-01
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42844555219
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _live
+      - name: Inspect EXACT publicly tested STABLE14 schedule and run exhaustive timetable/position audit
+        run: |
+          mkdir -p _site
+          tar -xf _live/artifact.tar -C _site
+          node --check _source/tests/audit-all-rail-motion.mjs
+          cd _source
+          node tests/audit-all-rail-motion.mjs ../_site/data/rail.json ../rail-motion-findings.json
+      - name: Publish diagnostic report as artifact, never deploy from audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-10611-train-position-visibility-audit
+          path: rail-motion-findings.json
+          if-no-files-found: warn
