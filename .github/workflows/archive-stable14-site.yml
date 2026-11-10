@@ -1,0 +1,68 @@
+name: Archive exact STABLE14 SJ comprehensive 16-system public Chromium-proven website (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-stable14-site.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/14
+          fetch-depth: 0
+      - name: Assert backup is exact source of completed SJ ALL network public release
+        run: test "$(git rev-parse HEAD)" = "11721211b3dda1f5ac85c0f2dbe7ed969e588a57"
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42844555219
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _public
+      - name: Archive every published HTML CSS image train timetable and physical OSM geometry with SHA256 manifest
+        run: |
+          mkdir -p website
+          tar -xf _public/artifact.tar -C website
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('website')
+          d=json.loads((p/'data/rail.json').read_text())
+          assert d['scope'].endswith('-snalltaget-vy-tagab-rdc-sj-complete')
+          assert len(d['trips'])==10611 and len(d['shapes'])==95
+          assert d['sjCompleteAdded']==174 and d['sjCompleteNight']==13
+          assert len([x for x in d['trips'] if x.get('sjCompleteVerified')])==174
+          assert sum(x.get('agency')=='RDC EuroNight' for x in d['trips'])==4
+          assert sum(x.get('agency')=='Tågab' for x in d['trips'])==16
+          assert sum(x.get('agency')=='Vy Tåg' for x in d['trips'])==10
+          assert 'app.js?v=sj-complete-01' in (p/'index.html').read_text()
+          for rel in ('src/app.js','src/rail-data.js','src/rail-filter.js','src/photos.js',
+                      'src/vehicle-front-sprites.js','src/approved-train-markers.js',
+                      'src/operator-marker-sprites.js','src/vy-marker-sprite.js',
+                      'src/tagab-marker-sprite.js','src/rdc-marker-sprite.js',
+                      'photos/catalog.json','photos/images/rail_rdc_euronight.webp'):
+           assert (p/rel).is_file(),rel
+          original={str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest()
+                    for f in p.rglob('*') if f.is_file()}
+          (p/'STABLE14-MANIFEST.json').write_text(json.dumps({
+            'sourceCommit':'11721211b3dda1f5ac85c0f2dbe7ed969e588a57',
+            'publishedDeploymentRun':42844555219,
+            'successfulPublicChromiumRun':42844633780,
+            'sjHistoricNewTrips':174,
+            'originalFiles':original},indent=2))
+          print('COMPLETE CHROMIUM-VERIFIED PUBLIC STABLE14 SJ NETWORK BACKUP',len(original),'PUBLISHED FILES, 10611 TRAINS, 95 TRUE RAILWAY GEOMETRIES')
+          PY
+      - name: Write complete independent full-site snapshot onto archive/stable14-website branch
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable14-website
+          git add -f website
+          git commit -m "archive: full published Chromium-tested STABLE14 SJ comprehensive railway network"
+          git push origin HEAD:refs/heads/archive/stable14-website
