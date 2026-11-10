@@ -1,0 +1,65 @@
+name: Deploy EXACT Chromium-approved Vy Stockholm–Oslo 14-system website
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-vy01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d7a395031ffc8493ac945b75bfcb55285e14efa1
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42818424137
+          name: vy-14-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Verify EXACT historic 14-system candidate tested in desktop/mobile Chromium
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          site=Path('_site')
+          data=json.loads((site/'data/rail.json').read_text())
+          assert data['scope']=='pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy'
+          assert len(data['trips'])==10417 and len(data['shapes'])==63
+          assert len([t for t in data['trips'] if t.get('agency')=='Vy Tåg'])==10
+          assert len([t for t in data['trips'] if t.get('agency')!='Vy Tåg'])==10407
+          assert all(t.get('geometryQuality')=='verified-osm-rail-ways' and t.get('osmWayNetwork') is True for t in data['trips'][-10:])
+          assert all(t.get('historicWeekday') in (4,5,6) for t in data['trips'][-10:])
+          assert data['vyWeekdayDirections']
+          assert 'app.js?v=vy-01' in (site/'index.html').read_text()
+          for p in ('src/vy-marker-sprite.js','src/vehicle-front-sprites.js','src/operator-marker-sprites.js','src/approved-train-markers.js','src/rail-data.js','src/rail-filter.js','src/photos.js','src/app.js','photos/images/rail_vy_train.webp'):
+           assert (site/p).is_file(),p
+          photo=json.loads((site/'photos/catalog.json').read_text())['rail_vy_train']
+          assert photo['license']=='CC BY-SA 4.0' and photo['author']=='AleWi'
+          print('EXACT CHROMIUM-PROVEN VY RELEASE APPROVED: 14 systems, 10417 historic trains, 63 real rail shapes')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - name: Publish ONLY exact browser-proven package
+        uses: actions/deploy-pages@v4
+        id: publish
