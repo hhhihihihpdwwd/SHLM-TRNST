@@ -1,0 +1,44 @@
+name: Independently verify licensed 2026 RDC EuroNight photograph (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-rdc-photo01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  photo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rdc-euronight-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Copy exact current public local train photo catalog
+        run: |
+          mkdir -p _photo/photos
+          curl -fLsS --max-time 50 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/photos/catalog.json?v=tagab-01' -o _photo/photos/catalog.json
+      - run: pip install pillow
+      - name: Download actual October 2026 RDC EuroNight locomotive and sleeping coaches photo from Commons with CC BY attribution
+        run: |
+          python -u _source/scripts/download_rdc_photo.py _photo
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('_photo/photos/catalog.json').read_text())
+          photo=d['rail_rdc_euronight']
+          assert photo['license']=='CC BY 4.0' and photo['author']=='G och J'
+          assert (Path('_photo')/photo['path']).stat().st_size>6500
+          print('REAL 2026 RDC EURONIGHT PHOTO, LOCAL WEBP, CREDITS AND LICENSE VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rdc-2026-licensed-real-train-photo
+          path: |
+            _photo/photos/images/rail_rdc_euronight.webp
+            _photo/photos/catalog.json
+          if-no-files-found: error
