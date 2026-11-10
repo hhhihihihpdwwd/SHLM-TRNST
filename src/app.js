@@ -3,6 +3,7 @@ import {services,central} from './demo-data.js';
 import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=snalltaget-01';
 import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=snalltaget-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
+import {operatorMarkerSprites} from './operator-marker-sprites.js?v=operator-markers-01';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=snalltaget-01';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
@@ -170,15 +171,42 @@ function originalSpriteUrl(key){
 }
 // The original Stockholm Transit vehicle-front photo sprites are restored here.
 // Small sizes keep the network legible even with hundreds of rail vehicles.
+// The original six photo sprites remain intact. Only operators with new
+// approved photo markers are overridden; others keep their historical art.
+function markerSpriteKey(v){
+ const agency=String(v.agency||'').toLowerCase();
+ if(agency==='mälartåg')return 'malartag';
+ if(agency==='vr snabbtåg')return 'vr';
+ if(agency==='snälltåget')return 'snalltaget';
+ if(agency==='sj'){
+  // Select a specific SJ front only when the record actually identifies it.
+  const type=String(v.vehicleType||v.vehicle_type||v.rollingStock||v.rolling_stock||v.trainType||'').toLowerCase();
+  if(/x55|sj\\s*3000/.test(type))return 'sj3000';
+  if(/x40/.test(type))return 'sj_x40';
+  if(/rc6|intercity/.test(type))return 'sj_intercity';
+  if(/night|natt|sovvagn/.test(type))return 'sj_night';
+ }
+ return null;
+}
+const operatorSpriteUrls=new Map();
+function originalOperatorSpriteUrl(key){
+ if(operatorSpriteUrls.has(key))return operatorSpriteUrls.get(key);
+ const data=operatorMarkerSprites[key];
+ if(!data)return originalSpriteUrl('rail');
+ const binary=atob(data.split(',')[1]);
+ const bytes=new Uint8Array(binary.length);
+ for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+ const url=URL.createObjectURL(new Blob([bytes],{type:'image/webp'}));
+ operatorSpriteUrls.set(key,url);return url;
+}
 function miniRailIcon(v,chosen=false){
-  const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
-    v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
-  const img=originalSpriteUrl(imageKey);
-  const size=chosen?27:19;
-  const border=v.agency==='Snälltåget'?' style="outline:2px solid #B93A43;outline-offset:1px;border-radius:50%"':'';
-   const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker"'+border+' src="'+img+'">';
-  return L.divIcon({className:'rail-photo-icon'+(chosen?' is-selected':''),
-    html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
+ const operatorKey=markerSpriteKey(v);
+ const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
+  v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
+ const img=operatorKey&&operatorMarkerSprites[operatorKey]?originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey);
+ const size=chosen?27:19;
+ const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
+ return L.divIcon({className:'rail-photo-icon'+(chosen?' is-selected':''),html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
 }
 const railColors={metro:'#CB5264',commuter:'#4D80BB',tram:'#E78B35',rail:'#C89D52'};
 function realColor(v){
