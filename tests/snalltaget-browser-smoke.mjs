@@ -12,7 +12,7 @@ import {matchesRailFilter} from '../src/rail-filter.js';
 
 const root=resolve(process.env.SITE_ROOT||'_site');
 const data=JSON.parse(await readFile(join(root,'data/rail.json'),'utf8'));
-assert.equal(data.scope,'pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-snalltaget');
+assert.equal(data.scope,'pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget');
 assert.deepEqual(Object.keys(data.snalltagetDirections).sort(),['to-malmo','to-stockholm']);
 assert(Object.values(data.snalltagetDirections).every(n=>n>=1));
 assert.equal(data.trips.filter(t=>t.agency==='Snälltåget').length,
