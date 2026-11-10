@@ -1,0 +1,63 @@
+name: Verify PUBLIC Stockholm Rail 14-system Vy release in actual Chromium desktop and mobile
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-vy-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d7a395031ffc8493ac945b75bfcb55285e14efa1
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42818424137
+          name: vy-14-browser-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Wait until real public GitHub Pages HTML serves the deployed 14th operator
+        run: |
+          for i in $(seq 1 64);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?vy-release-check=01' | grep -Fq 'app.js?v=vy-01';then
+              echo 'PUBLIC SITE SERVES 14-SYSTEM VY RELEASE';break
+            fi
+            if [ "$i" = 64 ];then echo 'LIVE VY DEPLOY NOT YET PUBLISHED';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/vy-marker-sprite.js?v=vy-01' | grep -Fq 'vyMarkerSprites'
+          curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=vy-01' | grep -Fq "if(agency==='vy tåg')return 'vy'"
+      - name: Install real Playwright Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test ACTUAL public site: exact Vy GTFS, both directions, marker, real photo, original trains, desktop/mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          node tests/vy-browser-smoke.mjs
+      - name: Confirm public photo catalog and OSM data are coherent
+        run: |
+          curl -fLsS --max-time 40 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=vy-01' -o /tmp/rail-vy.json
+          curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/photos/catalog.json?v=vy-01' -o /tmp/photos-vy.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/rail-vy.json'));p=json.load(open('/tmp/photos-vy.json'))
+          assert len(d['trips'])==10417 and len(d['shapes'])==63
+          assert len([x for x in d['trips'] if x.get('agency')=='Vy Tåg'])==10
+          assert p['rail_vy_train']['license']=='CC BY-SA 4.0'
+          print('PUBLIC VY LIVE CHECK: 14 SYSTEMS, 10417 REAL HISTORIC TRIPS, VY PHOTO, 63 RAIL GEOMETRIES')
+          PY
