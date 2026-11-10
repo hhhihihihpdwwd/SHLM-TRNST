@@ -1,0 +1,85 @@
+name: Deploy EXACT Chromium-verified complete SJ South West North Night network release
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-sj-complete01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 11721211b3dda1f5ac85c0f2dbe7ed969e588a57
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42844225301
+          name: sj-complete-one-stage-chromium-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42838379615
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _previous
+      - name: Prove byte-identical sixteen-system production files, every original train, and 174 authenticated SJ trains
+        run: |
+          mkdir -p _original
+          tar -xf _previous/artifact.tar -C _original
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          base=Path('_original');site=Path('_site')
+          allow={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for old in base.rglob('*'):
+           if not old.is_file():continue
+           rel=str(old.relative_to(base));n=site/rel
+           assert n.is_file(),('EXISTING ASSET MISSING',rel)
+           if rel not in allow:assert n.read_bytes()==old.read_bytes(),('MUTATED ORIGINAL',rel)
+          a=json.loads((base/'data/rail.json').read_text())
+          b=json.loads((site/'data/rail.json').read_text())
+          assert b['scope']==a['scope']+'-sj-complete'
+          assert len(a['trips'])==10437 and len(b['trips'])==10611
+          assert len(a['shapes'])==71 and len(b['shapes'])==95
+          assert b['trips'][:10437]==a['trips']
+          assert all(b['shapes'][key]==v for key,v in a['shapes'].items())
+          for key,value in a.items():
+           if key not in ('scope','trips','shapes','counts'):assert b[key]==value,key
+          for key,value in a['counts'].items():assert b['counts'][key]==value+(174 if key=='intercity' else 0)
+          assert b['sjCompleteAdded']==174 and b['sjCompleteNight']==13
+          assert all(x['agency']=='SJ' and x['sjCompleteVerified'] is True and
+            x['osmWayNetwork'] is True and x['isLiveGPS'] is False and
+            x['geometryQuality']=='verified-osm-rail-ways' for x in b['trips'][10437:])
+          assert all(x['shapeId'] in b['shapes'] for x in b['trips'][10437:])
+          assert 'app.js?v=sj-complete-01' in (site/'index.html').read_text()
+          assert "from './rail-data.js?v=sj-complete-01'" in (site/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=sj-complete-01'" in (site/'src/rail-data.js').read_text()
+          assert 'source.sjCompleteVerified===true' in (site/'src/rail-data.js').read_text()
+          print('APPROVED: ALL 16 EXISTING SYSTEMS IMMUTABLE, ONE COMPLETE SJ NETWORK RELEASE, 10611 HISTORIC TRAINS, 95 REAL TRACK GEOMETRIES')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
