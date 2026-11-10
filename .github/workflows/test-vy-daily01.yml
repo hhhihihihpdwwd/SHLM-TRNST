@@ -1,0 +1,81 @@
+name: Verify Vy daily simulation and preserve full STABLE10 website (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-vy-daily01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vy-daily-repeat-01
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42818695666
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published
+      - name: Rebuild EXACT published STABLE10 website with only two changed modules and versioned URLs
+        run: |
+          mkdir -p _site _original
+          tar -xf _published/artifact.tar -C _site
+          tar -xf _published/artifact.tar -C _original
+          cp _source/src/rail-data.js _site/src/rail-data.js
+          cp _source/src/app.js _site/src/app.js
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          old=Path('_original');p=Path('_site')
+          h=(p/'index.html').read_text()
+          assert 'src="./src/app.js?v=vy-01"' in h
+          (p/'index.html').write_text(h.replace('src="./src/app.js?v=vy-01"','src="./src/app.js?v=vy-daily-01"'))
+          a=p/'src/app.js';s=a.read_text()
+          assert "from './rail-data.js?v=vy-01'" in s
+          a.write_text(s.replace("from './rail-data.js?v=vy-01'","from './rail-data.js?v=vy-daily-01'"))
+          allow={'index.html','src/app.js','src/rail-data.js'}
+          for f in old.rglob('*'):
+           if not f.is_file():continue
+           rel=str(f.relative_to(old));g=p/rel
+           assert g.is_file() and (rel in allow or f.read_bytes()==g.read_bytes()),rel
+          d=json.loads((p/'data/rail.json').read_text())
+          assert len(d['trips'])==10417 and len(d['shapes'])==63
+          assert len([t for t in d['trips'] if t['agency']=='Vy Tåg'])==10
+          assert (p/'data/rail.json').read_bytes()==(old/'data/rail.json').read_bytes()
+          assert (p/'src/vehicle-front-sprites.js').read_bytes()==(old/'src/vehicle-front-sprites.js').read_bytes()
+          print('RELEASE CANDIDATE CHANGES ONLY 2 JAVASCRIPT MODULES AND 1 HTML CACHE REFERENCE')
+          PY
+      - name: Check JavaScript and full unit regression suite, including daily Vy Tuesday/Wednesday
+        run: |
+          cd _source
+          node --check src/app.js
+          node --check src/rail-data.js
+          node --test tests/vy-weekend.test.mjs
+          npm test
+      - name: Install Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test real train markers on a Tuesday, Wednesday, Thursday, plus original 13 systems, desktop/mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=vy-01|/src/app.js?v=vy-daily-01|g; s|/src/rail-data.js?v=vy-01|/src/rail-data.js?v=vy-daily-01|g' tests/vy-browser-smoke.mjs
+          node tests/vy-browser-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vy-daily-14-browser-approved
+          path: _site/
+          if-no-files-found: error
