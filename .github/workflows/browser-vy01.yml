@@ -43,8 +43,14 @@ jobs:
           mkdir -p _site _base
           tar -xf _original/artifact.tar -C _site
           tar -xf _original/artifact.tar -C _base
+          find _routing -maxdepth 5 -type f -print
+          VY_GTFS="$(find _routing -name vy_candidates.json -type f -print -quit)"
+          VY_OSM="$(find _routing -name vy_geofabrik_osm.json -type f -print -quit)"
+          test -n "$VY_GTFS" && test -n "$VY_OSM"
+          VY_GTFS="$(realpath "$VY_GTFS")"
+          VY_OSM="$(realpath "$VY_OSM")"
           cd _source
-          python scripts/prepare_vy_site.py . ../_site ../_routing/_source/data/vy_candidates.json ../_routing/_source/data/vy_geofabrik_osm.json
+          python scripts/prepare_vy_site.py . ../_site "$VY_GTFS" "$VY_OSM"
       - name: Import licensed, real photograph of a Vy train in Oslo with author/license metadata
         run: |
           python -m pip install pillow
