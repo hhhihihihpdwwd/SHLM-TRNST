@@ -113,7 +113,9 @@ export function activeRailTrips(dataset,epoch,limit=900){
   if(repeating && source.serviceDay!==templateDay)continue;
   for(let index=0;index<targetDays.length;index++){
    const delta=shifts[index];
-   if(epoch<source.start+delta-60||epoch>source.end+delta+80)continue;
+   // Only trains actually within their historical departure–arrival interval.
+    // No ghost trains 60 seconds before departure or 80 seconds after arrival.
+    if(epoch<source.start+delta||epoch>=source.end+delta)continue;
    const targetDay=targetDays[index];
    // Apply the same historical daily repeat to Vy as to every existing
    // Stockholm Rail operator. Source weekday remains archival metadata only.
