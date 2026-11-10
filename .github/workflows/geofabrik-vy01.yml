@@ -1,0 +1,64 @@
+name: Reconstruct REAL Vy Stockholm–Oslo tracks from Geofabrik OSM PBF (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/geofabrik-vy01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vy-stockholm-oslo-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install OSMium filtering and Python PBF reader
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          python -m pip install osmium
+      - name: Obtain standalone authoritative Sweden and Eastern Norway OSM extracts (NOT Overpass)
+        run: |
+          mkdir -p _pbf
+          curl --fail --location --retry 3 --retry-delay 10 --connect-timeout 20 --max-time 1150 \
+            https://download.geofabrik.de/europe/sweden-latest.osm.pbf -o _pbf/sweden.osm.pbf
+          curl --fail --location --retry 3 --retry-delay 10 --connect-timeout 20 --max-time 850 \
+            https://download.geofabrik.de/europe/norway/ostlandet-latest.osm.pbf -o _pbf/ostlandet.osm.pbf
+          test "$(stat -c%s _pbf/sweden.osm.pbf)" -gt 300000000
+          test "$(stat -c%s _pbf/ostlandet.osm.pbf)" -gt 100000000
+          du -h _pbf/*.pbf
+      - name: Extract ONLY actual railway=rail ways and their original node references
+        run: |
+          osmium tags-filter _pbf/sweden.osm.pbf w/railway=rail -o _pbf/sweden-rail.osm.pbf --overwrite
+          osmium tags-filter _pbf/ostlandet.osm.pbf w/railway=rail -o _pbf/norway-rail.osm.pbf --overwrite
+          rm -f _pbf/sweden.osm.pbf _pbf/ostlandet.osm.pbf
+          osmium fileinfo -e _pbf/sweden-rail.osm.pbf
+          osmium fileinfo -e _pbf/norway-rail.osm.pbf
+      - name: Load authentic historic weekend Vy GTFS timetable from 6–8 Nov 2026
+        run: |
+          cd _source
+          python -u scripts/build_vy_candidates.py 2026-11-06 data/vy_candidates.json
+      - name: Route through physically connected OSM railway way node IDs across border and render independent Leaflet preview
+        run: |
+          cd _source
+          python -u scripts/route_vy_geofabrik.py data/vy_candidates.json data/vy_geofabrik_osm.json \
+            ../_pbf/sweden-rail.osm.pbf ../_pbf/norway-rail.osm.pbf data/vy_preview.geojson
+      - name: Upload real railway route, historical timetables and web map preview ONLY if fully validated
+        uses: actions/upload-artifact@v4
+        with:
+          name: vy-geofabrik-real-osm-route-and-map-01
+          path: |
+            _source/data/vy_candidates.json
+            _source/data/vy_geofabrik_osm.json
+            _source/data/vy_preview.geojson
+            _source/data/vy_preview.html
+          if-no-files-found: error
+      - name: Do not deploy
+        run: echo 'NO CHANGE TO PUBLIC 13-SYSTEM WEBSITE'
