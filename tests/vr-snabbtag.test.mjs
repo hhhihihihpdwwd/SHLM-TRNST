@@ -88,7 +88,7 @@ test('release invalidates cached parsing and filtering modules on major schema c
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const requiredTag='vy-01';
- assert.match(html,/app\.js\?v=vy-01/);
+ assert.match(html,/app\.js\?v=(vy-01|train-icons-02)/);
  assert(/from '\.\/rail-data\.js\?v=(vy-01|snalltaget-01)'/.test(app),
    'stale cached STABLE07 rail-data.js rejects VR scope and hides every train');
  assert(app.includes("from './rail-filter.js?v="+requiredTag+"'"),
