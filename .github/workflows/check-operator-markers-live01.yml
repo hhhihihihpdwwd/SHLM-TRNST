@@ -1,0 +1,57 @@
+name: Verify PUBLIC Stockholm Rail operator markers in real desktop and mobile Chromium
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/check-operator-markers-live01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9e87f8a00de4019f7885c5ae0e288fc310da89d6
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve exact tested 13-system candidate
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42780154353
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: operator-markers-13-browser-approved
+          path: _site
+      - name: Confirm GitHub Pages actually switched to the new icon release
+        run: |
+          for i in $(seq 1 22); do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?operator-markers-check=01' | grep -Fq 'src="./src/app.js?v=operator-markers-01"'; then
+              echo 'PUBLIC GITHUB PAGES IS SERVING THE OPERATOR MARKER RELEASE'
+              break
+            fi
+            if [ "$i" = 22 ]; then echo 'PUBLIC WEBSITE DOES NOT SHOW NEW RELEASE';exit 1;fi
+            sleep 8
+          done
+      - name: Install actual Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Open ACTUAL public website on desktop and mobile; require real icons and every existing control
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=snalltaget-01|/src/app.js?v=operator-markers-01|g' tests/snalltaget-browser-smoke.mjs
+          node tests/snalltaget-browser-smoke.mjs
+      - name: Verify website loads new actual operator image module without broken cache
+        run: |
+          curl -fLsS -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=operator-markers-01' | grep -Fq "from './operator-marker-sprites.js?v=operator-markers-01'"
+          curl -fLsS -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/operator-marker-sprites.js?v=operator-markers-01' | grep -Fq 'operatorMarkerSprites'
+          echo 'ALL OPERATOR IMAGE MODULES DELIVERED FROM PUBLIC WEBSITE'
