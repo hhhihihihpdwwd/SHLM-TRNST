@@ -1,0 +1,41 @@
+name: Verify real licensed Vy Oslo train photograph (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-vy-photo01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  photo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vy-stockholm-oslo-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pillow
+      - name: Read original published photo catalog and download licensed real Vy photo
+        run: |
+          mkdir -p _site/photos
+          curl -fLsS --max-time 60 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/photos/catalog.json' -o _site/photos/catalog.json
+          python -u scripts/download_vy_photo.py _site
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('_site/photos/catalog.json').read_text())
+          p=Path('_site')/d['rail_vy_train']['path']
+          assert p.is_file() and p.stat().st_size>6500
+          assert d['rail_vy_train']['license']=='CC BY-SA 4.0'
+          print('REAL VY OSLO PHOTO SAVED AND LICENSE VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vy-licensed-real-oslo-photo
+          path: |
+            _site/photos/images/rail_vy_train.webp
+            _site/photos/catalog.json
+          if-no-files-found: error
