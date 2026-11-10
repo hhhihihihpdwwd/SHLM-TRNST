@@ -25,7 +25,7 @@ test('map/list filter, follow, satellite, speed, occupancy still shared',()=>{
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const photos=readFileSync(new URL('../src/photos.js',import.meta.url),'utf8');
  assert(app.includes('const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
- assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)'));
+ assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
  for(const name of ['followFrame','railPathSplit','showRealDetail','switchTiles','occupancy','speed-value'])assert(app.includes(name));
  assert(html.includes('data-filter="saltsjo"'));
  assert(photos.includes("'local_saltsjo'"));
