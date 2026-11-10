@@ -1,0 +1,6 @@
+STABLE 08 — exact original website from successful GitHub Pages run 42647082311
+Pinned source commit e2e71e87f5f9d899e7c187f30e302e40df8bc1c3
+Original GitHub Actions artifact 13688600868
+Twelve systems, 10402 immutable historic rail trip records
+Original public URL https://hhhihihihpdwwd.github.io/SHLM-TRNST/
+Restore by uploading the website/ directory contents as a Pages artifact.
