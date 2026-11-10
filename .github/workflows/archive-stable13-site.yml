@@ -1,0 +1,64 @@
+name: Archive EXACT PUBLIC Chromium-proven RDC EuroNight STABLE13 16-system website (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-stable13-site.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/13
+          fetch-depth: 0
+      - name: Match approved and publicly verified 16-system RDC source
+        run: test "$(git rev-parse HEAD)" = "a46fd03555028f05b70a943ef2bac9a3cdc8e478"
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42838379615
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published
+      - name: Extract exact published package, verify 16 systems and generate complete file manifest
+        run: |
+          mkdir -p website
+          tar -xf _published/artifact.tar -C website
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          p=Path('website')
+          data=json.loads((p/'data/rail.json').read_text())
+          assert data['scope'].endswith('-snalltaget-vy-tagab-rdc')
+          assert len(data['trips'])==10437 and len(data['shapes'])==71
+          assert sum(x.get('agency')=='RDC EuroNight' for x in data['trips'])==4
+          assert sum(x.get('agency')=='Tågab' for x in data['trips'])==16
+          assert sum(x.get('agency')=='Vy Tåg' for x in data['trips'])==10
+          assert 'app.js?v=rdc-01' in (p/'index.html').read_text()
+          for f in ('src/app.js','src/rail-data.js','src/rail-filter.js','src/photos.js',
+                    'src/vehicle-front-sprites.js','src/approved-train-markers.js',
+                    'src/operator-marker-sprites.js','src/vy-marker-sprite.js',
+                    'src/tagab-marker-sprite.js','src/rdc-marker-sprite.js',
+                    'photos/catalog.json','photos/images/rail_rdc_euronight.webp'):
+           assert (p/f).is_file(),f
+          original={str(x.relative_to(p)):hashlib.sha256(x.read_bytes()).hexdigest()
+                    for x in p.rglob('*') if x.is_file()}
+          (p/'STABLE13-MANIFEST.json').write_text(json.dumps({
+            'sourceCommit':'a46fd03555028f05b70a943ef2bac9a3cdc8e478',
+            'deployedPagesWorkflow':42838379615,'publicChromiumVerificationWorkflow':42838433351,
+            'originalFiles':original},indent=2))
+          print('STABLE13: VERIFIED EXACT 16-SYSTEM PUBLIC WEBSITE,',len(original),'ORIGINAL FILES')
+          PY
+      - name: Commit complete published site on isolated full archive branch, no production modification
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable13-website
+          git add -f website
+          git commit -m "archive: exact public Chromium-tested STABLE13 16-system RDC EuroNight site"
+          git push origin HEAD:refs/heads/archive/stable13-website
