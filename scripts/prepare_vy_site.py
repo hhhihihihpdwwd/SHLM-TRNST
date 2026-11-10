@@ -3,7 +3,8 @@
 Never replace legacy CSS, track geometry or original train photo metadata.
 """
 from pathlib import Path
-import json, shutil, sys
+import json, shutil, sys, datetime as dt, copy
+from zoneinfo import ZoneInfo
 
 def create(source,website,gtfs,route):
  source,website=[Path(p) for p in (source,website)]
@@ -38,6 +39,18 @@ def create(source,website,gtfs,route):
  import append_vy
  old=json.loads((website/'data/rail.json').read_text())
  cand=json.loads(Path(gtfs).read_text())
+ # Retarget authentic source clock times to the existing site's historic template
+ # day. Do not make the old 13-system dataset adopt another template day.
+ if cand['templateDay']!=old['simulationTemplateDay']:
+  local=ZoneInfo('Europe/Stockholm')
+  def midnight(day):return dt.datetime.combine(dt.date.fromisoformat(day),dt.time(),local).timestamp()
+  delta=int(midnight(old['simulationTemplateDay'])-midnight(cand['templateDay']))
+  cand=copy.deepcopy(cand)
+  for trip in cand['trips']:
+   trip['start']+=delta;trip['end']+=delta
+   trip['serviceDay']=old['simulationTemplateDay']
+  cand['templateDay']=old['simulationTemplateDay']
+  print('VY HISTORIC CLOCK TIMES MATCH ORIGINAL STABLE09 TEMPLATE',cand['templateDay'],flush=True)
  osm=json.loads(Path(route).read_text())
  new=append_vy.integrate(old,cand,osm)
  (website/'data/rail.json').write_text(json.dumps(new,ensure_ascii=False,separators=(',',':')))
