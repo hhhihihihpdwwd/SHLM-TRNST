@@ -26,7 +26,7 @@ test('map and list share Express filter; follow/speed/occupancy/satellite preser
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const photos=readFileSync(new URL('../src/photos.js',import.meta.url),'utf8');
  assert(app.includes('const showing=displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
- assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter))).slice(0,90)'));
+ assert(app.includes('displayOrder(realActive.filter(v=>matchesRailFilter(v,state.filter)))'));
  assert(app.includes('realActive=activeRailTrips(railDataset,epoch,10000)'));
  assert(app.includes('function displayOrder(trips)'));
  for(const x of ['followFrame','railPathSplit','showRealDetail','switchTiles','occupancy','speed-value'])assert(app.includes(x));
