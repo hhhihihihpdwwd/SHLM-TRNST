@@ -19,7 +19,7 @@ test('New Vy Tåg filter never changes any original 13 operator filters',()=>{
  }
  assert.equal(railFilterTitle('vy'),'Vy Tåg');
 });
-test('Authentic Vy weekend trips repeat only on their recorded weekday, unlike original daily services',()=>{
+test('Vy historical reference journeys repeat on EVERY day exactly like all original systems',()=>{
  const template='2026-11-06';
  const shape=[[59.33014,18.058154],[59.4,17.9],[59.5,17.7],[59.568759,17.532813]];
  const start=Date.parse('2026-11-06T09:00:00+01:00')/1000;
@@ -33,8 +33,10 @@ test('Authentic Vy weekend trips repeat only on their recorded weekday, unlike o
   shapes:{'vy-osm-rail:to-oslo':shape},trips:[{...base,historicWeekday:5},original]};
  function count(day){return activeRailTrips(data,Date.parse(day+'T09:30:00+01:00')/1000,20)}
  assert(count('2026-11-07').some(t=>t.agency==='Vy Tåg'),'Saturday Vy trip must run');
- assert(!count('2026-11-06').some(t=>t.agency==='Vy Tåg'),'Friday Vy must be absent');
- assert(!count('2026-11-08').some(t=>t.agency==='Vy Tåg'),'Sunday Vy must be absent');
+ assert(count('2026-11-06').some(t=>t.agency==='Vy Tåg'),'Friday Vy must be present');
+ assert(count('2026-11-08').some(t=>t.agency==='Vy Tåg'),'Sunday Vy must be present');
+ assert(count('2026-11-10').some(t=>t.agency==='Vy Tåg'),'Tuesday Vy must be present');
+ assert(count('2026-11-11').some(t=>t.agency==='Vy Tåg'),'Wednesday Vy must be present');
  assert(count('2026-11-14').some(t=>t.agency==='Vy Tåg'),'Subsequent Saturday repeats');
  assert(count('2026-11-06').some(t=>t.agency==='SJ'),'Original historical SJ repeats unchanged');
 });
