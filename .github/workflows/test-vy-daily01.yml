@@ -41,8 +41,9 @@ jobs:
           assert 'src="./src/app.js?v=vy-01"' in h
           (p/'index.html').write_text(h.replace('src="./src/app.js?v=vy-01"','src="./src/app.js?v=vy-daily-01"'))
           a=p/'src/app.js';s=a.read_text()
-          assert "from './rail-data.js?v=vy-01'" in s
-          a.write_text(s.replace("from './rail-data.js?v=vy-01'","from './rail-data.js?v=vy-daily-01'"))
+          source="from './rail-data.js?v=snalltaget-01'"
+          assert source in s
+          a.write_text(s.replace(source,"from './rail-data.js?v=vy-daily-01'"))
           allow={'index.html','src/app.js','src/rail-data.js'}
           for f in old.rglob('*'):
            if not f.is_file():continue
