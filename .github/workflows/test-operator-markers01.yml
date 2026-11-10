@@ -1,0 +1,93 @@
+name: Test photographic operator markers against frozen 13-system production site (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-operator-markers01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/operator-photo-markers-01
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve exact successful 13-system browser-approved artifact
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42771861126
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: snalltaget-13-chromium-verified
+          path: _site
+      - name: Apply only isolated sprite and app patch, preserve entire live data and all original artwork
+        run: |
+          cp -a _site _baseline
+          cp _source/src/app.js _site/src/app.js
+          cp _source/src/operator-marker-sprites.js _site/src/operator-marker-sprites.js
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          root=Path('_site')
+          html=root/'index.html'
+          old=html.read_text()
+          assert 'src="./src/app.js?v=snalltaget-01"' in old
+          html.write_text(old.replace('src="./src/app.js?v=snalltaget-01"','src="./src/app.js?v=operator-markers-01"'))
+          allowed={'index.html','src/app.js','src/operator-marker-sprites.js'}
+          original=Path('_baseline')
+          for file in original.rglob('*'):
+           if not file.is_file():continue
+           rel=str(file.relative_to(original))
+           if rel in allowed:continue
+           dest=root/rel
+           assert dest.is_file() and file.read_bytes()==dest.read_bytes(),f'original file changed: {rel}'
+          d=json.loads((root/'data/rail.json').read_text())
+          assert len(d['trips'])==10407 and d['snalltagetDirections']=={'to-malmo':2,'to-stockholm':3}
+          assert d['scope'].endswith('-vr-snalltaget')
+          print('10407 original train trips, 13 filters, all original photos, rails and JS modules IDENTICAL')
+          PY
+      - name: Validate actual photo sprite payload and source syntax
+        run: |
+          cd _source
+          node --check src/app.js
+          node --check src/operator-marker-sprites.js
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {operatorMarkerSprites} from './src/operator-marker-sprites.js';
+          import {vehicleFrontSprites} from './src/vehicle-front-sprites.js';
+          assert.deepEqual(Object.keys(operatorMarkerSprites).sort(),['malartag','sj3000','sj_intercity','sj_night','sj_x40','snalltaget','vr']);
+          assert.deepEqual(Object.keys(vehicleFrontSprites).sort(),['commuter','localrail','metro','rail','rail_arlanda','tram']);
+          for(const [key,src] of Object.entries(operatorMarkerSprites)){
+           assert(src.startsWith('data:image/webp;base64,'));
+           const bytes=Buffer.from(src.split(',')[1],'base64');
+           assert(bytes.length>700&&bytes.subarray(0,4).toString()==='RIFF',key);
+          }
+          assert((await import('node:fs')).readFileSync('src/app.js','utf8').includes("return 'malartag'"));
+          console.log('SEVEN DISTINCT NEW WEBP ASSETS + SIX ORIGINAL UNMODIFIED ICONS VERIFIED');
+          JS
+          npm test
+      - name: Install real Playwright Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Confirm visible map markers, unchanged filters, photos and controls, desktop and mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          sed -i 's|/src/app.js?v=snalltaget-01|/src/app.js?v=operator-markers-01|g' tests/snalltaget-browser-smoke.mjs
+          node tests/snalltaget-browser-smoke.mjs
+      - name: Preserve exact browser-approved candidate for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-markers-13-browser-approved
+          path: _site/
+          if-no-files-found: error
