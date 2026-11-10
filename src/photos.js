@@ -25,6 +25,10 @@ export function photoForVehicle(v){
    label:'VR Snabbtåg X74 – exempelbild (exakt fordon för avgången ej verifierat)',
    illustrative:true}:null;
  }
+ if(v.mode==='intercity' && v.agency==='Tågab'){
+  const photo=photoCatalog.rail_tagab_rc3;
+  return photo?{...photo,label:'Tågab Rc3 med personvagnar – exempelbild (exakt lok för avgången ej bekräftat)',illustrative:true}:null;
+ }
  if(v.mode==='intercity' && v.agency==='Vy Tåg'){
   const photo=photoCatalog.rail_vy_train;
   return photo?{...photo,label:'Vy-tåg vid Oslo S – exempelbild (exakt fordon för avgången ej bekräftat)',illustrative:true}:null;
