@@ -1,0 +1,34 @@
+name: Investigate Mälartåg extreme historical route segment speeds (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-malartag-speed01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/network-wide-motion-visibility-audit-01
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42844555219
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Inspect exact old train geometry before attempting minimal factual correction
+        run: |
+          mkdir -p _original
+          tar -xf _site/artifact.tar -C _original
+          cd _source
+          node tests/inspect-malartag-overspeed.mjs ../_original/data/rail.json
