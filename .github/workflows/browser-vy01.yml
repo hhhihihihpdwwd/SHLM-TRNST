@@ -1,0 +1,109 @@
+name: Validate complete 14-system Vy release with real OSM and Chromium (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/browser-vy01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vy-stockholm-oslo-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve exact publicly Chromium-proven STABLE09 site, no source rebuild
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42784031054
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _original
+      - name: Retrieve independently checked actual connected Sweden–Norway railway and Vy GTFS candidate
+        uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42815779117
+          name: vy-geofabrik-real-osm-route-and-map-01
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _routing
+      - name: Reconstruct exact original release and apply only Vy-specific overlay
+        run: |
+          mkdir -p _site _base
+          tar -xf _original/artifact.tar -C _site
+          tar -xf _original/artifact.tar -C _base
+          cd _source
+          python scripts/prepare_vy_site.py . ../_site ../_routing/_source/data/vy_candidates.json ../_routing/_source/data/vy_geofabrik_osm.json
+      - name: Import licensed, real photograph of a Vy train in Oslo with author/license metadata
+        run: |
+          python -m pip install pillow
+          cd _source
+          python -u scripts/download_vy_photo.py ../_site
+      - name: Confirm each original image, route, HTML asset and historical service remain unchanged
+        run: |
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          old,new=Path('_base'),Path('_site')
+          allowed={'index.html','src/app.js','src/photos.js','src/rail-data.js','src/rail-filter.js',
+                   'data/rail.json','photos/catalog.json'}
+          for p in old.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(old))
+           if rel not in allowed:
+            q=new/rel
+            assert q.is_file() and q.read_bytes()==p.read_bytes(),('EXISTING FILE CHANGED',rel)
+          original=json.loads((old/'data/rail.json').read_text())
+          target=json.loads((new/'data/rail.json').read_text())
+          assert len(original['trips'])==10407
+          assert target['trips'][:10407]==original['trips']
+          assert len(target['trips'])>=10411
+          assert len(target['shapes'])==len(original['shapes'])+2
+          assert all(target['shapes'][k]==v for k,v in original['shapes'].items())
+          assert target['simulationTemplateDay']==original['simulationTemplateDay']
+          assert target['scope']==original['scope']+'-vy'
+          for k,v in original.items():
+           if k not in ('trips','shapes','scope','counts'):assert target[k]==v,k
+          assert target['counts']['intercity']==original['counts']['intercity']+len(target['trips'])-10407
+          assert all(target['counts'][k]==v for k,v in original['counts'].items() if k!='intercity')
+          assert len([t for t in target['trips'] if t.get('agency')=='Vy Tåg'])>=4
+          assert target['shapes']['vy-osm-rail:to-oslo']
+          print('ALL ORIGINAL 13 SYSTEMS FROZEN, 14th VY SYSTEM STRICTLY ADDITIVE',len(target['trips']))
+          PY
+      - name: Browser module checks, past unit tests, historic weekday regression
+        run: |
+          cd _source
+          node --check src/app.js
+          node --check src/rail-data.js
+          node --check src/rail-filter.js
+          node --check tests/vy-browser-smoke.mjs
+          node --test tests/vy-weekend.test.mjs
+          npm test
+      - name: Install actual Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test entire REAL 14-system map, Vy marker, licensed photo, both directions, weekends and original systems in desktop/mobile Chromium
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node tests/vy-browser-smoke.mjs
+      - name: Upload EXACT Chromium-tested 14-system website; no public deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: vy-14-browser-approved
+          path: _site/
+          if-no-files-found: error
