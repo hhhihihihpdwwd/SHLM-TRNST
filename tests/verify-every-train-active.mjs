@@ -94,6 +94,7 @@ const train=activeRailTrips(d,epoch,20000).find(x=>
  x.id.startsWith(snall.id+':DAILY:')&&x.stops[0][2].includes('Malmö'));
 assert(train,'Malmö 16:18 train missing at 16:37');
 const p=railAt(train,epoch);
+console.log('SCREENSHOT TARGET DEBUG',JSON.stringify({id:train.id,start:train.start,epoch,first:train.stops[0],next3:train.stops.slice(1,4),index:p.next,kmh:p.kmh,meters:p.meters,base:train.start-train.stops[0][4]}));
 assert.equal(train.stops[p.next][2],'Lund Centralstation','16:37 Snälltåget must next call at Lund');
 assert(p.kmh>0,'16:37 Snälltåget must be moving and not standing in Malmö');
 assert(p.meters>train._anchors[0]+1000,'Snälltåget should have moved over 1km by 16:37');
