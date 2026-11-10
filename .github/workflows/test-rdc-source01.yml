@@ -1,0 +1,46 @@
+name: RDC EuroNight source syntax, calendar and original operator regression (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/test-rdc-source01.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rdc-euronight-01
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate scripts and official EN344/345 2026 over-midnight timetable
+        run: |
+          python -m py_compile scripts/rdc_official_timetable.py scripts/route_rdc_geofabrik.py scripts/append_rdc.py scripts/prepare_rdc_site.py
+          python scripts/rdc_official_timetable.py /tmp/rdc-official.json
+          python - <<'PY'
+          import json
+          t=json.load(open('/tmp/rdc-official.json'))['trips']
+          assert len(t)==4
+          assert sorted(set(x['train'] for x in t))==['344','345']
+          assert len([x for x in t if x['direction']=='from-stockholm'])==2
+          assert len([x for x in t if x['direction']=='to-stockholm'])==2
+          for x in t:
+           assert x['end']>x['start'] and x['isLiveGPS'] is False
+          print('RDC VERIFIED OFFICIAL CALENDAR TIMES, BOTH DIRECTIONS AND MIDNIGHT CROSSINGS')
+          PY
+      - name: Check JavaScript modules and one-week historical daily simulation tests
+        run: |
+          node --check src/app.js
+          node --check src/rail-data.js
+          node --check src/rail-filter.js
+          node --check src/rdc-marker-sprite.js
+          node --test tests/rdc-daily.test.mjs
+      - name: No deploy
+        run: echo '15-system STABLE12 remains live'
