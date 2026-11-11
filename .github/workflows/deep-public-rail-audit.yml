@@ -1,0 +1,51 @@
+name: Deep live public website audit EVERY train and line across 16 systems
+on:
+  push:
+    branches: [audit/complete-public-every-line-and-train]
+    paths:
+      - tests/audit-entire-public-website.mjs
+      - .github/workflows/deep-public-rail-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  full-public-website-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43006132073
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published_exact
+      - name: Extract byte-for-byte exact public STABLE21 reference source
+        run: |
+          mkdir -p _site
+          tar -xf _published_exact/artifact.tar -C _site
+          node --check tests/audit-entire-public-website.mjs
+      - name: Install Chromium for independent actual public GitHub Pages verification
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Audit every scheduled train quarter-hour for seven days and inspect every public railway filter, route and line in Chromium
+        timeout-minutes: 65
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          REPORT_ROOT: ${{ github.workspace }}/reports/public-complete-audit
+        run: |
+          node --max-old-space-size=8192 tests/audit-entire-public-website.mjs
+      - name: Preserve FULL user-readable audit, every system and line, error lists and proof screenshots even if inconsistencies found
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-STABLE21-entire-network-all-trains-audit
+          path: reports/public-complete-audit/
+          if-no-files-found: warn
+          retention-days: 30
