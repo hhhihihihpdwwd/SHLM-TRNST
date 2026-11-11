@@ -28,10 +28,10 @@ jobs:
         run: python -u scripts/build_vr_candidates.py 2026-11-06
       - name: Full network source and structural audit
         run: |
-          python -u scripts/audit_package03_sj_vr.py stable17-website/data/rail.json /tmp/sj-source-audit.json data/vr_candidates.json reports/package03-sj-vr.json
+          python -u scripts/audit_package03_sj_vr.py stable17-website/website/data/rail.json /tmp/sj-source-audit.json data/vr_candidates.json reports/package03-sj-vr.json
       - name: All historical on-map services at 15-minute intervals for seven days
         run: |
-          node tests/international-four-complete.mjs stable17-website/data/rail.json
+          node tests/international-four-complete.mjs stable17-website/website/data/rail.json
       - name: Upload immutable audit evidence even when checks fail
         if: always()
         uses: actions/upload-artifact@v4
