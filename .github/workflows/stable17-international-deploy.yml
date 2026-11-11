@@ -1,0 +1,90 @@
+name: Deploy exact green Chromium STABLE17 four-operator international railway release
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-international-deploy.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 11e1610c6449c5086ad8d3947e11c1aeebf1f052
+          path: _source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42991139028
+          artifact-ids: 13841857535
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42986423014
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _original
+      - name: Hard gate against ANY damage to original STABLE16 and exactly eight German Danish historical additions
+        run: |
+          mkdir -p _stable
+          tar -xf _original/artifact.tar -C _stable
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          previous=Path('_stable');candidate=Path('_approved')
+          only_changed={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for p in previous.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(previous));new=candidate/rel
+           assert new.is_file(),('STABLE16 ORIGINAL REMOVED',rel)
+           if rel not in only_changed:assert p.read_bytes()==new.read_bytes(),('ORIGINAL PHOTO/SPRITE MODIFIED',rel)
+          a=json.loads((previous/'data/rail.json').read_text())
+          b=json.loads((candidate/'data/rail.json').read_text())
+          assert len(a['trips'])==10779 and len(b['trips'])==10787
+          assert len(a['shapes'])==101 and len(b['shapes'])==107
+          assert b['trips'][:10779]==a['trips']
+          assert all(b['shapes'][key]==v for key,v in a['shapes'].items())
+          assert b['scope']==a['scope']+'-intl-four'
+          for k,v in a['counts'].items():assert b['counts'][k]==v+(8 if k=='intercity' else 0)
+          for k,v in a.items():
+           if k not in ('scope','trips','shapes','counts'):assert b[k]==v,k
+          additions=b['trips'][10779:]
+          assert len(additions)==8
+          assert all(t['agency']=='Snälltåget' and t['snallCrossborderVerified'] is True and
+            t['isLiveGPS'] is False and t['shapeId'] in b['shapes'] for t in additions)
+          assert b['internationalFourAudited']['Vy Tåg']['added']==0
+          assert b['internationalFourAudited']['Tågab']['added']==0
+          assert b['internationalFourAudited']['RDC EuroNight']['added']==0
+          assert 'app.js?v=intl-four-01' in (candidate/'index.html').read_text()
+          app=(candidate/'src/app.js').read_text()
+          assert "from './rail-data.js?v=intl-four-01'" in app
+          parser=(candidate/'src/rail-data.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=intl-four-01'" in parser
+          assert "source.snallCrossborderVerified===true" in parser
+          assert "String(dataset.scope||'').includes('-sj-complete')" in parser
+          print('STABLE17 EXACT RELEASE GREEN: 8 AUTHENTIC INTERNATIONAL DE DK SE RAIL SEGMENTS, 10787 SOURCE TRAINS, 107 TRUE RAIL SHAPES, ALL 16 ORIGINAL SYSTEMS IMMUTABLE')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
