@@ -1,0 +1,42 @@
+name: STABLE17 Snälltåget exact Berlin Dresden Padborg stop-time and duplicate-departure inspection (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-snall-patterns.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/international-four-operators-stable17-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42988644713
+          name: stable17-all-four-operators-historic-inventory
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _archive
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42988913794
+          name: stable17-four-operator-exact-source-coverage
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _coverage
+      - name: Inspect all real source stops and group physically same Stockholm departures to prevent duplicate markers
+        run: |
+          ARCHIVE="$(find _archive -name international-four-operator-history.json -type f -print -quit)"
+          COVER="$(find _coverage -name international-four-coverage.json -type f -print -quit)"
+          test -n "$ARCHIVE" && test -n "$COVER"
+          cd _source
+          python -u scripts/inspect_snall_international.py "../$ARCHIVE" "../$COVER"
