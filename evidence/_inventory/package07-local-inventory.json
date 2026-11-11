@@ -1,0 +1,1457 @@
+{
+  "sourceScope": "pendeltag-tunnelbana-tvarbanan-localtram-city7-roslags-saltsjo-arlanda-sj-malartag-vr-snalltaget-vy-tagab-rdc-sj-complete-malartag-five-intl-four",
+  "referenceDay": "2026-11-09",
+  "historicSimulationNotLive": true,
+  "allTrainTemplates": 10799,
+  "physicalTrackShapes": 107,
+  "localTrainTemplates": 9901,
+  "systems": {
+    "commuter": {
+      "trips": 1671,
+      "lines": {
+        "40": {
+          "tripTemplates": 258,
+          "terminalNames": [
+            "Stockholm City station",
+            "Södertälje centrum station",
+            "Tumba station",
+            "Uppsala Centralstation",
+            "Älvsjö station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Södertälje centrum station",
+              "to": "Uppsala Centralstation",
+              "templates": 81
+            },
+            {
+              "from": "Uppsala Centralstation",
+              "to": "Södertälje centrum station",
+              "templates": 72
+            },
+            {
+              "from": "Uppsala Centralstation",
+              "to": "Tumba station",
+              "templates": 48
+            },
+            {
+              "from": "Tumba station",
+              "to": "Uppsala Centralstation",
+              "templates": 36
+            },
+            {
+              "from": "Tumba station",
+              "to": "Södertälje centrum station",
+              "templates": 6
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Uppsala Centralstation",
+              "templates": 6
+            },
+            {
+              "from": "Uppsala Centralstation",
+              "to": "Stockholm City station",
+              "templates": 3
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Södertälje centrum station",
+              "templates": 3
+            },
+            {
+              "from": "Älvsjö station",
+              "to": "Uppsala Centralstation",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Stockholm City station",
+              "to": "Södertälje centrum station",
+              "templates": 3
+            },
+            {
+              "from": "Tumba station",
+              "to": "Södertälje centrum station",
+              "templates": 6
+            },
+            {
+              "from": "Älvsjö station",
+              "to": "Uppsala Centralstation",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 5,
+          "stopNameCount": 25,
+          "sourceRealOsmShapes": 2
+        },
+        "41": {
+          "tripTemplates": 519,
+          "terminalNames": [
+            "Märsta station",
+            "Stockholm City station",
+            "Södertälje centrum station",
+            "Tumba station",
+            "Upplands Väsby station",
+            "Älvsjö station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Märsta station",
+              "to": "Södertälje centrum station",
+              "templates": 210
+            },
+            {
+              "from": "Södertälje centrum station",
+              "to": "Märsta station",
+              "templates": 207
+            },
+            {
+              "from": "Upplands Väsby station",
+              "to": "Tumba station",
+              "templates": 42
+            },
+            {
+              "from": "Tumba station",
+              "to": "Upplands Väsby station",
+              "templates": 39
+            },
+            {
+              "from": "Märsta station",
+              "to": "Älvsjö station",
+              "templates": 3
+            },
+            {
+              "from": "Södertälje centrum station",
+              "to": "Tumba station",
+              "templates": 3
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Märsta station",
+              "templates": 3
+            },
+            {
+              "from": "Tumba station",
+              "to": "Södertälje centrum station",
+              "templates": 3
+            },
+            {
+              "from": "Älvsjö station",
+              "to": "Upplands Väsby station",
+              "templates": 3
+            },
+            {
+              "from": "Älvsjö station",
+              "to": "Stockholm City station",
+              "templates": 3
+            },
+            {
+              "from": "Älvsjö station",
+              "to": "Märsta station",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Stockholm City station",
+              "to": "Märsta station",
+              "templates": 3
+            },
+            {
+              "from": "Älvsjö station",
+              "to": "Stockholm City station",
+              "templates": 3
+            },
+            {
+              "from": "Älvsjö station",
+              "to": "Upplands Väsby station",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 6,
+          "stopNameCount": 24,
+          "sourceRealOsmShapes": 2
+        },
+        "43": {
+          "tripTemplates": 747,
+          "terminalNames": [
+            "Bro station",
+            "Bålsta station",
+            "Handen station",
+            "Kallhäll station",
+            "Kungsängen station",
+            "Nynäshamn station",
+            "Stockholm City station",
+            "Västerhaninge station",
+            "Älvsjö station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Västerhaninge station",
+              "to": "Kungsängen station",
+              "templates": 111
+            },
+            {
+              "from": "Kungsängen station",
+              "to": "Västerhaninge station",
+              "templates": 105
+            },
+            {
+              "from": "Bålsta station",
+              "to": "Västerhaninge station",
+              "templates": 102
+            },
+            {
+              "from": "Västerhaninge station",
+              "to": "Bålsta station",
+              "templates": 93
+            },
+            {
+              "from": "Kallhäll station",
+              "to": "Nynäshamn station",
+              "templates": 87
+            },
+            {
+              "from": "Nynäshamn station",
+              "to": "Kallhäll station",
+              "templates": 87
+            },
+            {
+              "from": "Kallhäll station",
+              "to": "Handen station",
+              "templates": 39
+            },
+            {
+              "from": "Handen station",
+              "to": "Kallhäll station",
+              "templates": 27
+            },
+            {
+              "from": "Nynäshamn station",
+              "to": "Bålsta station",
+              "templates": 24
+            },
+            {
+              "from": "Bålsta station",
+              "to": "Nynäshamn station",
+              "templates": 18
+            },
+            {
+              "from": "Handen station",
+              "to": "Älvsjö station",
+              "templates": 12
+            },
+            {
+              "from": "Bro station",
+              "to": "Västerhaninge station",
+              "templates": 9
+            },
+            {
+              "from": "Handen station",
+              "to": "Bro station",
+              "templates": 9
+            },
+            {
+              "from": "Bro station",
+              "to": "Nynäshamn station",
+              "templates": 6
+            },
+            {
+              "from": "Nynäshamn station",
+              "to": "Västerhaninge station",
+              "templates": 3
+            },
+            {
+              "from": "Västerhaninge station",
+              "to": "Stockholm City station",
+              "templates": 3
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Nynäshamn station",
+              "templates": 3
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Västerhaninge station",
+              "templates": 3
+            },
+            {
+              "from": "Kungsängen station",
+              "to": "Stockholm City station",
+              "templates": 3
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Bålsta station",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Bro station",
+              "to": "Nynäshamn station",
+              "templates": 6
+            },
+            {
+              "from": "Bro station",
+              "to": "Västerhaninge station",
+              "templates": 9
+            },
+            {
+              "from": "Handen station",
+              "to": "Bro station",
+              "templates": 9
+            },
+            {
+              "from": "Handen station",
+              "to": "Älvsjö station",
+              "templates": 12
+            },
+            {
+              "from": "Kungsängen station",
+              "to": "Stockholm City station",
+              "templates": 3
+            },
+            {
+              "from": "Nynäshamn station",
+              "to": "Västerhaninge station",
+              "templates": 3
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Bålsta station",
+              "templates": 3
+            },
+            {
+              "from": "Stockholm City station",
+              "to": "Nynäshamn station",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 9,
+          "stopNameCount": 28,
+          "sourceRealOsmShapes": 2
+        },
+        "48": {
+          "tripTemplates": 147,
+          "terminalNames": [
+            "Gnesta station",
+            "Södertälje centrum station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Gnesta station",
+              "to": "Södertälje centrum station",
+              "templates": 75
+            },
+            {
+              "from": "Södertälje centrum station",
+              "to": "Gnesta station",
+              "templates": 72
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 6,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 1671
+      }
+    },
+    "metro": {
+      "trips": 2791,
+      "lines": {
+        "10": {
+          "tripTemplates": 398,
+          "terminalNames": [
+            "Hjulsta T-bana",
+            "Kungsträdgården T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Kungsträdgården T-bana",
+              "to": "Hjulsta T-bana",
+              "templates": 207
+            },
+            {
+              "from": "Hjulsta T-bana",
+              "to": "Kungsträdgården T-bana",
+              "templates": 191
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 14,
+          "sourceRealOsmShapes": 2
+        },
+        "11": {
+          "tripTemplates": 404,
+          "terminalNames": [
+            "Akalla T-bana",
+            "Hallonbergen T-bana",
+            "Kungsträdgården T-bana",
+            "Västra Skogen T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Akalla T-bana",
+              "to": "Kungsträdgården T-bana",
+              "templates": 201
+            },
+            {
+              "from": "Kungsträdgården T-bana",
+              "to": "Akalla T-bana",
+              "templates": 197
+            },
+            {
+              "from": "Hallonbergen T-bana",
+              "to": "Kungsträdgården T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Västra Skogen T-bana",
+              "to": "Kungsträdgården T-bana",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Hallonbergen T-bana",
+              "to": "Kungsträdgården T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Västra Skogen T-bana",
+              "to": "Kungsträdgården T-bana",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 4,
+          "stopNameCount": 12,
+          "sourceRealOsmShapes": 2
+        },
+        "13": {
+          "tripTemplates": 404,
+          "terminalNames": [
+            "Alby T-bana",
+            "Axelsberg T-bana",
+            "Liljeholmen T-bana",
+            "Norsborg T-bana",
+            "Ropsten T-bana",
+            "Sätra T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Norsborg T-bana",
+              "to": "Ropsten T-bana",
+              "templates": 185
+            },
+            {
+              "from": "Ropsten T-bana",
+              "to": "Norsborg T-bana",
+              "templates": 180
+            },
+            {
+              "from": "Ropsten T-bana",
+              "to": "Axelsberg T-bana",
+              "templates": 12
+            },
+            {
+              "from": "Axelsberg T-bana",
+              "to": "Ropsten T-bana",
+              "templates": 12
+            },
+            {
+              "from": "Ropsten T-bana",
+              "to": "Alby T-bana",
+              "templates": 6
+            },
+            {
+              "from": "Liljeholmen T-bana",
+              "to": "Ropsten T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Liljeholmen T-bana",
+              "to": "Norsborg T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Sätra T-bana",
+              "to": "Ropsten T-bana",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Liljeholmen T-bana",
+              "to": "Norsborg T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Liljeholmen T-bana",
+              "to": "Ropsten T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Ropsten T-bana",
+              "to": "Alby T-bana",
+              "templates": 6
+            },
+            {
+              "from": "Sätra T-bana",
+              "to": "Ropsten T-bana",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 6,
+          "stopNameCount": 25,
+          "sourceRealOsmShapes": 2
+        },
+        "14": {
+          "tripTemplates": 394,
+          "terminalNames": [
+            "Fruängen T-bana",
+            "Liljeholmen T-bana",
+            "Mörby centrum T-bana",
+            "Telefonplan T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Mörby centrum T-bana",
+              "to": "Fruängen T-bana",
+              "templates": 147
+            },
+            {
+              "from": "Fruängen T-bana",
+              "to": "Mörby centrum T-bana",
+              "templates": 136
+            },
+            {
+              "from": "Liljeholmen T-bana",
+              "to": "Mörby centrum T-bana",
+              "templates": 42
+            },
+            {
+              "from": "Mörby centrum T-bana",
+              "to": "Liljeholmen T-bana",
+              "templates": 42
+            },
+            {
+              "from": "Mörby centrum T-bana",
+              "to": "Telefonplan T-bana",
+              "templates": 15
+            },
+            {
+              "from": "Liljeholmen T-bana",
+              "to": "Fruängen T-bana",
+              "templates": 6
+            },
+            {
+              "from": "Telefonplan T-bana",
+              "to": "Mörby centrum T-bana",
+              "templates": 6
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Liljeholmen T-bana",
+              "to": "Fruängen T-bana",
+              "templates": 6
+            }
+          ],
+          "shortTurnTerminalCount": 4,
+          "stopNameCount": 19,
+          "sourceRealOsmShapes": 2
+        },
+        "17": {
+          "tripTemplates": 400,
+          "terminalNames": [
+            "Alvik T-bana",
+            "Gullmarsplan T-bana",
+            "Hässelby Strand T-bana",
+            "Odenplan T-bana",
+            "Skarpnäck T-bana",
+            "Vällingby T-bana",
+            "Åkeshov T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Skarpnäck T-bana",
+              "to": "Åkeshov T-bana",
+              "templates": 102
+            },
+            {
+              "from": "Åkeshov T-bana",
+              "to": "Skarpnäck T-bana",
+              "templates": 81
+            },
+            {
+              "from": "Hässelby Strand T-bana",
+              "to": "Skarpnäck T-bana",
+              "templates": 60
+            },
+            {
+              "from": "Skarpnäck T-bana",
+              "to": "Hässelby Strand T-bana",
+              "templates": 30
+            },
+            {
+              "from": "Skarpnäck T-bana",
+              "to": "Alvik T-bana",
+              "templates": 27
+            },
+            {
+              "from": "Alvik T-bana",
+              "to": "Skarpnäck T-bana",
+              "templates": 25
+            },
+            {
+              "from": "Skarpnäck T-bana",
+              "to": "Odenplan T-bana",
+              "templates": 24
+            },
+            {
+              "from": "Skarpnäck T-bana",
+              "to": "Vällingby T-bana",
+              "templates": 18
+            },
+            {
+              "from": "Odenplan T-bana",
+              "to": "Skarpnäck T-bana",
+              "templates": 15
+            },
+            {
+              "from": "Vällingby T-bana",
+              "to": "Skarpnäck T-bana",
+              "templates": 15
+            },
+            {
+              "from": "Gullmarsplan T-bana",
+              "to": "Skarpnäck T-bana",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Gullmarsplan T-bana",
+              "to": "Skarpnäck T-bana",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 7,
+          "stopNameCount": 32,
+          "sourceRealOsmShapes": 2
+        },
+        "18": {
+          "tripTemplates": 397,
+          "terminalNames": [
+            "Alvik T-bana",
+            "Farsta Strand T-bana",
+            "Gullmarsplan T-bana",
+            "Hässelby Strand T-bana",
+            "Odenplan T-bana",
+            "Vällingby T-bana",
+            "Åkeshov T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Alvik T-bana",
+              "to": "Farsta Strand T-bana",
+              "templates": 120
+            },
+            {
+              "from": "Farsta Strand T-bana",
+              "to": "Alvik T-bana",
+              "templates": 99
+            },
+            {
+              "from": "Åkeshov T-bana",
+              "to": "Farsta Strand T-bana",
+              "templates": 52
+            },
+            {
+              "from": "Farsta Strand T-bana",
+              "to": "Hässelby Strand T-bana",
+              "templates": 51
+            },
+            {
+              "from": "Hässelby Strand T-bana",
+              "to": "Farsta Strand T-bana",
+              "templates": 24
+            },
+            {
+              "from": "Odenplan T-bana",
+              "to": "Farsta Strand T-bana",
+              "templates": 12
+            },
+            {
+              "from": "Farsta Strand T-bana",
+              "to": "Åkeshov T-bana",
+              "templates": 12
+            },
+            {
+              "from": "Vällingby T-bana",
+              "to": "Farsta Strand T-bana",
+              "templates": 12
+            },
+            {
+              "from": "Gullmarsplan T-bana",
+              "to": "Farsta Strand T-bana",
+              "templates": 6
+            },
+            {
+              "from": "Farsta Strand T-bana",
+              "to": "Vällingby T-bana",
+              "templates": 6
+            },
+            {
+              "from": "Farsta Strand T-bana",
+              "to": "Odenplan T-bana",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Gullmarsplan T-bana",
+              "to": "Farsta Strand T-bana",
+              "templates": 6
+            }
+          ],
+          "shortTurnTerminalCount": 7,
+          "stopNameCount": 35,
+          "sourceRealOsmShapes": 2
+        },
+        "19": {
+          "tripTemplates": 394,
+          "terminalNames": [
+            "Alvik T-bana",
+            "Gullmarsplan T-bana",
+            "Hagsätra T-bana",
+            "Hässelby Strand T-bana",
+            "Högdalen T-bana",
+            "Odenplan T-bana",
+            "Vällingby T-bana",
+            "Åkeshov T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Hagsätra T-bana",
+              "to": "Hässelby Strand T-bana",
+              "templates": 135
+            },
+            {
+              "from": "Hässelby Strand T-bana",
+              "to": "Hagsätra T-bana",
+              "templates": 108
+            },
+            {
+              "from": "Åkeshov T-bana",
+              "to": "Hagsätra T-bana",
+              "templates": 28
+            },
+            {
+              "from": "Hagsätra T-bana",
+              "to": "Åkeshov T-bana",
+              "templates": 24
+            },
+            {
+              "from": "Hagsätra T-bana",
+              "to": "Alvik T-bana",
+              "templates": 18
+            },
+            {
+              "from": "Alvik T-bana",
+              "to": "Hagsätra T-bana",
+              "templates": 18
+            },
+            {
+              "from": "Hagsätra T-bana",
+              "to": "Vällingby T-bana",
+              "templates": 15
+            },
+            {
+              "from": "Vällingby T-bana",
+              "to": "Hagsätra T-bana",
+              "templates": 12
+            },
+            {
+              "from": "Hagsätra T-bana",
+              "to": "Gullmarsplan T-bana",
+              "templates": 9
+            },
+            {
+              "from": "Gullmarsplan T-bana",
+              "to": "Hagsätra T-bana",
+              "templates": 9
+            },
+            {
+              "from": "Odenplan T-bana",
+              "to": "Hagsätra T-bana",
+              "templates": 6
+            },
+            {
+              "from": "Hagsätra T-bana",
+              "to": "Odenplan T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Högdalen T-bana",
+              "to": "Åkeshov T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Högdalen T-bana",
+              "to": "Alvik T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Högdalen T-bana",
+              "to": "Odenplan T-bana",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Högdalen T-bana",
+              "to": "Alvik T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Högdalen T-bana",
+              "to": "Odenplan T-bana",
+              "templates": 3
+            },
+            {
+              "from": "Högdalen T-bana",
+              "to": "Åkeshov T-bana",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 8,
+          "stopNameCount": 35,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 2791
+      }
+    },
+    "tvarbanan": {
+      "trips": 1359,
+      "lines": {
+        "30": {
+          "tripTemplates": 927,
+          "terminalNames": [
+            "Alvik T-bana",
+            "Johannesfred Spårv",
+            "Norra Ulvsunda Spårv",
+            "Sickla station",
+            "Solna station",
+            "Stockholm Mårtensdal"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Solna station",
+              "to": "Sickla station",
+              "templates": 435
+            },
+            {
+              "from": "Sickla station",
+              "to": "Solna station",
+              "templates": 429
+            },
+            {
+              "from": "Johannesfred Spårv",
+              "to": "Sickla station",
+              "templates": 24
+            },
+            {
+              "from": "Sickla station",
+              "to": "Johannesfred Spårv",
+              "templates": 15
+            },
+            {
+              "from": "Norra Ulvsunda Spårv",
+              "to": "Solna station",
+              "templates": 15
+            },
+            {
+              "from": "Alvik T-bana",
+              "to": "Solna station",
+              "templates": 6
+            },
+            {
+              "from": "Stockholm Mårtensdal",
+              "to": "Solna station",
+              "templates": 3
+            }
+          ],
+          "missingReverseDirections": [
+            {
+              "from": "Alvik T-bana",
+              "to": "Solna station",
+              "templates": 6
+            },
+            {
+              "from": "Norra Ulvsunda Spårv",
+              "to": "Solna station",
+              "templates": 15
+            },
+            {
+              "from": "Stockholm Mårtensdal",
+              "to": "Solna station",
+              "templates": 3
+            }
+          ],
+          "shortTurnTerminalCount": 6,
+          "stopNameCount": 26,
+          "sourceRealOsmShapes": 2
+        },
+        "31": {
+          "tripTemplates": 432,
+          "terminalNames": [
+            "Alvik strand Spårv",
+            "Bromma flygplats"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Alvik strand Spårv",
+              "to": "Bromma flygplats",
+              "templates": 216
+            },
+            {
+              "from": "Bromma flygplats",
+              "to": "Alvik strand Spårv",
+              "templates": 216
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 6,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 1359
+      }
+    },
+    "nockeby": {
+      "trips": 684,
+      "lines": {
+        "12": {
+          "tripTemplates": 684,
+          "terminalNames": [
+            "Alvik T-bana",
+            "Nockeby Spårv"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Alvik T-bana",
+              "to": "Nockeby Spårv",
+              "templates": 342
+            },
+            {
+              "from": "Nockeby Spårv",
+              "to": "Alvik T-bana",
+              "templates": 342
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 10,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 684
+      }
+    },
+    "lidingo": {
+      "trips": 426,
+      "lines": {
+        "21": {
+          "tripTemplates": 426,
+          "terminalNames": [
+            "Gåshaga brygga station",
+            "Ropsten T-bana"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Ropsten T-bana",
+              "to": "Gåshaga brygga station",
+              "templates": 219
+            },
+            {
+              "from": "Gåshaga brygga station",
+              "to": "Ropsten T-bana",
+              "templates": 207
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 13,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 426
+      }
+    },
+    "city7": {
+      "trips": 759,
+      "lines": {
+        "7": {
+          "tripTemplates": 759,
+          "terminalNames": [
+            "Stockholm Waldemarsudde",
+            "T-Centralen Spårv"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Stockholm Waldemarsudde",
+              "to": "T-Centralen Spårv",
+              "templates": 381
+            },
+            {
+              "from": "T-Centralen Spårv",
+              "to": "Stockholm Waldemarsudde",
+              "templates": 378
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 11,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 759
+      }
+    },
+    "roslags": {
+      "trips": 1002,
+      "lines": {
+        "27": {
+          "tripTemplates": 342,
+          "terminalNames": [
+            "Kårsta station",
+            "Lindholmen station",
+            "Ormsta station",
+            "Stockholm Östra station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Ormsta station",
+              "to": "Stockholm Östra station",
+              "templates": 129
+            },
+            {
+              "from": "Stockholm Östra station",
+              "to": "Ormsta station",
+              "templates": 126
+            },
+            {
+              "from": "Kårsta station",
+              "to": "Stockholm Östra station",
+              "templates": 24
+            },
+            {
+              "from": "Stockholm Östra station",
+              "to": "Kårsta station",
+              "templates": 21
+            },
+            {
+              "from": "Lindholmen station",
+              "to": "Stockholm Östra station",
+              "templates": 21
+            },
+            {
+              "from": "Stockholm Östra station",
+              "to": "Lindholmen station",
+              "templates": 21
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 4,
+          "stopNameCount": 23,
+          "sourceRealOsmShapes": 2
+        },
+        "28": {
+          "tripTemplates": 339,
+          "terminalNames": [
+            "Stockholm Östra station",
+            "Åkersberga station",
+            "Österskär station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Österskär station",
+              "to": "Stockholm Östra station",
+              "templates": 165
+            },
+            {
+              "from": "Stockholm Östra station",
+              "to": "Österskär station",
+              "templates": 162
+            },
+            {
+              "from": "Åkersberga station",
+              "to": "Stockholm Östra station",
+              "templates": 6
+            },
+            {
+              "from": "Stockholm Östra station",
+              "to": "Åkersberga station",
+              "templates": 6
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 3,
+          "stopNameCount": 20,
+          "sourceRealOsmShapes": 2
+        },
+        "29": {
+          "tripTemplates": 321,
+          "terminalNames": [
+            "Näsbypark station",
+            "Stockholm Östra station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Näsbypark station",
+              "to": "Stockholm Östra station",
+              "templates": 162
+            },
+            {
+              "from": "Stockholm Östra station",
+              "to": "Näsbypark station",
+              "templates": 159
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 11,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 1002
+      }
+    },
+    "saltsjo": {
+      "trips": 669,
+      "lines": {
+        "25": {
+          "tripTemplates": 324,
+          "terminalNames": [
+            "Saltsjö-Järla station",
+            "Saltsjöbaden station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Saltsjöbaden station",
+              "to": "Saltsjö-Järla station",
+              "templates": 162
+            },
+            {
+              "from": "Saltsjö-Järla station",
+              "to": "Saltsjöbaden station",
+              "templates": 162
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 10,
+          "sourceRealOsmShapes": 2
+        },
+        "26": {
+          "tripTemplates": 345,
+          "terminalNames": [
+            "Igelboda station",
+            "Solsidan station"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Solsidan station",
+              "to": "Igelboda station",
+              "templates": 174
+            },
+            {
+              "from": "Igelboda station",
+              "to": "Solsidan station",
+              "templates": 171
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 5,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Storstockholms Lokaltrafik": 669
+      }
+    },
+    "arlanda": {
+      "trips": 540,
+      "lines": {
+        "AX": {
+          "tripTemplates": 540,
+          "terminalNames": [
+            "Arlanda Norra/ Arlanda Express",
+            "Stockholm Centralstation"
+          ],
+          "endpointFamilies": [
+            {
+              "from": "Stockholm Centralstation",
+              "to": "Arlanda Norra/ Arlanda Express",
+              "templates": 270
+            },
+            {
+              "from": "Arlanda Norra/ Arlanda Express",
+              "to": "Stockholm Centralstation",
+              "templates": 270
+            }
+          ],
+          "missingReverseDirections": [],
+          "shortTurnTerminalCount": 2,
+          "stopNameCount": 3,
+          "sourceRealOsmShapes": 2
+        }
+      },
+      "operatorNames": {
+        "Arlanda Express": 540
+      }
+    }
+  },
+  "structuralErrors": [],
+  "coverageWarnings": [
+    [
+      "missing_reverse_physical_origin_destination",
+      "commuter",
+      "40",
+      [
+        [
+          "Stockholm City station",
+          "Södertälje centrum station",
+          3
+        ],
+        [
+          "Tumba station",
+          "Södertälje centrum station",
+          6
+        ],
+        [
+          "Älvsjö station",
+          "Uppsala Centralstation",
+          3
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "commuter",
+      "41",
+      [
+        [
+          "Stockholm City station",
+          "Märsta station",
+          3
+        ],
+        [
+          "Älvsjö station",
+          "Stockholm City station",
+          3
+        ],
+        [
+          "Älvsjö station",
+          "Upplands Väsby station",
+          3
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "commuter",
+      "43",
+      [
+        [
+          "Bro station",
+          "Nynäshamn station",
+          6
+        ],
+        [
+          "Bro station",
+          "Västerhaninge station",
+          9
+        ],
+        [
+          "Handen station",
+          "Bro station",
+          9
+        ],
+        [
+          "Handen station",
+          "Älvsjö station",
+          12
+        ],
+        [
+          "Kungsängen station",
+          "Stockholm City station",
+          3
+        ],
+        [
+          "Nynäshamn station",
+          "Västerhaninge station",
+          3
+        ],
+        [
+          "Stockholm City station",
+          "Bålsta station",
+          3
+        ],
+        [
+          "Stockholm City station",
+          "Nynäshamn station",
+          3
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "metro",
+      "11",
+      [
+        [
+          "Hallonbergen T-bana",
+          "Kungsträdgården T-bana",
+          3
+        ],
+        [
+          "Västra Skogen T-bana",
+          "Kungsträdgården T-bana",
+          3
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "metro",
+      "13",
+      [
+        [
+          "Liljeholmen T-bana",
+          "Norsborg T-bana",
+          3
+        ],
+        [
+          "Liljeholmen T-bana",
+          "Ropsten T-bana",
+          3
+        ],
+        [
+          "Ropsten T-bana",
+          "Alby T-bana",
+          6
+        ],
+        [
+          "Sätra T-bana",
+          "Ropsten T-bana",
+          3
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "metro",
+      "14",
+      [
+        [
+          "Liljeholmen T-bana",
+          "Fruängen T-bana",
+          6
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "metro",
+      "17",
+      [
+        [
+          "Gullmarsplan T-bana",
+          "Skarpnäck T-bana",
+          3
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "metro",
+      "18",
+      [
+        [
+          "Gullmarsplan T-bana",
+          "Farsta Strand T-bana",
+          6
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "metro",
+      "19",
+      [
+        [
+          "Högdalen T-bana",
+          "Alvik T-bana",
+          3
+        ],
+        [
+          "Högdalen T-bana",
+          "Odenplan T-bana",
+          3
+        ],
+        [
+          "Högdalen T-bana",
+          "Åkeshov T-bana",
+          3
+        ]
+      ]
+    ],
+    [
+      "missing_reverse_physical_origin_destination",
+      "tvarbanan",
+      "30",
+      [
+        [
+          "Alvik T-bana",
+          "Solna station",
+          6
+        ],
+        [
+          "Norra Ulvsunda Spårv",
+          "Solna station",
+          15
+        ],
+        [
+          "Stockholm Mårtensdal",
+          "Solna station",
+          3
+        ]
+      ]
+    ]
+  ],
+  "method": "Source-anchored published local rail timetable templates: exact original stops, termini, reverse pairs, short-turns, source-labelled track geometry; do not fabricate unpublished rides",
+  "limitations": [
+    "Historical repeating simulation rather than real-time train positioning",
+    "Archived local train routes can differ from current construction-day operations",
+    "One source sample cannot establish every calendar date or exceptional short-run service"
+  ]
+}
