@@ -48,6 +48,7 @@ for(const t of added){
 const checks=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda'];
 let samples=0;
 for(const date of ['2026-11-09','2026-11-10','2026-11-11','2026-11-12','2026-11-13','2026-11-14','2026-11-15']){
+ const daySeen=new Set();
  for(let hour=0;hour<24;hour++){
   const epoch=Date.parse(date+'T'+String(hour).padStart(2,'0')+':27:00+01:00')/1000;
   const prior=activeRailTrips(base,epoch,20000);
