@@ -1,0 +1,27 @@
+name: STABLE16 Mälartåg all five corridors full historic archive audit (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable16-malartag-inventory.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/malartag-five-corridors-stable16-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Retrieve historical November 2026 GTFS Mälartåg service over seven days, all five corridors
+        run: python -u scripts/audit_malartag_seven_days.py data/malartag-five-seven-day-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stable16-malartag-all-five-real-timetable-inventory
+          path: data/malartag-five-seven-day-audit.json
+          if-no-files-found: error
