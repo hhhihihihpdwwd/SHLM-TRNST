@@ -1,0 +1,91 @@
+name: Package05 Vy Tågab full-browser release gate
+on:
+  push:
+    branches: [feature/package05-vy-tagab]
+    paths:
+      - scripts/prepare_package05_site.py
+      - tests/package05-complete.mjs
+      - tests/package05-browser-smoke.mjs
+      - .github/workflows/package05-build-test.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42999610240
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable18_artifact
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43001327452
+          artifact-ids: 13846581028
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _source_audit
+      - name: Preserve exact public STABLE18 as candidate base
+        run: |
+          mkdir -p _base
+          tar -xf _stable18_artifact/artifact.tar -C _base
+          cp -a _base _site
+      - name: Audit source records show no missing Vy or Tågab unique train variants
+        run: |
+          test -s _source_audit/data/package05-candidate.json
+          test -s _source_audit/reports/package05-audit.json
+          python -u scripts/prepare_package05_site.py _site _source_audit/data/package05-candidate.json _source_audit/reports/package05-audit.json
+      - name: Fail if any existing train, physical track, photo, train sprite or original layout changed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=Path('_base');y=Path('_site')
+          allowed={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for file in x.rglob('*'):
+           if not file.is_file():continue
+           rel=str(file.relative_to(x))
+           if rel not in allowed:assert (y/rel).read_bytes()==file.read_bytes(),('Old licensed photo or train map modified',rel)
+          a=json.loads((x/'data/rail.json').read_text());b=json.loads((y/'data/rail.json').read_text())
+          assert len(a['trips'])==len(b['trips'])==10798
+          assert len(a['shapes'])==len(b['shapes'])==107
+          assert b['trips']==a['trips'] and b['shapes']==a['shapes']
+          assert b['counts']==a['counts'] and b['scope']==a['scope']
+          assert b['package05Audit']['addedPerOperator']=={'Vy Tåg':0,'Tågab':0}
+          assert b['package05Audit']['deferredCount']==0
+          assert 'app.js?v=package05-01' in (y/'index.html').read_text()
+          assert "from './rail-data.js?v=package05-01'" in (y/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package05-01'" in (y/'src/rail-data.js').read_text()
+          print('STABLE19 SOURCE COVERAGE GREEN – ALL 16 PREVIOUS SYSTEMS 10798 ORIGINAL TRAIN RECORDS AND 107 REAL OSM SHAPES IMMUTABLE')
+          PY
+      - name: Verify every Vy and Tågab real historical stop leg and seven full days of existing 16 systems
+        run: |
+          node --check tests/package05-complete.mjs
+          node --check tests/package05-browser-smoke.mjs
+          node tests/package05-complete.mjs _base/data/rail.json _site/data/rail.json _source_audit/reports/package05-audit.json
+      - name: Browser verify actual photos, route, train markers, follow, satellite and both directions on desktop/mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tests/package05-browser-smoke.mjs
+      - name: Upload exact proven site artifact for protected main branch production deploy
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package05-audited-source-report
+          path: _source_audit/reports/package05-audit.json
