@@ -19,11 +19,13 @@ def main():
     # Historical SJ source can include several dates. Do not equate distinct
     # weekday services with the one repeated reference-day timetable.
     sj_ref={t["id"]:t for t in sj["trips"] if "2026-11-06" in t["sourceDays"]}
-    missing_sj=[t for sid,t in sj_ref.items() if sid not in published_sj]
+    legacy_sj={(tuple(s[2] for s in t["stops"]),t["stops"][0][4],t["stops"][-1][3])
+               for t in trips if t["agency"]=="SJ" and not t.get("sourceTripId")}
+    missing_sj=[t for sid,t in sj_ref.items() if sid not in published_sj and
+                (tuple(s[2] for s in t["stops"]),t["firstDeparture"],t["lastArrival"]) not in legacy_sj]
     published_vr={str(t["id"]).split(":")[1] for t in trips
                   if t["agency"]=="VR Snabbtåg" and str(t["id"]).startswith("VR-ARCHIVE:")}
-    vr_ref={str(t["id"]).split(":")[1]:t for t in vr["trips"]
-            if t.get("serviceDay")==dataset["simulationTemplateDay"]}
+    vr_ref={str(t["id"]).split(":")[1]:t for t in vr["trips"]}
     missing_vr=[t for sid,t in vr_ref.items() if sid not in published_vr]
     def compact(items):
         groups=collections.Counter((x["origin"],x["destination"]) for x in items if "origin" in x)
@@ -52,6 +54,7 @@ def main():
         "tracks":len(dataset["shapes"]),"operatorTemplateCounts":dict(by_agency),
         "sjSourceReferenceFriday":len(sj_ref),"sjPublishedSourceIds":len(published_sj),
         "sjUnmatchedSourceTrips":len(missing_sj),
+        "sjLegacyEndpointTimeFingerprints":len(legacy_sj),
         "sjUnmatchedEndpointFamilies":compact(missing_sj),
         "sjUnmatchedExamples":[{"id":t["id"],"origin":t["origin"],"destination":t["destination"]}
                                 for t in missing_sj[:30]],
