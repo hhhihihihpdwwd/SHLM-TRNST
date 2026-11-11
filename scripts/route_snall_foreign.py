@@ -35,7 +35,15 @@ def main(coverage,output,files):
   assert t['firstDeparture']<t['lastArrival']
  # Use original country OSM way node IDs, extending graph south into Germany.
  sj.LIMIT=(50.0,70.0,7.0,25.0)
- nodes,network=sj.graph([str(Path(f)) for f in files])
+ graph=sj.RailGraph()
+ for f in files:
+  p=Path(f)
+  assert p.is_file() and p.stat().st_size>100000,'Missing country/state railway=rail extract '+str(p)
+  graph.apply_file(str(p),locations=True,idx='flex_mem')
+  print('ORIGINAL CROSSBORDER GRAPH',p.name,'WAYS',graph.ways,
+   'NODES',len(graph.nodes),'EDGES',graph.edgecount,flush=True)
+ assert len(graph.nodes)>300000 and graph.edgecount>300000
+ nodes,network=graph.nodes,graph.edges
  result={'source':'Geofabrik original OSM railway=rail way-node graph in DE/DK/SE',
   'verified':{},'newShapes':{},'failures':[],'originalSource':report['source']}
  for t in sorted(missed,key=lambda x:-len(x['stops'])):
