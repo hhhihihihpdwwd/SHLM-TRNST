@@ -7,6 +7,7 @@ Exact original GTFS station sequence and speeds required or NO RELEASE.
 from pathlib import Path
 import json,sys,collections
 import route_sj_complete as sj
+import osm_railway_way_router as rail_router
 from refine_osm_routes import project_stops
 from osm_railway_way_router import dist
 
@@ -35,6 +36,7 @@ def main(coverage,output,files):
   assert t['firstDeparture']<t['lastArrival']
  # Use original country OSM way node IDs, extending graph south into Germany.
  sj.LIMIT=(50.0,70.0,7.0,25.0)
+ rail_router.MAX_NODE_VISITS=1_500_000  # full continental graph has 972k physical nodes, previous 600k cap only covered Sweden
  graph=sj.RailGraph()
  for f in files:
   p=Path(f)
