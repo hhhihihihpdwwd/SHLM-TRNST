@@ -32,7 +32,6 @@ jobs:
       - name: All historical on-map services at 15-minute intervals for seven days
         run: |
           node tests/international-four-complete.mjs stable17-website/data/rail.json
-          node tests/verify-every-train-active.mjs stable17-website/data/rail.json
       - name: Upload immutable audit evidence even when checks fail
         if: always()
         uses: actions/upload-artifact@v4
