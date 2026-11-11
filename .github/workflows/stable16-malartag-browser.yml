@@ -1,0 +1,123 @@
+name: STABLE16 complete five Mälartåg corridors and all-train Chromium gate (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable16-malartag-browser.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/malartag-five-corridors-stable16-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42851115094
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42984545907
+          name: stable16-malartag-all-five-gap-and-coverage-report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _coverage
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42985037146
+          name: stable16-malartag-40-original-osm-way-route-proof
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _tracks
+      - name: Use EXACT publicly Chromium-verified STABLE15 website package as sole base
+        run: |
+          mkdir -p _original _site
+          tar -xf _published/artifact.tar -C _original
+          tar -xf _published/artifact.tar -C _site
+      - name: Add only 168 genuine five-corridor Mälartåg departures using original connected OSM geometry and no duplicate trains
+        run: |
+          COVER="$(find _coverage -name malartag-five-coverage.json -type f -print -quit)"
+          OSM="$(find _tracks -name malartag-stockholm-uppsala-real-track.json -type f -print -quit)"
+          test -n "$COVER" && test -n "$OSM"
+          COVER="$(realpath "$COVER")"
+          OSM="$(realpath "$OSM")"
+          cd _source
+          python -m py_compile scripts/append_malartag_five.py scripts/prepare_malartag_five_site.py scripts/classify_malartag_stable15.py scripts/route_malartag_missing.py
+          python -u scripts/prepare_malartag_five_site.py . ../_site "$COVER" "$OSM"
+      - name: Hard gate preserve all 10611 original trains, 95 existing OSM railway lines and every original photo and marker
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_original');new=Path('_site')
+          allowed={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for f in old.rglob('*'):
+           if not f.is_file():continue
+           rel=str(f.relative_to(old));n=new/rel
+           assert n.is_file(),('REMOVED PRIOR FILE',rel)
+           if rel not in allowed:assert n.read_bytes()==f.read_bytes(),('MODIFIED PRIOR ASSET',rel)
+          a=json.loads((old/'data/rail.json').read_text())
+          b=json.loads((new/'data/rail.json').read_text())
+          assert b['scope']==a['scope']+'-malartag-five'
+          assert b['trips'][:10611]==a['trips'] and len(b['trips'])==10779
+          assert len(a['shapes'])==95 and len(b['shapes'])>=97
+          assert all(b['shapes'][k]==v for k,v in a['shapes'].items())
+          assert b['counts']['regional']==a['counts']['regional']+168
+          for k,v in a['counts'].items():
+           if k!='regional':assert b['counts'][k]==v,k
+          for k,v in a.items():
+           if k not in ('scope','trips','shapes','counts','malartagCorridors','malartagDirections','malartagCoverage'):
+            assert b[k]==v,k
+          added=b['trips'][10611:]
+          assert len(added)==168
+          assert len(set(t['sourceTripId'] for t in added))==168
+          assert all(t['malartagFiveVerified'] and t['agency']=='Mälartåg' and t['mode']=='regional' for t in added)
+          assert all(t['shapeId'] in b['shapes'] and t['end']>t['start'] for t in added)
+          five={'orebro-uppsala','nykoping','hallsberg','uven','gavle'}
+          assert set(b['malartagFiveCompleteCorridors'])==five
+          assert set(b['malartagDirections'])==five
+          assert all(b['malartagDirections'][c].get('forward',0)>0 and
+                     b['malartagDirections'][c].get('reverse',0)>0 for c in five)
+          assert 'app.js?v=malartag-five-01' in (new/'index.html').read_text()
+          assert "from './rail-data.js?v=malartag-five-01'" in (new/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=malartag-five-01'" in (new/'src/rail-data.js').read_text()
+          print('COMPLETE FIVE MÄLARTÅG ROUTES: ALL 10611 ORIGINAL TRAINS, 95 ORIGINAL PHYSICAL TRACKS, EVERY PHOTO AND ICON INTACT')
+          PY
+      - name: Test all 312 historic Mälartåg daily vehicles individually, both directions on all five corridors, seven days and no implausible velocities
+        run: |
+          cd _source
+          node --check src/rail-data.js
+          node --check tests/malartag-five-browser-smoke.mjs
+          node tests/malartag-five-complete.mjs ../_site/data/rail.json
+          npm test
+      - name: Install actual Chromium browser for desktop and mobile test of 16-system complete site
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify real interactive Mälartåg map displays ALL running trains with photos, markers, correct times, Follow, Satellite, and existing filters on desktop/mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node tests/malartag-five-browser-smoke.mjs
+      - name: Save EXACT complete candidate, never deploy unverified five-corridor update
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable16-five-malartag-chromium-approved
+          path: _site/
+          if-no-files-found: error
