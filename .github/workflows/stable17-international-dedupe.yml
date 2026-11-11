@@ -1,0 +1,53 @@
+name: STABLE17 compare every authentic international service with previous 16-system railway (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-international-dedupe.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/international-four-operators-stable17-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42986423014
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _previous
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42988644713
+          name: stable17-all-four-operators-historic-inventory
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _sourcearchive
+      - name: Unpack exact publicly proven STABLE16 release
+        run: |
+          mkdir -p _stable
+          tar -xf _previous/artifact.tar -C _stable
+      - name: Compare each original train stopping time and international through service against already published trains
+        run: |
+          SOURCE="$(find _sourcearchive -name international-four-operator-history.json -type f -print -quit)"
+          RDC="$(find _sourcearchive -name rdc-official-historical.json -type f -print -quit)"
+          test -n "$SOURCE" && test -n "$RDC"
+          SOURCE="$(realpath "$SOURCE")";RDC="$(realpath "$RDC")"
+          cd _source
+          python -u scripts/compare_international_stable16.py ../_stable/data/rail.json "$SOURCE" "$RDC" ../international-four-coverage.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stable17-four-operator-exact-source-coverage
+          path: international-four-coverage.json
+          if-no-files-found: error
