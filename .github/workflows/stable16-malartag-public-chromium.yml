@@ -1,0 +1,68 @@
+name: Verify PUBLIC five-corridor Mälartåg STABLE16 site in Chromium desktop mobile
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable16-malartag-public-chromium.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 42
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5f9e0f0a96111367fa82944b9ca770d834abb517
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42986170651
+          name: stable16-five-malartag-chromium-approved
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Require actual public GitHub Pages to serve STABLE16 new cache-versioned five-corridor data
+        run: |
+          for i in $(seq 1 85);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?malartag-five-live-check=01' | grep -Fq 'app.js?v=malartag-five-01';then
+              echo 'FIVE-CORRIDOR MÄLARTÅG RELEASE IS ACTUALLY ONLINE';break
+            fi
+            if [ "$i" = 85 ];then echo 'STABLE16 IS NOT PUBLIC YET';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=malartag-five-01' | grep -Fq 'malartag-five'
+      - name: Install real Chromium
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify PUBLIC train map with all 5 Mälartåg rail corridors, all active markers, real photos, zoom, follow and satellite desktop/mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          node tests/malartag-five-browser-smoke.mjs
+      - name: Verify ACTUAL PUBLIC timetable contains 168 new trains and no lost existing systems
+        run: |
+          curl -fLsS --max-time 45 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=malartag-five-01' -o /tmp/rail-live.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/rail-live.json'))
+          assert len(d['trips'])==10779 and len(d['shapes'])==101
+          assert d['malartagFiveDailyNew']==168
+          assert len([t for t in d['trips'] if t['agency']=='Mälartåg' and t['serviceDay']==d['simulationTemplateDay']])==312
+          assert sum(t['agency']=='Tågab' for t in d['trips'])==16
+          assert sum(t['agency']=='Vy Tåg' for t in d['trips'])==10
+          assert sum(t['agency']=='RDC EuroNight' for t in d['trips'])==4
+          print('PUBLIC FIVE MÄLARTÅG CORRIDORS LIVE: ALL 10779 HISTORIC RECORDS AND 101 REAL TRACK GEOMETRIES VERIFIED')
+          PY
+      - name: Check EVERY public Mälartåg train on four days and both route directions
+        run: |
+          cd _source
+          node tests/malartag-five-complete.mjs /tmp/rail-live.json
