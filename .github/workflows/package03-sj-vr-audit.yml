@@ -1,0 +1,45 @@
+name: Package 03 - SJ VR network evidence and seven-day runtime audit
+on:
+  push:
+    branches: [feature/package03-sj-vr-network-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read-only checkout of frozen STABLE17 published website
+        uses: actions/checkout@v4
+        with:
+          ref: archive/stable17-website
+          path: stable17-website
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Exact historical SJ operator survey, November 4-10
+        run: python -u scripts/audit_all_sj_2026.py /tmp/sj-source-audit.json
+      - name: Exact historical VR Friday service survey
+        run: python -u scripts/build_vr_candidates.py 2026-11-06
+      - name: Full network source and structural audit
+        run: |
+          python -u scripts/audit_package03_sj_vr.py stable17-website/data/rail.json /tmp/sj-source-audit.json data/vr_candidates.json reports/package03-sj-vr.json
+      - name: All historical on-map services at 15-minute intervals for seven days
+        run: |
+          node tests/international-four-complete.mjs stable17-website/data/rail.json
+          node tests/verify-every-train-active.mjs stable17-website/data/rail.json
+      - name: Upload immutable audit evidence even when checks fail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package03-sj-vr-evidence
+          if-no-files-found: warn
+          path: |
+            reports/package03-sj-vr.json
+            /tmp/sj-source-audit.json
+          retention-days: 14
