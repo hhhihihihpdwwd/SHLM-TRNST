@@ -1,0 +1,85 @@
+name: Package06 official 2026 RDC autumn five-variant browser release gate
+on:
+  push:
+    branches: [feature/package06-rdc-autumn]
+    paths:
+      - scripts/integrate_package06.py
+      - scripts/prepare_package06_site.py
+      - tests/package06-complete.mjs
+      - tests/package06-browser-smoke.mjs
+      - .github/workflows/package06-build-test.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43001958175
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _source_artifact
+      - name: Extract exact public stable 19 and clone unchanged baseline
+        run: |
+          mkdir -p _base
+          tar -xf _source_artifact/artifact.tar -C _base
+          cp -a _base _site
+      - name: Correct original EN345 autumn 2026 timetable and physically verify ALL 5 variants
+        run: |
+          python -m py_compile scripts/diagnose_package06.py scripts/integrate_package06.py scripts/prepare_package06_site.py
+          python -u scripts/prepare_package06_site.py _site
+      - name: Guard entire 16-system rail website against any unapproved changes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path('_base');site=Path('_site')
+          allowed={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for f in base.rglob('*'):
+           if not f.is_file():continue
+           p=str(f.relative_to(base))
+           if p not in allowed:assert (site/p).read_bytes()==f.read_bytes(),('Original photos or tracks modified',p)
+          a=json.loads((base/'data/rail.json').read_text())
+          b=json.loads((site/'data/rail.json').read_text())
+          assert len(a['trips'])==10798 and len(b['trips'])==10799
+          assert len(a['shapes'])==len(b['shapes'])==107
+          assert a['shapes']==b['shapes']
+          assert [t for t in a['trips'] if t['agency']!='RDC EuroNight']==[t for t in b['trips'] if t['agency']!='RDC EuroNight']
+          assert b['scope']==a['scope'] and b['package05Audit']==a['package05Audit']
+          assert sum(t['agency']=='RDC EuroNight' for t in b['trips'])==5
+          assert b['package06Audit']['correctedAutumnEn345']==2
+          assert b['package06Audit']['addedAutumnSaturdayVariant']==1
+          assert 'app.js?v=package06-01' in (site/'index.html').read_text()
+          assert "from './rail-data.js?v=package06-01'" in (site/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package06-01'" in (site/'src/rail-data.js').read_text()
+          assert "source.package06Variant" in (site/'src/rail-data.js').read_text()
+          print('PACKAGE06 GUARANTEED NON-RDC RAIL NETWORK AND ALL PREVIOUS LICENSED ASSETS UNCHANGED')
+          PY
+      - name: Check all five official 2026 EuroNight variants plus 16 original operator systems at 168 hourly samples
+        run: |
+          node --check tests/package06-complete.mjs
+          node --check tests/package06-browser-smoke.mjs
+          node tests/package06-complete.mjs _base/data/rail.json _site/data/rail.json
+      - name: Real desktop and mobile Chromium for RDC original train photo sprites, movements, variant display, satellite and follow
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tests/package06-browser-smoke.mjs
+      - name: Upload immutable green exact website artifact for controlled production deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
