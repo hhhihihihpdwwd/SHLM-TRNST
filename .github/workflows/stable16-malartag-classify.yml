@@ -46,4 +46,4 @@ jobs:
         with:
           name: stable16-malartag-all-five-gap-and-coverage-report
           path: malartag-five-coverage.json
-          if-no-files-found: warn
+          if-no-files-found: error
