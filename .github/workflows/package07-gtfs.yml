@@ -1,0 +1,35 @@
+name: Package07 independent historical SL rail reverse services evidence
+on:
+  push:
+    branches: [feature/package07-local-final-audit]
+    paths:
+      - scripts/audit_package07_gtfs.py
+      - .github/workflows/package07-gtfs.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43004406465
+          name: package07-local-branch-audit
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _first_inventory
+      - name: Compare missing short-turn return directions with actual original seven-day SL GTFS records
+        run: |
+          python -u scripts/audit_package07_gtfs.py _first_inventory/reports/package07-local-inventory.json reports/package07-source-direction-crosscheck.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package07-original-SL-direction-evidence
+          path: reports/package07-source-direction-crosscheck.json
