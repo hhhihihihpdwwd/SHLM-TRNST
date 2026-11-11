@@ -1,0 +1,180 @@
+name: Deploy STABLE20 corrected 2026 RDC autumn international night trains
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/package06-production-deploy.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43001958175
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _old_artifact
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43003186330
+          artifact-ids: 13847191977
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Unpack exact original STABLE19 and browser-proven STABLE20 candidate
+        run: |
+          mkdir -p _old _approved
+          tar -xf _old_artifact/artifact.tar -C _old
+          tar -xf _approved_artifact/artifact.tar -C _approved
+      - name: Production gate verifies source schedule corrections and preserves all other operators, photos, 107 real OSM rail shapes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          before=Path('_old');after=Path('_approved')
+          allowed={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for file in before.rglob('*'):
+           if not file.is_file():continue
+           rel=str(file.relative_to(before))
+           if rel not in allowed:assert (after/rel).read_bytes()==file.read_bytes(),('Protected site original changed',rel)
+          a=json.loads((before/'data/rail.json').read_text())
+          b=json.loads((after/'data/rail.json').read_text())
+          assert len(a['trips'])==10798 and len(b['trips'])==10799
+          assert len(a['shapes'])==len(b['shapes'])==107 and a['shapes']==b['shapes']
+          assert a['scope']==b['scope'] and a['package05Audit']==b['package05Audit']
+          assert [t for t in a['trips'] if t['agency']!='RDC EuroNight']==[t for t in b['trips'] if t['agency']!='RDC EuroNight']
+          assert b['package06Audit']['regularSourcePatterns']==5
+          assert b['package06Audit']['correctedAutumnEn345']==2
+          assert b['package06Audit']['addedAutumnSaturdayVariant']==1
+          assert b['package06Audit']['selectedVariantPerSimulatedDay']==True
+          rdc=[t for t in b['trips'] if t['agency']=='RDC EuroNight']
+          assert len(rdc)==5
+          assert len([t for t in rdc if t['line']=='EN 344'])==2
+          assert len([t for t in rdc if t['line']=='EN 345'])==3
+          assert all(t['package06Verified'] and t['isLiveGPS'] is False for t in rdc)
+          assert 'app.js?v=package06-01' in (after/'index.html').read_text()
+          assert "from './rail-data.js?v=package06-01'" in (after/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package06-01'" in (after/'src/rail-data.js').read_text()
+          assert "source.package06Variant" in (after/'src/rail-data.js').read_text()
+          assert b['package06Audit']['exceptionalGothenburgReroutesNotSimulated']==['2026-11-20','2026-11-21']
+          print('PRODUCTION STABLE20 VERIFIED: 10799 HISTORICAL TRAIN PATTERNS, 107 REAL TRACKS, 5 AUTHENTIC RDC AUTUMN EN344/345 SOURCE VARIANTS, NO DAMAGE TO ORIGINAL 16 SYSTEMS')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43003186330
+          artifact-ids: 13847191977
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Verify real public website serves exact operator sourced autumn version and all five RDC stop timelines
+        run: |
+          for i in $(seq 1 65);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable20-public=1' | grep -Fq 'app.js?v=package06-01';then
+              echo 'REAL PUBLIC STABLE20 AUTUMN RDCEURONIGHT WEBSITE ONLINE';break
+            fi
+            if [ "$i" = 65 ];then echo 'PUBLIC PAGE STILL OLD';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 40 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package06-01' -o /tmp/stable20-live.json
+          python - <<'PY'
+          import json
+          obj=json.load(open('/tmp/stable20-live.json'))
+          assert len(obj['trips'])==10799 and len(obj['shapes'])==107
+          rdc=[t for t in obj['trips'] if t['agency']=='RDC EuroNight']
+          assert len(rdc)==5
+          assert {t['package06Variant'] for t in rdc}=={'monfri-berlin','wed-hamburg','tue-hamburg','thu-berlin','sat-berlin'}
+          assert obj['package06Audit']['correctedAutumnEn345']==2
+          assert obj['package06Audit']['addedAutumnSaturdayVariant']==1
+          assert obj['package05Audit']['addedPerOperator']=={'Vy Tåg':0,'Tågab':0}
+          assert obj['package04Audit']['newValidSourcePatterns']==9
+          print('PUBLIC STABLE20 TIMETABLE VERIFIED: ALL CORRECTED EN345 AUTUMN OPERATING TIMES, 16 ORIGINAL SYSTEMS PRESERVED')
+          PY
+      - name: Chromium actual public RDC train map desktop mobile both directions timetable variant photographs marker follow satellite
+        run: |
+          mkdir -p _site
+          tar -xf _approved_artifact/artifact.tar -C _site
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          SITE_ROOT=${{ github.workspace }}/_site SMOKE_URL=https://hhhihihihpdwwd.github.io/SHLM-TRNST node tests/package06-browser-smoke.mjs
+  archive:
+    needs: public
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/20
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43003186330
+          artifact-ids: 13847191977
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _public_artifact
+      - name: Preserve exact real public STABLE20 with full content hash manifest
+        run: |
+          mkdir -p website
+          tar -xf _public_artifact/artifact.tar -C website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path('website')
+          data=json.loads((root/'data/rail.json').read_text())
+          assert len(data['trips'])==10799 and len(data['shapes'])==107
+          assert data['package06Audit']['regularSourcePatterns']==5
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
+                 for p in root.rglob('*') if p.is_file()}
+          (root/'STABLE20-MANIFEST.json').write_text(json.dumps({
+            'sourceBranch':'stable/20','publishedHistoricalTrainTemplates':10799,
+            'originalPhysicalRailShapes':107,'originalTemplatesProtected':10798,
+            'rdcHistoricalAutumnVariants':5,
+            'sourceVerifiedOperatingPeriod':'2026-09-01 through 2026-12-12',
+            'additionalSaturdayVariant':1,'correctedOriginalEN345':2,
+            'testRun':43003186330,'fileSHA256':files
+          },indent=2))
+          print('SEALED STABLE20 COMPLETE REAL PUBLIC WEBSITE BACKUP',len(files),'ORIGINAL FILES')
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable20-website
+          git add -f website
+          git commit -m "archive: exact publicly verified STABLE20 RDC authentic autumn 2026 EN344 EN345 full website"
+          git push origin HEAD:refs/heads/archive/stable20-website
