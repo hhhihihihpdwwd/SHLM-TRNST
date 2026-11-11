@@ -105,8 +105,8 @@ def reconcile(base,records):
  real_shapes={}
  for t in base['trips']:
   if t['agency'] not in OPERATORS:continue
-  if t.get('geometryQuality') in ('verified-osm-rail-ways','verified-osm-relation') and
-     t.get('osmWayNetwork') is True and t['shapeId'] in base['shapes']:
+  if (t.get('geometryQuality') in ('verified-osm-rail-ways','verified-osm-relation') and
+     t.get('osmWayNetwork') is True and t['shapeId'] in base['shapes']):
    real_shapes[t['shapeId']]=base['shapes'][t['shapeId']]
  # Also allow verified connected SJ/Mälartåg railway-way geometries when a
  # genuine Tågab service shares their exact physical route.
