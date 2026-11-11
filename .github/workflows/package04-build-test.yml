@@ -1,0 +1,82 @@
+name: Package04 verified VR nine-pattern Chromium release gate
+on:
+  push:
+    branches: [feature/package04-vr-complete]
+    paths:
+      - scripts/audit_package04_vr.py
+      - scripts/prepare_package04_site.py
+      - tests/package04-complete.mjs
+      - tests/package04-browser-smoke.mjs
+      - .github/workflows/package04-build-test.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42996856688
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _original
+      - name: Extract exact public Package03 baseline and clone without changes to prior assets
+        run: |
+          mkdir -p _base
+          tar -xf _original/artifact.tar -C _base
+          cp -a _base _site
+      - name: Build authenticated seven-day VR historical candidate with verified physical OSM
+        run: |
+          python -u scripts/prepare_package04_site.py _site reports/package04-final.json
+      - name: Protect all old trains and images and enforce exactly 9 new real historic VR patterns
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          a=Path('_base');b=Path('_site')
+          allowed={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for old in a.rglob('*'):
+           if not old.is_file():continue
+           rel=str(old.relative_to(a))
+           if rel not in allowed:assert (b/rel).read_bytes()==old.read_bytes(),('Regression in prior images or map',rel)
+          o=json.loads((a/'data/rail.json').read_text());n=json.loads((b/'data/rail.json').read_text())
+          assert len(o['trips'])==10789 and len(n['trips'])==10798
+          assert n['trips'][:10789]==o['trips'] and n['shapes']==o['shapes']
+          assert len(n['shapes'])==107
+          assert sum(t.get('package04Verified',False) for t in n['trips'])==9
+          assert all(t.get('osmWayNetwork') is True and t.get('isLiveGPS') is False for t in n['trips'][10789:])
+          assert 'app.js?v=package04-01' in (b/'index.html').read_text()
+          assert "from './rail-data.js?v=package04-01'" in (b/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package04-01'" in (b/'src/rail-data.js').read_text()
+          print('PACKAGE04 9 NEW SOURCE-VERIFIED VR TRAIN VARIANTS / 10789 ORIGINAL TRAINS AND ALL 107 ORIGINAL OSM TRACKS INTACT')
+          PY
+      - name: Full historic VR individual-leg motion checks and previous 16-system seven-day regression
+        run: |
+          node --check tests/package04-complete.mjs
+          node --check tests/package04-browser-smoke.mjs
+          node tests/package04-complete.mjs _base/data/rail.json _site/data/rail.json reports/package04-final.json
+      - name: Chromium desktop and mobile for both VR directions
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          SITE_ROOT=${{ github.workspace }}/_site node tests/package04-browser-smoke.mjs
+      - name: Upload exact green website release artifact for main production deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package04-vr-evidence
+          path: reports/package04-final.json
