@@ -1,0 +1,98 @@
+name: STABLE17 original Germany Denmark Sweden connected OSM night-train tracks (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-snall-crossborder-rail.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  international:
+    runs-on: ubuntu-latest
+    timeout-minutes: 115
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/international-four-operators-stable17-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42989771190
+          name: stable17-snall-deduplicated-physical-service-and-real-rail-gap-audit
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _cover
+      - uses: actions/cache/restore@v4
+        id: sweden-cache
+        with:
+          path: _rail
+          key: sj-full-network-geofabrik-20261110-01
+      - uses: actions/cache/restore@v4
+        id: cross-cache
+        with:
+          path: _crossrail
+          key: stable17-snall-connected-de-dk-rail-20261111-01
+      - name: Download authentic Geofabrik German states and Denmark original PBF, filter only railway=rail and its actual way nodes
+        if: steps.cross-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          mkdir -p _crossrail
+          cat > /tmp/regions.txt <<'EOF'
+          denmark https://download.geofabrik.de/europe/denmark-latest.osm.pbf
+          brandenburg https://download.geofabrik.de/europe/germany/brandenburg-latest.osm.pbf
+          mecklenburg-vorpommern https://download.geofabrik.de/europe/germany/mecklenburg-vorpommern-latest.osm.pbf
+          schleswig-holstein https://download.geofabrik.de/europe/germany/schleswig-holstein-latest.osm.pbf
+          hamburg https://download.geofabrik.de/europe/germany/hamburg-latest.osm.pbf
+          niedersachsen https://download.geofabrik.de/europe/germany/niedersachsen-latest.osm.pbf
+          sachsen https://download.geofabrik.de/europe/germany/sachsen-latest.osm.pbf
+          sachsen-anhalt https://download.geofabrik.de/europe/germany/sachsen-anhalt-latest.osm.pbf
+          EOF
+          cat /tmp/regions.txt | xargs -P 4 -n 2 bash -c '
+            set -euo pipefail
+            region="$0"; uri="$1"
+            echo "ORIGINAL OSM TRAIN ROUTE INPUT $region"
+            curl -fL --retry 3 --retry-delay 8 --connect-timeout 40 --max-time 1700 "$uri" -o "/tmp/$region-original.osm.pbf"
+            test "$(stat -c%s "/tmp/$region-original.osm.pbf")" -gt 10000000
+            osmium tags-filter "/tmp/$region-original.osm.pbf" w/railway=rail -o "_crossrail/$region-rail.osm.pbf" --overwrite
+            test "$(stat -c%s "_crossrail/$region-rail.osm.pbf")" -gt 200000
+            rm "/tmp/$region-original.osm.pbf"
+            echo "AUTHENTIC DE DK WAY NODES SAVED $region"
+          '
+          test "$(find _crossrail -type f -name '*-rail.osm.pbf' | wc -l)" -eq 8
+          du -h _crossrail/*.osm.pbf
+      - name: Cache all exact original German and Danish railway-only way-node extracts
+        if: steps.cross-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: _crossrail
+          key: stable17-snall-connected-de-dk-rail-20261111-01
+      - name: Get original Sweden railway way-node PBF if previously cached file unavailable
+        if: steps.sweden-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          mkdir -p _rail
+          curl -fLsS --retry 3 --max-time 1600 https://download.geofabrik.de/europe/sweden-latest.osm.pbf -o /tmp/sweden-original.osm.pbf
+          osmium tags-filter /tmp/sweden-original.osm.pbf w/railway=rail -o _rail/sweden-rail.osm.pbf --overwrite
+      - name: Reconstruct physically connected Berlin Hbf Copenhagen Dresden and Stockholm rail tracks for all missing GTFS variants
+        run: |
+          python -m pip install osmium
+          COVER="$(find _cover -name snall-new-rail-gaps.json -type f -print -quit)"
+          test -n "$COVER"
+          COVER="$(realpath "$COVER")"
+          test -s _rail/sweden-rail.osm.pbf
+          cd _source
+          python -u scripts/route_snall_foreign.py "$COVER" ../snall-all-de-dk-se-physical-osm.json \
+            ../_rail/sweden-rail.osm.pbf ../_crossrail/*-rail.osm.pbf
+      - name: Retain complete real actual German-Danish-Swedish track audit and never deploy unverified services
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable17-snall-original-germany-denmark-sweden-rail-proof
+          path: snall-all-de-dk-se-physical-osm.json
+          if-no-files-found: warn
