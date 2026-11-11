@@ -57,7 +57,7 @@ for(const day of audit.days){
    if(!sourceKeys.has(sourceId))audit.dataCheck.orphanIds.push({stamp,id:t.id});
    const p=railAt(t,epoch);
    if(!Array.isArray(p.pos)||p.pos.length!==2||p.pos.some(x=>!Number.isFinite(x))||
-      p.pos[0]<52||p.pos[0]>71||p.pos[1]<8||p.pos[1]>25)
+      p.pos[0]<47||p.pos[0]>71||p.pos[1]<5||p.pos[1]>25)
     audit.dataCheck.invalidCoordinates.push({stamp,id:t.id,pos:p.pos});
    if(!Number.isFinite(p.kmh)||p.kmh<0||p.kmh>250)audit.dataCheck.negativeSpeed.push({stamp,id:t.id,kmh:p.kmh});
    if(!Number.isInteger(p.next)||p.next<0||p.next>=t.stops.length)
