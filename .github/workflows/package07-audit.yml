@@ -1,0 +1,37 @@
+name: Package07 Stockholm local-rail all systems terminus and branch census
+on:
+  push:
+    branches: [feature/package07-local-final-audit]
+    paths:
+      - scripts/audit_package07_local.py
+      - .github/workflows/package07-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43003462390
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable20
+      - name: Extract actual published STABLE20 data and inspect ALL Stockholm local rail lines, termini and reverse journeys
+        run: |
+          mkdir -p _live
+          tar -xf _stable20/artifact.tar -C _live
+          python -u scripts/audit_package07_local.py _live/data/rail.json reports/package07-local-inventory.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package07-local-branch-audit
+          path: reports/package07-local-inventory.json
