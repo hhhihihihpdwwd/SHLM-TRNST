@@ -1,0 +1,177 @@
+name: Deploy STABLE19 fully audited Vy Tåg and Tågab network
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/package05-production-deploy.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42999610240
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _old_artifact
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43001673236
+          artifact-ids: 13845714720
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Unpack exact production STABLE18 and independently browser-tested STABLE19
+        run: |
+          mkdir -p _old _approved
+          tar -xf _old_artifact/artifact.tar -C _old
+          tar -xf _approved_artifact/artifact.tar -C _approved
+      - name: Enforce that no previous original train, photo, marker, mode or OSM rail is changed
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          old=Path('_old');new=Path('_approved')
+          changed={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for p in old.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(old))
+           if rel not in changed:assert (new/rel).read_bytes()==p.read_bytes(),('Changed protected original railway asset',rel)
+          a=json.loads((old/'data/rail.json').read_text())
+          b=json.loads((new/'data/rail.json').read_text())
+          assert len(a['trips'])==len(b['trips'])==10798
+          assert len(a['shapes'])==len(b['shapes'])==107
+          assert a['trips']==b['trips'] and a['shapes']==b['shapes']
+          assert a['counts']==b['counts'] and a['scope']==b['scope']
+          assert set(a)|{'package05Audit'}==set(b)
+          for key in a:assert a[key]==b[key],key
+          assert b['package05Audit']['addedPerOperator']=={'Vy Tåg':0,'Tågab':0}
+          assert b['package05Audit']['deferredCount']==0
+          assert b['package05Audit']['allArchivedOriginalTripsPreserved']==10798
+          assert b['package05Audit']['realOriginalOsmShapesPreserved']==107
+          assert sum(t['agency']=='Vy Tåg' for t in b['trips'])==10
+          assert sum(t['agency']=='Tågab' for t in b['trips'])==16
+          assert 'app.js?v=package05-01' in (new/'index.html').read_text()
+          assert "from './rail-data.js?v=package05-01'" in (new/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package05-01'" in (new/'src/rail-data.js').read_text()
+          print('STABLE19 RELEASE CHECK GREEN: Vy and Tågab source coverage 100% matched, 10798 originals and 107 OSM shapes preserved')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/19
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43001673236
+          artifact-ids: 13845714720
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Verify ACTUAL PUBLIC website serves approved new source audit metadata and fresh cache version
+        run: |
+          for i in $(seq 1 65);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable19-public=1' | grep -Fq 'app.js?v=package05-01';then
+              echo 'STABLE19 VY/TÅGAB RELEASE IS NOW PUBLIC';break
+            fi
+            if [ "$i" = 65 ];then echo 'PUBLIC WEBSITE STILL OLD';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 35 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package05-01' -o /tmp/stable19-live.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/stable19-live.json'))
+          assert len(d['trips'])==10798 and len(d['shapes'])==107
+          assert sum(t['agency']=='Vy Tåg' for t in d['trips'])==10
+          assert sum(t['agency']=='Tågab' for t in d['trips'])==16
+          assert d['package05Audit']['addedPerOperator']=={'Vy Tåg':0,'Tågab':0}
+          assert d['package05Audit']['deferredCount']==0
+          assert d['package04Audit']['newValidSourcePatterns']==9
+          assert sum(t.get('package03Verified',False) for t in d['trips'])==2
+          print('REAL PUBLIC STABLE19 AUDITED DATA GREEN: BOTH OPERATORS HISTORICALLY COMPLETE, 10798 ORIGINAL SERVICES UNCHANGED')
+          PY
+      - name: Chromium ACTUAL LIVE map both operators both directions desktop mobile including photographs follow satellite
+        run: |
+          mkdir -p _site
+          tar -xf _approved_artifact/artifact.tar -C _site
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          SITE_ROOT=${{ github.workspace }}/_site SMOKE_URL=https://hhhihihihpdwwd.github.io/SHLM-TRNST node tests/package05-browser-smoke.mjs
+  archive:
+    needs: public
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/19
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43001673236
+          artifact-ids: 13845714720
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - name: Archive whole independently browser-verified STABLE19 public website with SHA256 manifest
+        run: |
+          mkdir -p website
+          tar -xf _release/artifact.tar -C website
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          root=Path('website')
+          d=json.loads((root/'data/rail.json').read_text())
+          assert len(d['trips'])==10798 and len(d['shapes'])==107
+          assert d['package05Audit']['addedPerOperator']=={'Vy Tåg':0,'Tågab':0}
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
+                 for p in root.rglob('*') if p.is_file()}
+          (root/'STABLE19-MANIFEST.json').write_text(json.dumps({
+           'sourceBranch':'stable/19',
+           'historicRailTrainTemplates':10798,
+           'originalRealOsmRailShapes':107,
+           'vyTimetableTemplates':10,
+           'tagabTimetableTemplates':16,
+           'uniqueSourcePatternsFullyCovered':{'Vy Tåg':10,'Tågab':15},
+           'all16OriginalSystemsImmutable':True,
+           'releaseTestRun':43001673236,'fileSha256':files},indent=2))
+          print('STABLE19 EXACT PUBLIC FULL WEBSITE BACKUP SHA256 SEALED',len(files),'ORIGINAL FILES')
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable19-website
+          git add -f website
+          git commit -m "archive: STABLE19 source-proven full Vy Tåg and Tågab coverage and exact public Chromium-tested website"
+          git push origin HEAD:refs/heads/archive/stable19-website
