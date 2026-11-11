@@ -11,14 +11,15 @@ from build_malartag_candidates import CORRIDORS,contains_station
 from append_malartag import direction_of
 from refine_osm_routes import project_stops
 
-TEMPLATE='2026-11-10'
+SOURCE_DAY='2026-11-10'
 NEW_SCOPE_SUFFIX='-malartag-five'
 def integrate(base,coverage,verified):
  assert len(base['trips'])==10611 and len(base['shapes'])==95
  assert base['scope'].endswith('-snalltaget-vy-tagab-rdc-sj-complete')
  assert base['type']=='historical-daily-repeating-simulation'
- assert base['simulationTemplateDay']==TEMPLATE,(base['simulationTemplateDay'],TEMPLATE)
- assert coverage['referenceDay']==TEMPLATE
+ template=base['simulationTemplateDay']
+ assert template=='2026-11-09',template
+ assert coverage['referenceDay']==SOURCE_DAY
  assert len(coverage['candidates'])==308
  already={x['id'] for x in coverage['already']}
  assert len(already)==140
@@ -41,7 +42,7 @@ def integrate(base,coverage,verified):
  observed={t['shapeId']:t for t in base['trips'] if t.get('shapeId') in base['shapes']}
  reverses={}
  included=[]
- epoch=dt.datetime.combine(dt.date.fromisoformat(TEMPLATE),dt.time(),ZoneInfo('Europe/Stockholm'))
+ epoch=dt.datetime.combine(dt.date.fromisoformat(template),dt.time(),ZoneInfo('Europe/Stockholm'))
  for r in newrows:
   ref=real[r['id']];sid=ref['shapeId']
   assert sid in result['shapes'],('Unproven existing railway shape',sid)
@@ -79,10 +80,10 @@ def integrate(base,coverage,verified):
    'id':'MALARTAG-FIVE-20261110:'+r['id'],'mode':'regional','agency':'Mälartåg',
    'line':r['corridor'],'corridor':r['corridor'],
    'routeName':r['routeName'],'destination':r['destination'],'train':r['train'],
-   'serviceDay':TEMPLATE,'start':int((epoch+dt.timedelta(seconds=begin)).timestamp()),
+   'serviceDay':template,'start':int((epoch+dt.timedelta(seconds=begin)).timestamp()),
    'end':int((epoch+dt.timedelta(seconds=end)).timestamp()),'stops':r['stops'],
    'shapeId':sid,'geometryQuality':quality,'osmWayNetwork':way_network,
-   'direction':dr,'osmRelation':relation,'archiveDay':TEMPLATE,
+   'direction':dr,'osmRelation':relation,'archiveDay':SOURCE_DAY,
    'sourceDays':r['sourceDays'],'source':'GTFS Sverige 2 historical November 2026 original Mälartåg 313',
    'isLiveGPS':False,'vehicleModel':'Mälartåg ER1 typical (actual rolling stock not trip-confirmed)',
    'vehiclePhotoStatus':'approved-model-reference',
