@@ -1,0 +1,58 @@
+name: STABLE17 identify genuine Snälltåget foreign extensions and reuse real rails (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-snall-extension-audit.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/international-four-operators-stable17-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42986423014
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _previous
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42988644713
+          name: stable17-all-four-operators-historic-inventory
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _inventory
+      - name: Restore exact public STABLE16; never touch protected original
+        run: |
+          mkdir -p _stable
+          tar -xf _previous/artifact.tar -C _stable
+      - name: Deduplicate historic GTFS to physical train rather than every interchangeable day-of-week source
+        run: |
+          ARCHIVE="$(find _inventory -name international-four-operator-history.json -type f -print -quit)"
+          test -n "$ARCHIVE"
+          ARCHIVE="$(realpath "$ARCHIVE")"
+          cd _source
+          python -m py_compile scripts/plan_snall_international.py scripts/match_snall_existing_rail.py
+          python -u scripts/plan_snall_international.py ../_stable/data/rail.json "$ARCHIVE" ../snall-physical-plan.json
+      - name: Identify genuinely missing OSM rail geometry, use older physically authenticated German-Danish night tracks where possible
+        run: |
+          cd _source
+          python -u scripts/match_snall_existing_rail.py ../_stable/data/rail.json ../snall-physical-plan.json ../snall-new-rail-gaps.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stable17-snall-deduplicated-physical-service-and-real-rail-gap-audit
+          path: |
+            snall-physical-plan.json
+            snall-new-rail-gaps.json
+          if-no-files-found: error
