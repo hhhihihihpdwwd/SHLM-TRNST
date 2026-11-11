@@ -1,0 +1,121 @@
+name: STABLE17 complete four international operators, authentic European rails and Chromium release gate (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-international-browser.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 57
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/international-four-operators-stable17-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42986423014
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _original_archive
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42989771190
+          artifact-ids: 13841740840
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _source_plans
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42990170339
+          artifact-ids: 13841826984
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _crossborder_proven
+      - name: Unpack exact published STABLE16 site (do not modify originals)
+        run: |
+          mkdir -p _baseline _site
+          tar -xf _original_archive/artifact.tar -C _baseline
+          tar -xf _original_archive/artifact.tar -C _site
+      - name: Apply only eight original-GTFS source verified non-overlapping German-Danish-Swedish rail extensions as one isolated release
+        run: |
+          PLAN="$(find _source_plans -name snall-physical-plan.json -type f -print -quit)"
+          GAP="$(find _source_plans -name snall-new-rail-gaps.json -type f -print -quit)"
+          RAIL="$(find _crossborder_proven -name snall-all-de-dk-se-physical-osm.json -type f -print -quit)"
+          test -n "$PLAN" && test -n "$GAP" && test -n "$RAIL"
+          PLAN="$(realpath "$PLAN")";GAP="$(realpath "$GAP")";RAIL="$(realpath "$RAIL")"
+          cd _source
+          python -m py_compile scripts/append_international_four.py scripts/prepare_international_four_site.py
+          python -u scripts/prepare_international_four_site.py . ../_site "$PLAN" "$GAP" "$RAIL"
+      - name: Prove literally every old public photo, existing train icon, station and 10779 original historical train timetables protected
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_baseline');new=Path('_site')
+          allow={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for f in old.rglob('*'):
+           if not f.is_file():continue
+           rel=str(f.relative_to(old));n=new/rel
+           assert n.is_file(),('OLD TRAIN ICON/FILE DELETED',rel)
+           if rel not in allow:assert n.read_bytes()==f.read_bytes(),('UNAUTHORIZED CHANGE TO OLD FILE',rel)
+          a=json.loads((old/'data/rail.json').read_text());b=json.loads((new/'data/rail.json').read_text())
+          assert len(a['trips'])==10779 and len(b['trips'])==10787
+          assert len(a['shapes'])==101 and len(b['shapes'])>=104
+          assert b['trips'][:10779]==a['trips']
+          assert all(b['shapes'][k]==v for k,v in a['shapes'].items())
+          assert b['scope']==a['scope']+'-intl-four'
+          for k,v in a['counts'].items():assert b['counts'][k]==v+(8 if k=='intercity' else 0)
+          for k,v in a.items():
+           if k not in ('scope','shapes','trips','counts'):assert b[k]==v,('CHANGED OLD META',k)
+          added=b['trips'][10779:]
+          assert len(added)==8 and len(set(t['id'] for t in added))==8
+          assert all(t['agency']=='Snälltåget' and t['snallCrossborderVerified'] and
+            not t['isLiveGPS'] and t['shapeId'] in b['shapes'] for t in added)
+          assert 'app.js?v=intl-four-01' in (new/'index.html').read_text()
+          assert "from './rail-data.js?v=intl-four-01'" in (new/'src/app.js').read_text()
+          parser=(new/'src/rail-data.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=intl-four-01'" in parser
+          assert "source.snallCrossborderVerified===true" in parser
+          assert "String(dataset.scope||'').includes('-sj-complete')" in parser
+          assert b['internationalFourAudited']['Vy Tåg']['added']==0
+          assert b['internationalFourAudited']['Tågab']['added']==0
+          assert b['internationalFourAudited']['RDC EuroNight']['added']==0
+          print('STABLE17 CANDIDATE SAFETY GREEN: 8 AUTHENTIC NEW INTERNATIONAL TRAIN SEGMENTS, ALL 10779 PRIOR TRAINS, 101 PRIOR REAL TRACKS, ALL PHOTOS UNCHANGED')
+          PY
+      - name: Validate complete international train source clock, zero duplicated train movements, all seven days active train IDs and no fake speeds
+        run: |
+          cd _source
+          node --check src/rail-data.js
+          node --check tests/international-four-complete.mjs
+          node --check tests/international-four-browser-smoke.mjs
+          node tests/international-four-complete.mjs ../_site/data/rail.json
+          npm test
+      - name: Install actual Chromium for high-confidence desktop mobile rail map testing
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test all original 16-system services plus every active train photograph and European night train marker in real desktop/mobile map
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          cd _source
+          node tests/international-four-browser-smoke.mjs
+      - name: Save EXACT only finished full browser verified proposed site – NEVER silently deploy a failure
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable17-four-international-operators-chromium-approved
+          path: _site/
+          if-no-files-found: error
