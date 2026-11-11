@@ -1,0 +1,47 @@
+name: Package07 integrate only source-authenticated missing local reverse journeys
+on:
+  push:
+    branches: [feature/package07-local-final-audit]
+    paths:
+      - scripts/integrate_package07_local.py
+      - .github/workflows/package07-source-integration.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43003462390
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable20_artifact
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43004701570
+          name: package07-original-SL-direction-evidence
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _source_reverse
+      - name: Inspect actual published STABLE20 and six source-proven missing reverse directions
+        run: |
+          mkdir -p _site
+          tar -xf _stable20_artifact/artifact.tar -C _site
+          python -m py_compile scripts/integrate_package07_local.py
+          python -u scripts/integrate_package07_local.py _site/data/rail.json _source_reverse/package07-source-direction-crosscheck.json data/package07-candidate-rail.json reports/package07-integration.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package07-verified-added-SL-journeys
+          path: |
+            data/package07-candidate-rail.json
+            reports/package07-integration.json
