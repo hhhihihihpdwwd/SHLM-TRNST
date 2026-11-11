@@ -1,0 +1,113 @@
+name: Publish Package03 verified SJ VR railway expansion
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/package03-production-deploy.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable17-website
+          path: _old
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42996372100
+          artifact-ids: 13843694467
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Extract exactly the successfully tested package 03 browser artifact
+        run: |
+          mkdir -p _approved
+          tar -xf _approved_artifact/artifact.tar -C _approved
+      - name: Final production gate preserves all STABLE17 assets and confirms two authentic additions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          old=Path('_old/website');new=Path('_approved')
+          allow={'data/rail.json','index.html','src/app.js','src/rail-data.js','STABLE17-MANIFEST.json'}
+          a=json.loads((old/'data/rail.json').read_text());b=json.loads((new/'data/rail.json').read_text())
+          assert len(a['trips'])==10787 and len(b['trips'])==10789
+          assert len(a['shapes'])==len(b['shapes'])==107
+          assert a['shapes']==b['shapes'] and b['trips'][:10787]==a['trips']
+          assert b['scope']==a['scope']
+          assert b['package03Audit']['newAuthenticJourneys']==2
+          assert {t['agency'] for t in b['trips'][10787:]}=={'SJ','VR Snabbtåg'}
+          assert all(t.get('package03Verified') is True and t.get('isLiveGPS') is False for t in b['trips'][10787:])
+          for p in old.rglob('*'):
+           if not p.is_file():continue
+           rel=str(p.relative_to(old))
+           if rel not in allow:assert (new/rel).read_bytes()==p.read_bytes(),rel
+          assert 'app.js?v=package03-01' in (new/'index.html').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package03-01'" in (new/'src/rail-data.js').read_text()
+          print('PACKAGE03 STABLE17 BASE PRESERVED AND ALL NEW SOURCE TRAINS VERIFIED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/package03-sj-vr-network-audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42996372100
+          artifact-ids: 13843694467
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Verify that the real website publishes both new original source trains
+        run: |
+          for i in $(seq 1 65);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?package03-public=1' | grep -Fq 'app.js?v=package03-01';then break;fi
+            if [ "$i" = 65 ];then echo 'The public website still serves the old version';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 35 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package03-01' -o /tmp/package03-public.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/package03-public.json'))
+          assert len(d['trips'])==10789 and len(d['shapes'])==107
+          assert sum(t.get('package03Verified',False) for t in d['trips'])==2
+          assert {t['agency'] for t in d['trips'] if t.get('package03Verified')}=={'SJ','VR Snabbtåg'}
+          print('PUBLIC PACKAGE03 RAIL SITE ONLINE: 10789 TRAINS, 107 REAL OSM SHAPES')
+          PY
+      - name: Check actual PUBLIC desktop mobile rail markers in Chromium, follow and satellite
+        run: |
+          mkdir -p _site
+          tar -xf _approved_artifact/artifact.tar -C _site
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          SITE_ROOT=${{ github.workspace }}/_site SMOKE_URL=https://hhhihihihpdwwd.github.io/SHLM-TRNST node tests/package03-browser-smoke.mjs
