@@ -15,9 +15,10 @@ def cls(t):
  a,b=names[0],names[-1]
  if {a,b}=={'stockholm centralstation','uppsala centralstation'}:
   return 'orebro-uppsala'
- if ({a,b}=={'eskilstuna centralstation','uppsala centralstation'} and
-    any('västerås' in n for n in names)):
+ if {a,b}=={'eskilstuna centralstation','uppsala centralstation'}:
   return 'uven'
+ if {a,b}=={'eskilstuna centralstation','stockholm centralstation'}:
+  return 'orebro-uppsala'
  return None
 def endpoints(shape):
  lats=[x[0] for x in shape];lons=[x[1] for x in shape]
