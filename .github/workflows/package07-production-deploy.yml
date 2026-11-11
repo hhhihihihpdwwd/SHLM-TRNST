@@ -1,0 +1,194 @@
+name: Deploy STABLE21 final Stockholm local rail network audit and 28 authentic return journeys
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/package07-production-deploy.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43003462390
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable20_artifact
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43005782469
+          artifact-ids: 13848262030
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Unpack exact public STABLE20 and complete desktop-mobile Chromium-tested STABLE21
+        run: |
+          mkdir -p _old _approved
+          tar -xf _stable20_artifact/artifact.tar -C _old
+          tar -xf _approved_artifact/artifact.tar -C _approved
+      - name: Protect all 16 old systems, 10,799 historic train patterns, 107 original OSM shapes, original photos and map UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,collections
+          original=Path('_old');new=Path('_approved')
+          changed={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for old in original.rglob('*'):
+           if not old.is_file():continue
+           path=str(old.relative_to(original))
+           if path not in changed:assert (new/path).read_bytes()==old.read_bytes(),('ORIGINAL WEBSITE PHOTO OR SHAPE MUTATED',path)
+          a=json.loads((original/'data/rail.json').read_text());b=json.loads((new/'data/rail.json').read_text())
+          assert len(a['trips'])==10799 and len(b['trips'])==10827
+          assert len(a['shapes'])==len(b['shapes'])==107 and a['shapes']==b['shapes']
+          assert b['trips'][:10799]==a['trips'],'Original published journey modified'
+          assert b['scope']==a['scope'] and b['package06Audit']==a['package06Audit']
+          assert b['package05Audit']==a['package05Audit'] and b['package04Audit']==a['package04Audit']
+          assert b['package07Audit']['verifiedAdditionalShortTurnReturnJourneys']==28
+          assert b['package07Audit']['deferredJourneysWithoutConnectedOsm']==0
+          assert b['package07Audit']['originalTrainTemplates']==10799
+          assert b['package07Audit']['originalOsmShapes']==107
+          added=b['trips'][10799:]
+          assert len(added)==len({t['id'] for t in added})==28
+          assert all(t.get('package07Verified') is True and t.get('isLiveGPS') is False and
+            t['shapeId'] in b['shapes'] and t['geometryQuality']=='verified-osm-relation' for t in added)
+          assert collections.Counter(t['line'] for t in added)=={'40':20,'41':1,'43':1,'13':2,'17':3,'19':1}
+          for k,v in a['counts'].items():
+           assert b['counts'][k]==v+sum(t['mode']==k for t in added),('Original count',k)
+          assert 'app.js?v=package07-01' in (new/'index.html').read_text()
+          assert "from './rail-data.js?v=package07-01'" in (new/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package07-01'" in (new/'src/rail-data.js').read_text()
+          assert "source.package06Variant" in (new/'src/rail-data.js').read_text(),'RDC autumn variants accidentally changed'
+          print('STABLE21 FINAL RAIL PACKAGE GREEN: 10827 ORIGINAL SOURCE-VERIFIED HISTORICAL TEMPLATES, 107 REAL OSM SHAPES, 28 RESTORED LOCAL RETURN JOURNEYS, ALL OLD 16 SYSTEMS UNMODIFIED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43005782469
+          artifact-ids: 13848262030
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - name: Verify LIVE public website serves approved STABLE21 source additions with correct browser cache
+        run: |
+          for attempt in $(seq 1 75);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable21-final=1' | grep -Fq 'app.js?v=package07-01';then
+              echo 'REAL PUBLIC STABLE21 STOCKHOLM RAIL ONLINE';break
+            fi
+            if [ "$attempt" = 75 ];then echo 'REAL PUBLIC WEBSITE STILL OLD';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 45 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package07-01' -o /tmp/stable21-public-rail.json
+          python - <<'PY'
+          import json,collections
+          obj=json.load(open('/tmp/stable21-public-rail.json'))
+          assert len(obj['trips'])==10827 and len(obj['shapes'])==107
+          extra=[x for x in obj['trips'] if x.get('package07Verified')]
+          assert len(extra)==28
+          assert collections.Counter(t['line'] for t in extra)=={'40':20,'41':1,'43':1,'13':2,'17':3,'19':1}
+          assert obj['package07Audit']['verifiedAdditionalShortTurnReturnJourneys']==28
+          assert obj['package06Audit']['regularSourcePatterns']==5
+          assert obj['package05Audit']['addedPerOperator']=={'Vy Tåg':0,'Tågab':0}
+          assert obj['package04Audit']['newValidSourcePatterns']==9
+          print('STABLE21 ACTUAL PUBLIC SITE VERIFIED: 10827 TRAINS / 107 PHYSICAL RAIL SHAPES / ALL 28 SOURCE AUTHENTIC HISTORIC LOCAL RETURN JOURNEYS')
+          PY
+      - name: Chromium test ACTUAL PUBLIC nine Stockholm local systems, added metro commuter, original line filters, photos, train markers, follow and satellite
+        run: |
+          mkdir -p _site
+          tar -xf _approved_artifact/artifact.tar -C _site
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          SITE_ROOT=${{ github.workspace }}/_site SMOKE_URL=https://hhhihihihpdwwd.github.io/SHLM-TRNST node tests/package07-browser-smoke.mjs
+  archive:
+    needs: public
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/21
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43005782469
+          artifact-ids: 13848262030
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_artifact
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43005782469
+          name: package07-original-source-evidence-and-final-census
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _audits
+      - name: Preserve exactly published STABLE21 plus audit evidence and immutable SHA256 manifest
+        run: |
+          mkdir -p website evidence
+          tar -xf _approved_artifact/artifact.tar -C website
+          cp -a _audits/. evidence/
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib,collections
+          root=Path('website')
+          data=json.loads((root/'data/rail.json').read_text())
+          assert len(data['trips'])==10827 and len(data['shapes'])==107
+          assert data['package07Audit']['verifiedAdditionalShortTurnReturnJourneys']==28
+          assert collections.Counter(t['line'] for t in data['trips'] if t.get('package07Verified'))=={
+           '40':20,'41':1,'43':1,'13':2,'17':3,'19':1}
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
+                 for p in root.rglob('*') if p.is_file()}
+          (root/'STABLE21-MANIFEST.json').write_text(json.dumps({
+           'sourceBranch':'stable/21',
+           'site':'https://hhhihihihpdwwd.github.io/SHLM-TRNST/',
+           'publishedHistoricalTrainTemplates':10827,
+           'originalVerifiedOsmRailShapes':107,
+           'unchangedPriorTrainRecords':10799,
+           'newSourceAuthenticatedSLReturnJourneys':28,
+           'nineHistoricalLocalSubSystemsAudited':True,
+           'replayIsHistoricalNotGPS':True,
+           'testRun':43005782469,
+           'fileSha256':files},indent=2))
+          print('ARCHIVED EXACT PUBLIC STABLE21: ORIGINAL SITE FILES',len(files))
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable21-website
+          git add -f website evidence
+          git commit -m "archive: stable21 final audited public railway site, verified 28 SL returns, photos and exhaustive source evidence"
+          git push origin HEAD:refs/heads/archive/stable21-website
