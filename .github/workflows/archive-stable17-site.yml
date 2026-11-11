@@ -1,0 +1,74 @@
+name: Archive EXACT publicly Chromium-proven STABLE17 international Germany Denmark Sweden entire site
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-stable17-site.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/17
+          fetch-depth: 0
+      - name: Confirm complete four-operator international release source frozen
+        run: test "$(git rev-parse HEAD)" = "11e1610c6449c5086ad8d3947e11c1aeebf1f052"
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42991664166
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _public
+      - name: Backup exact published photographs, 3D train symbols, 10787 timetables, 107 actual OSM track shapes and hash every original file
+        run: |
+          mkdir -p website
+          tar -xf _public/artifact.tar -C website
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          root=Path('website')
+          obj=json.loads((root/'data/rail.json').read_text())
+          assert len(obj['trips'])==10787 and len(obj['shapes'])==107
+          assert obj['scope'].endswith('-malartag-five-intl-four')
+          assert len([x for x in obj['trips'] if x.get('snallCrossborderVerified')])==8
+          assert len([x for x in obj['trips'] if x.get('malartagFiveVerified')])==168
+          assert len([x for x in obj['trips'] if x.get('sjCompleteVerified')])==174
+          assert sum(x.get('agency')=='Vy Tåg' for x in obj['trips'])==10
+          assert sum(x.get('agency')=='Tågab' for x in obj['trips'])==16
+          assert sum(x.get('agency')=='RDC EuroNight' for x in obj['trips'])==4
+          assert 'app.js?v=intl-four-01' in (root/'index.html').read_text()
+          assert "source.snallCrossborderVerified===true" in (root/'src/rail-data.js').read_text()
+          for name in ('src/app.js','src/rail-data.js','src/rail-filter.js','src/photos.js',
+             'src/vehicle-front-sprites.js','src/approved-train-markers.js',
+             'src/operator-marker-sprites.js','src/vy-marker-sprite.js',
+             'src/tagab-marker-sprite.js','src/rdc-marker-sprite.js',
+             'photos/catalog.json','photos/images/rail_rdc_euronight.webp'):
+           assert (root/name).is_file(),name
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
+                 for p in root.rglob('*') if p.is_file()}
+          (root/'STABLE17-MANIFEST.json').write_text(json.dumps({
+           'sourceCommit':'11e1610c6449c5086ad8d3947e11c1aeebf1f052',
+           'publicGithubPagesDeploymentRun':42991664166,
+           'publicChromiumGreenRun':42991674021,
+           'protectedExistingTrainDefinitions':10779,
+           'newAuthenticatedCrossBorderTrainSegments':8,
+           'totalHistoricalTrainDefinitions':10787,
+           'realOsmRailShapes':107,
+           'files':files},indent=2))
+          print('STABLE17 COMPLETE PUBLIC CHROMIUM TESTED EUROPEAN RAILWAY ARCHIVE',
+           len(files),'ORIGINAL PUBLISHED FILES SHA256 SEALED',flush=True)
+          PY
+      - name: Commit exact independent full public website backup without modifying main or live site
+        run: |
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable17-website
+          git add -f website
+          git commit -m "archive: STABLE17 exact public Chromium-tested international 16-system railway with genuine Germany Denmark train routes"
+          git push origin HEAD:refs/heads/archive/stable17-website
