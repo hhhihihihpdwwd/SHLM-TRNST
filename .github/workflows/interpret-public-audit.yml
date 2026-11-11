@@ -1,0 +1,38 @@
+name: Interpret exhaustive public railway audit flagged instances
+on:
+  push:
+    branches: [audit/complete-public-every-line-and-train]
+    paths: [.github/workflows/interpret-public-audit.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43007325770
+          artifact-ids: 13848054637
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: audit
+      - name: Identify all 84 data anomalies by type and affected provider/line/train and list every public result
+        run: |
+          find audit -maxdepth 2 -type f | head -30
+          python - <<'PY'
+          import json,collections,pathlib
+          path=next(pathlib.Path('audit').rglob('FULL-AUDIT-RESULT.json'))
+          d=json.loads(path.read_text())
+          print('FULL WEBSITE AUDIT SUMMARY',json.dumps(d['summary'],ensure_ascii=False),flush=True)
+          for key in ['invalidCoordinates','negativeSpeed','invalidNextStation','duplicateIds','orphanIds','emptyDaytimeSystems','neverActiveSourceLines']:
+           rows=d['dataCheck'].get(key,[])
+           print('ANOMALY CATEGORY',key,'COUNT',len(rows),flush=True)
+           print('SAMPLES',json.dumps(rows[:18],ensure_ascii=False),flush=True)
+           print('UNIQUE IDS',len(set(str(x.get('id','')) for x in rows)),'ALL IDS',list(sorted(set(str(x.get('id','')) for x in rows)))[:70],flush=True)
+          print('BROWSER ERRORS',json.dumps(d['browser']['errors'],ensure_ascii=False),flush=True)
+          print('SYSTEM LINE COUNTS',{k:{l:p['templates'] for l,p in g['lines'].items()} for k,g in d['allSystems'].items()},flush=True)
+          PY
