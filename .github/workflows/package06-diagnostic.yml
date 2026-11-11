@@ -1,0 +1,32 @@
+name: Package 06 RDC EuroNight operator autumn timetable diagnostic
+on:
+  push:
+    branches: [feature/package06-rdc-autumn]
+    paths:
+      - scripts/diagnose_package06.py
+      - .github/workflows/package06-diagnostic.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43001958175
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _archive
+      - name: Inspect actual published RDC 344 345 against September to December official service timetable and physical tracks
+        run: |
+          mkdir -p _site
+          tar -xf _archive/artifact.tar -C _site
+          python -u scripts/diagnose_package06.py _site/data/rail.json
