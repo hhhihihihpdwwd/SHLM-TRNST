@@ -27,7 +27,7 @@ jobs:
           path: _first_inventory
       - name: Compare missing short-turn return directions with actual original seven-day SL GTFS records
         run: |
-          python -u scripts/audit_package07_gtfs.py _first_inventory/reports/package07-local-inventory.json reports/package07-source-direction-crosscheck.json
+          python -u scripts/audit_package07_gtfs.py _first_inventory/package07-local-inventory.json reports/package07-source-direction-crosscheck.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
