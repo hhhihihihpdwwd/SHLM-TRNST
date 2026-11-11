@@ -42,7 +42,7 @@ for(const day of ['2026-11-09','2026-11-10','2026-11-11','2026-11-12','2026-11-1
   assert.equal(after.length,new Set(after.map(x=>x.id)).size);
   for(const t of after.filter(x=>x.package03Verified)){
    const p=railAt(t,now);
-   assert(p.pos.every(Number.is));
+   assert(p.pos.every(Number.isFinite));
    assert(p.next>=0&&p.next<t.stops.length);
   }
   samples++;
