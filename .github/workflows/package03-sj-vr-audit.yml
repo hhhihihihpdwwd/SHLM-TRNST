@@ -29,6 +29,8 @@ jobs:
       - name: Full network source and structural audit
         run: |
           python -u scripts/audit_package03_sj_vr.py stable17-website/website/data/rail.json /tmp/sj-source-audit.json data/vr_candidates.json reports/package03-sj-vr.json
+      - name: Check physical tracks for each remaining genuine SJ and VR source journey
+        run: python -u scripts/diagnose_package03_missing.py stable17-website/website/data/rail.json /tmp/sj-source-audit.json data/vr_candidates.json
       - name: All historical on-map services at 15-minute intervals for seven days
         run: |
           node tests/international-four-complete.mjs stable17-website/website/data/rail.json
