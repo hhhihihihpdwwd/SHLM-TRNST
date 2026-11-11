@@ -24,6 +24,7 @@ jobs:
           repository: hhhihihihpdwwd/SHLM-TRNST
           run-id: 42991139028
           artifact-ids: 13841857535
+          merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: _approved
       - name: Wait until the ACTUAL public website serves source-verified new Berlin Dresden and Danish rail map
