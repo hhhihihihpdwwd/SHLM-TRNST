@@ -53,8 +53,8 @@ def main(baseline,source,outpath):
  def duplicate(t):
   for prior in oldday:
    if prior['stops'][0][2]!=t['origin'] or prior['stops'][-1][2]!=t['destination']:continue
-   if abs(prior['stops'][0][4]-t['firstDeparture'])<=60 and
-      abs(prior['stops'][-1][3]-t['lastArrival'])<=90:
+   if (abs(prior['stops'][0][4]-t['firstDeparture'])<=60 and
+      abs(prior['stops'][-1][3]-t['lastArrival'])<=90):
     return prior['id']
   return None
  stats=collections.Counter();missing=[];reused=[];already=[]
