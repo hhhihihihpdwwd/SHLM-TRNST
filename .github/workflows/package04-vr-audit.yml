@@ -1,0 +1,39 @@
+name: Package04 independent seven-day VR source route audit
+on:
+  push:
+    branches: [feature/package04-vr-complete]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42996856688
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _source_artifact
+      - name: Extract actual published Package03 site
+        run: |
+          mkdir -p _site
+          tar -xf _source_artifact/artifact.tar -C _site
+      - name: Audit exact seven-day November VR operator timetables and authenticated OSM
+        run: |
+          python -u scripts/audit_package04_vr.py _site/data/rail.json /tmp/package04-rail.json reports/package04-vr.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package04-source-audit
+          path: |
+            reports/package04-vr.json
+            /tmp/package04-rail.json
+          if-no-files-found: warn
