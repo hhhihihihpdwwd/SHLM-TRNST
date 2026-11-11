@@ -1,0 +1,123 @@
+name: PACKAGE03 - test and publish authenticated SJ and VR trains
+on:
+  push:
+    branches: [feature/package03-sj-vr-network-audit]
+    paths:
+      - scripts/integrate_package03.py
+      - scripts/prepare_package03_site.py
+      - tests/package03-complete.mjs
+      - tests/package03-browser-smoke.mjs
+      - .github/workflows/package03-release.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable17-website
+          path: _stable17
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact authenticated November source records, fail closed if unavailable
+        run: |
+          python -u scripts/audit_all_sj_2026.py /tmp/sj-source.json
+          python -u scripts/build_vr_candidates.py 2026-11-06
+      - name: Copy immutable public STABLE17 website and append two real train journeys
+        run: |
+          cp -a _stable17/website _site
+          rm -f _site/STABLE17-MANIFEST.json
+          python -u scripts/prepare_package03_site.py _site /tmp/sj-source.json data/vr_candidates.json
+      - name: Guard all prior 16 systems, photos, railway tracks, timetable records and exact cache versions
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=Path('_stable17/website');b=Path('_site')
+          allowed={'data/rail.json','index.html','src/app.js','src/rail-data.js','STABLE17-MANIFEST.json'}
+          for old in a.rglob('*'):
+           if not old.is_file():continue
+           name=str(old.relative_to(a))
+           if name not in allowed:
+            assert (b/name).read_bytes()==old.read_bytes(),('original photo/marker/map changed',name)
+          first=json.loads((a/'data/rail.json').read_text());new=json.loads((b/'data/rail.json').read_text())
+          assert len(first['trips'])==10787 and len(new['trips'])==10789
+          assert new['trips'][:10787]==first['trips']
+          assert new['shapes']==first['shapes']
+          assert new['scope']==first['scope']
+          assert new['package03Audit']['newAuthenticJourneys']==2
+          assert 'app.js?v=package03-01' in (b/'index.html').read_text()
+          assert "from './rail-data.js?v=package03-01'" in (b/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package03-01'" in (b/'src/rail-data.js').read_text()
+          print('PACKAGE03 IMMUTABLE 16-SYSTEM REGRESSION GATE GREEN')
+          PY
+      - name: Verify all new SJ and VR physical rail legs and seven whole-network days
+        run: |
+          node --check tests/package03-complete.mjs
+          node --check tests/package03-browser-smoke.mjs
+          node tests/package03-complete.mjs _stable17/website/data/rail.json _site/data/rail.json
+          node tests/international-four-complete.mjs _stable17/website/data/rail.json
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Browser verifies both new trains on real OSM map in desktop and mobile
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: node tests/package03-browser-smoke.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify ACTUAL public HTML and full rail timetable changed
+        run: |
+          for n in $(seq 1 50);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?package03-public=1' | grep -Fq 'app.js?v=package03-01';then break;fi
+            if [ "$n" = 50 ];then echo 'PUBLIC WEBSITE STILL OLD';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 30 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package03-01' -o /tmp/public-package03.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/public-package03.json'))
+          assert len(d['trips'])==10789 and len(d['shapes'])==107
+          assert sum(t.get('package03Verified',False) for t in d['trips'])==2
+          assert {t['agency'] for t in d['trips'] if t.get('package03Verified')}=={'SJ','VR Snabbtåg'}
+          print('PUBLIC WEBSITE HAS BOTH NEW SJ VR JOURNEYS 10789 / 107 SHAPES')
+          PY
+      - name: Browser-check actual online map desktop and mobile for both new operators
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          SITE_ROOT=${{ github.workspace }}/_site SMOKE_URL=https://hhhihihihpdwwd.github.io/SHLM-TRNST node tests/package03-browser-smoke.mjs
