@@ -82,7 +82,7 @@ for(const day of audit.days){
  for(const key of keys){
   if(!seenDay.has(key))audit.dataCheck.emptyDaytimeSystems.push({day,system:key});
  }
- console.log('FULL TRAIN TIMETABLE DATA CHECK',day,'96 quarter-hour checks completed',flush=true);
+ console.log('FULL TRAIN TIMETABLE DATA CHECK',day,'96 quarter-hour checks completed');
 }
 for(const [key,system] of Object.entries(audit.allSystems)){
  for(const [line,p] of Object.entries(system.lines)){
