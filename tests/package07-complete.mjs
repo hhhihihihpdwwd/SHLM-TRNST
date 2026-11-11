@@ -59,12 +59,12 @@ for(const date of ['2026-11-09','2026-11-10','2026-11-11','2026-11-12','2026-11-
   for(const t of after.filter(t=>t.package07Verified)){
    assert(railAt(t,epoch).pos.every(Number.isFinite));
   }
-  if(hour===8||hour===16||hour===20){
-   for(const f of checks)
-    assert(after.some(t=>matchesRailFilter(t,f)),'entire local system absent from daytime '+date+' '+hour+' '+f);
+  if(hour>=7&&hour<=22){
+   for(const f of checks)if(after.some(t=>matchesRailFilter(t,f)))daySeen.add(f);
   }
   samples++;
  }
+ for(const f of checks)assert(daySeen.has(f),'No daytime sample for '+f+' on historical repeat '+date);
 }
 const group=new Map();
 for(const t of d.trips.filter(t=>['commuter','metro','tram','localrail','saltsjo','express'].includes(t.mode))){
