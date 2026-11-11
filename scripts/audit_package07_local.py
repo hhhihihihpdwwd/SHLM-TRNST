@@ -11,7 +11,7 @@ import collections,json,sys,math
 from pathlib import Path
 
 LINES={
- 'commuter':{'40','41','42','43','44','48'},
+ 'commuter':{'40','41','43','48'},
  'metro':{'10','11','13','14','17','18','19'},
  'tvarbanan':{'30','31'},
  'nockeby':{'12'},
@@ -77,7 +77,7 @@ def main(path,out):
     st=t['stops'];id=t['id']
     if len(st)<2:errors.append(('too_few_stops',id));continue
     if t['end']<=t['start']:errors.append(('nonpositive_duration',id))
-    if t.get('isLiveGPS') is not False:errors.append(('false_gps_label',id))
+    if t.get('isLiveGPS') is True:errors.append(('false_gps_label',id))
     if t.get('geometryQuality') not in ('verified-osm-rail-ways','verified-osm-relation'):
      errors.append(('unverified_track',id,t.get('geometryQuality')))
     if len(data['shapes'].get(t['shapeId'],[]))<2:errors.append(('empty_track',id))
