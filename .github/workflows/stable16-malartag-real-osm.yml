@@ -1,0 +1,55 @@
+name: STABLE16 physically verify 40 missing Mälartåg Stockholm–Uppsala real OSM rails (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable16-malartag-real-osm.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  railway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/malartag-five-corridors-stable16-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42984545907
+          name: stable16-malartag-all-five-gap-and-coverage-report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _cover
+      - uses: actions/cache/restore@v4
+        id: railway-cache
+        with:
+          path: _rail
+          key: sj-full-network-geofabrik-20261110-01
+      - name: Fallback obtain true original Sweden OSM railway way nodes from Geofabrik
+        if: steps.railway-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          mkdir -p _rail
+          curl -fLsS --retry 3 --max-time 1500 https://download.geofabrik.de/europe/sweden-latest.osm.pbf -o /tmp/sweden.osm.pbf
+          osmium tags-filter /tmp/sweden.osm.pbf w/railway=rail -o _rail/sweden-rail.osm.pbf --overwrite
+      - name: Verify BOTH Stockholm and Uppsala train directions through physically joined OSM railway=rail way IDs
+        run: |
+          python -m pip install osmium
+          COVER="$(find _cover -type f -name malartag-five-coverage.json -print -quit)"
+          test -n "$COVER"
+          COVER="$(realpath "$COVER")"
+          cd _source
+          python -u scripts/route_malartag_missing.py "$COVER" ../_rail/sweden-rail.osm.pbf ../malartag-stockholm-uppsala-real-track.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stable16-malartag-40-original-osm-way-route-proof
+          path: malartag-stockholm-uppsala-real-track.json
+          if-no-files-found: warn
