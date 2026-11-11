@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stockholm Rail — RDC EuroNight · 16 system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="./src/style.css?v=train-icons-02">
+</head>
+<body>
+<div class="app">
+ <header class="topbar">
+  <div class="identity"><div class="logo">S<span>R</span><i></i></div><div><b>STOCKHOLM RAIL</b><small>THE RAILWAY OBSERVATORY</small></div></div>
+  <div class="top-center"><span class="live-dot"></span><span>HISTORISK TIDTABELL · UPPSKATTADE POSITIONER</span></div>
+  <div class="top-right"><div id="clock" class="clock">--:--:--</div><div class="timezone">STOCKHOLM · CET/CEST</div></div>
+ </header>
+ <main class="workspace">
+  <section class="map-section">
+   <div id="map" aria-label="Karte von Stockholm"></div>
+   <div id="map-fallback" class="map-fallback" hidden>Kartenkacheln derzeit nicht verfügbar. Fahrzeugliste und Simulation bleiben nutzbar.</div>
+   <div class="map-top"><div class="mode-switch"><button data-filter="commuter" class="active">Pendeltåg</button><button data-filter="metro">Tunnelbana</button><button data-filter="tram">Tvärbanan</button><button data-filter="nockeby">Nockebybanan</button><button data-filter="lidingo">Lidingöbanan</button><button data-filter="city7">Spårväg City</button><button data-filter="roslags">Roslagsbanan</button><button data-filter="saltsjo">Saltsjöbanan</button><button data-filter="arlanda">Arlanda Express</button><button data-filter="sj">SJ</button><button data-filter="vr">VR Snabbtåg</button><button data-filter="snalltaget">Snälltåget</button><button data-filter="vy">Vy Tåg</button><button data-filter="tagab">Tågab</button><button data-filter="rdc">RDC EuroNight</button><button data-filter="malartag">Mälartåg</button><button data-filter="all">Alla tåg</button></div><button id="satellite" class="outlined">◫ Satellit</button></div>
+   <div class="map-bottom"><div class="map-note"><strong>STOCKHOLM RAIL · 16 SYSTEM · SJ · MÄLARTÅG · VR · SNÄLLTÅGET · VY · TÅGAB · RDC</strong><span>Historiskt veckoschema · simulerad position · verifierad spårgeometri</span></div><button id="home" class="outlined">↗ Översikt</button></div>
+  </section>
+  <aside class="sidebar">
+   <div class="sidebar-heading"><div><span class="eyebrow">NETWORK / STOCKHOLM</span><h1>Pendeltåg</h1><p>Välj ett tåg för att utforska dess färd.</p></div></div>
+   <div class="tabs"><button class="tab active" id="tab-trains">Fordon</button></div>
+   <div id="vehicle-list" class="vehicle-list"></div>
+   <div id="selected-detail" hidden>
+    <div class="detail-top"><div><span class="eyebrow">VALT FORDON</span><h2 id="train-heading"></h2><div class="detail-sub" id="train-sub"></div></div><button id="clear" class="close-btn">✕</button></div>
+    <div class="image-placeholder"><div class="rail-symbol">▰━━━━▰</div><span>Fordonsfoto visas först efter lokal licens- och modellkontroll</span></div>
+    <div class="next-stop"><span>NÄSTA STATION</span><b id="next-stop-name">—</b><span id="next-stop-time">—</span></div>
+    <div class="occupancy"><div><span>Beräknad beläggning</span><b id="occupancy-value"></b></div><div class="meter"><div id="occupancy-fill"></div></div><small>Modellvärde – inte uppmätt passagerarantal</small></div>
+    <div class="speed-readout"><span>Beräknad hastighet</span><strong id="speed-value">— km/h</strong></div><button class="follow-btn" id="follow">◎ Följ tåget</button><div class="stops-title">STATIONER</div><div id="stops" class="stops"></div>
+   </div>
+   <div id="station-view" hidden><div class="detail-top"><div><span class="eyebrow">STATION VIEW / PROTOTYP</span><h2>Stockholm Central</h2><div class="detail-sub">Schematiska spår · demonstration, inga verkliga plattformstilldelningar</div></div></div><div id="platforms"></div><div class="station-footnote">En framtida version ansluter Trafikverkets spårdata och verklig stationsgeometri. Nuvarande spår och tider är exempel.</div></div>
+   <div class="foot">STOCKHOLM RAIL <span>01 · FOUNDATION</span></div>
+  </aside>
+ </main>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="./src/app.js?v=package04-01"></script>
+</body></html>
