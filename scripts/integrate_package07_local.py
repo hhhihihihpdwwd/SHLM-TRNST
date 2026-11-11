@@ -106,7 +106,7 @@ def main(baseline,source_audit,out_path,report_path):
     for i in range(1,len(positions)):
      sec=row['stops'][i][3]-row['stops'][i-1][4]
      speeds.append((positions[i]-positions[i-1])/sec*3.6 if sec>0 else -1)
-    if speeds and all(0<k<('200'=='commuter' and 200 or 160) for k in speeds):
+    if speeds and all(0<k<(200 if line in ('40','41','43','48') else 130) for k in speeds):
      matched.append((sid,max(speeds)))
    if not matched:
     deferred.append((row,'full ordered source stops do not fit original proven OSM shape'));continue
