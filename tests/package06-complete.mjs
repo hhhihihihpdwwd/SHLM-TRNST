@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {activeRailTrips,railAt} from '../src/rail-data.js';
+import {dirname,resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const modulePath=resolve(dirname(process.argv[3]),'../src/rail-data.js');
+const {activeRailTrips,railAt}=await import(pathToFileURL(modulePath).href);
 const original=JSON.parse(readFileSync(process.argv[2],'utf8'));
 const updated=JSON.parse(readFileSync(process.argv[3],'utf8'));
 assert.equal(original.trips.length,10798);
