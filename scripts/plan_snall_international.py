@@ -27,7 +27,7 @@ def source_match(canonical,existing):
  labels=[s[2].casefold() for s in a];oldlabels=[s[2].casefold() for s in b]
  for i in range(len(a)-len(b)+1):
   if labels[i:i+len(b)]!=oldlabels:continue
-  if all(abs(a[i+j][4]-x[4])<120 and abs(a[i+j][3]-x[3])<120 for j,x in enumerate(b)):
+  if all((j==len(b)-1 or abs(a[i+j][4]-x[4])<120) and\n         (j==0 or abs(a[i+j][3]-x[3])<120)\n         for j,x in enumerate(b)):
    return (i,i+len(b)-1)
  return None
 
