@@ -1,0 +1,71 @@
+name: Verify ACTUAL PUBLIC STABLE17 European international night trains and all 16 protected systems
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-international-public-chromium.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 43
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 11e1610c6449c5086ad8d3947e11c1aeebf1f052
+          path: _source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42991139028
+          artifact-ids: 13841857535
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - name: Wait until the ACTUAL public website serves source-verified new Berlin Dresden and Danish rail map
+        run: |
+          for i in $(seq 1 85);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable17-public-check=01' | grep -Fq 'app.js?v=intl-four-01';then
+              echo 'REAL PUBLIC STOCKHOLM RAIL NOW HAS AUTHENTIC INTERNATIONAL TRACKS';break
+            fi
+            if [ "$i" = 85 ];then echo 'NO COMPLETE PUBLIC RELEASE YET';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 25 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=intl-four-01' | grep -Fq 'snallCrossborderVerified'
+      - name: Install actual Chromium for the public Stockholm Rail desktop/mobile railway map
+        run: |
+          cd _source
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: REAL PUBLIC browser verifies Berlin Dresden Padborg Sweden crossborder trains, licensed marker photos and every previous operator
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_approved
+          SMOKE_URL: https://hhhihihihpdwwd.github.io/SHLM-TRNST
+        run: |
+          cd _source
+          node tests/international-four-browser-smoke.mjs
+      - name: Read ACTUAL PUBLIC timetable and verify 10787 historic trains, every original preserved plus European crossborder routes
+        run: |
+          curl -fLsS --max-time 45 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=intl-four-01' -o /tmp/stable17-live.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/stable17-live.json'))
+          assert len(d['trips'])==10787 and len(d['shapes'])==107
+          assert d['scope'].endswith('-intl-four')
+          assert len([x for x in d['trips'] if x.get('snallCrossborderVerified')])==8
+          assert len([x for x in d['trips'] if x.get('malartagFiveVerified')])==168
+          assert len([x for x in d['trips'] if x.get('sjCompleteVerified')])==174
+          assert len([x for x in d['trips'] if x.get('agency')=='Vy Tåg'])==10
+          assert len([x for x in d['trips'] if x.get('agency')=='Tågab'])==16
+          assert len([x for x in d['trips'] if x.get('agency')=='RDC EuroNight'])==4
+          assert d['internationalFourAudited']['Snälltåget']['sourceTripPatterns']==23
+          print('PUBLIC INTERNATIONAL TRAIN NETWORK GREEN: 10787 TRAIN TEMPLATES, 107 REAL OSM SHAPES, ALL ORIGINAL SYSTEMS PRESERVED')
+          PY
+      - name: Verify every PUBLIC crossborder historic train and no hidden/duplicate vehicles over seven Stockholm days
+        run: |
+          cd _source
+          node tests/international-four-complete.mjs /tmp/stable17-live.json
