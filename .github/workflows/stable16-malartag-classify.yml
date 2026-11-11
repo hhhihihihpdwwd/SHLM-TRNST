@@ -1,0 +1,49 @@
+name: STABLE16 classify complete Mälartåg five corridors against immutable STABLE15 (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable16-malartag-classify.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/malartag-five-corridors-stable16-01
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42851115094
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _sitepack
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42984025073
+          name: stable16-malartag-all-five-real-timetable-inventory
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _inventory
+      - name: Reopen exactly immutable STABLE15 actual published website
+        run: |
+          mkdir -p _stable
+          tar -xf _sitepack/artifact.tar -C _stable
+      - name: Classify all original Tuesday operator journeys and compare genuine OSM geometries without inventing tracks
+        run: |
+          cd _source
+          python -u scripts/classify_malartag_stable15.py ../_stable/data/rail.json ../_inventory/data/malartag-five-seven-day-audit.json ../malartag-five-coverage.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stable16-malartag-all-five-gap-and-coverage-report
+          path: malartag-five-coverage.json
+          if-no-files-found: warn
