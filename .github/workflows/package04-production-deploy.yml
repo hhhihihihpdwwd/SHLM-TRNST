@@ -1,0 +1,169 @@
+name: Deploy STABLE18 Package04 complete historic VR source network
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/package04-production-deploy.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42996856688
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _original
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42999284409
+          artifact-ids: 13845920749
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release_artifact
+      - name: Unpack exact immutable production Package03 and Chromium-green Package04
+        run: |
+          mkdir -p _old _approved
+          tar -xf _original/artifact.tar -C _old
+          tar -xf _release_artifact/artifact.tar -C _approved
+      - name: Production gate all original 16 systems immutable and nine real VR variants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          a=Path('_old');b=Path('_approved')
+          allowed={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for old in a.rglob('*'):
+           if not old.is_file():continue
+           name=str(old.relative_to(a))
+           if name not in allowed:assert (b/name).read_bytes()==old.read_bytes(),('Original asset changed',name)
+          x=json.loads((a/'data/rail.json').read_text())
+          y=json.loads((b/'data/rail.json').read_text())
+          assert len(x['trips'])==10789 and len(y['trips'])==10798
+          assert len(x['shapes'])==len(y['shapes'])==107
+          assert y['trips'][:10789]==x['trips'] and y['shapes']==x['shapes']
+          assert y['scope']==x['scope']
+          assert y['package03Audit']==x['package03Audit']
+          assert y['package04Audit']['newValidSourcePatterns']==9
+          assert len([z for z in y['trips'] if z.get('package04Verified')])==9
+          assert all(t['agency']=='VR Snabbtåg' and t['geometryQuality']=='verified-osm-rail-ways' and
+              t.get('osmWayNetwork') is True and t.get('isLiveGPS') is False for t in y['trips'][10789:])
+          for k,v in x['counts'].items():assert y['counts'][k]==v+(9 if k=='intercity' else 0)
+          assert 'app.js?v=package04-01' in (b/'index.html').read_text()
+          assert "from './rail-data.js?v=package04-01'" in (b/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package04-01'" in (b/'src/rail-data.js').read_text()
+          print('STABLE18 VERIFIED READY: 10798 HISTORICAL TRAIN PATTERNS, 107 REAL OSM RAIL CORRIDORS, 16 ORIGINAL SYSTEMS SAFE')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/18
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42999284409
+          artifact-ids: 13845920749
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release_artifact
+      - name: Verify actual LIVE public HTML, cache, exact 9 VR records, 107 preserved OSM routes
+        run: |
+          for attempt in $(seq 1 65);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable18-public=1' | grep -Fq 'app.js?v=package04-01';then
+              echo 'REAL PUBLIC WEBSITE IS NOW STABLE18';break
+            fi
+            if [ "$attempt" = 65 ];then echo 'REAL PUBLIC WEBSITE STILL OLD';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 35 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package04-01' -o /tmp/stable18-live.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/stable18-live.json'))
+          assert len(d['trips'])==10798 and len(d['shapes'])==107
+          assert sum(t.get('package04Verified',False) for t in d['trips'])==9
+          assert sum(t.get('package03Verified',False) for t in d['trips'])==2
+          assert sum(t.get('snallCrossborderVerified',False) for t in d['trips'])==8
+          assert all(t['agency']=='VR Snabbtåg' for t in d['trips'] if t.get('package04Verified'))
+          print('ACTUAL PUBLIC STABLE18 DATA GREEN: 9 NEW VR + ALL ORIGINAL 10789 TEMPLATES')
+          PY
+      - name: Check actual PUBLIC train map in Chromium, both VR directions, desktop and mobile
+        run: |
+          mkdir -p _site
+          tar -xf _release_artifact/artifact.tar -C _site
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          SITE_ROOT=${{ github.workspace }}/_site SMOKE_URL=https://hhhihihihpdwwd.github.io/SHLM-TRNST node tests/package04-browser-smoke.mjs
+  archive:
+    needs: public
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable/18
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42999284409
+          artifact-ids: 13845920749
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release_artifact
+      - name: Preserve complete public STABLE18 as independent website branch with immutable file hashes
+        run: |
+          mkdir -p website
+          tar -xf _release_artifact/artifact.tar -C website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path('website');d=json.loads((root/'data/rail.json').read_text())
+          assert len(d['trips'])==10798 and len(d['shapes'])==107
+          assert sum(t.get('package04Verified',False) for t in d['trips'])==9
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in root.rglob('*') if p.is_file()}
+          (root/'STABLE18-MANIFEST.json').write_text(json.dumps({
+            'sourceBranch':'stable/18','publishedHistoricTrainTemplates':10798,
+            'verifiedPhysicalOsmShapes':107,
+            'protectedPreviousTemplates':10789,'newVRSourcePatterns':9,
+            'releaseTestRun':42999284409,
+            'fileSha256':files},indent=2))
+          print('SEALED PUBLIC STABLE18 WEBSITE FILES',len(files))
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable18-website
+          git add -f website
+          git commit -m "archive: exact public STABLE18 9 source-verified VR trains, protected 16-system website"
+          git push origin HEAD:refs/heads/archive/stable18-website
