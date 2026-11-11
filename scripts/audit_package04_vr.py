@@ -131,7 +131,7 @@ def integrate(base,verified,report):
    'end':int((ZERO+dt.timedelta(seconds=row['last'])).timestamp()),
    'stops':stops,'shapeId':sid,
    'geometryQuality':'verified-osm-rail-ways' if not sid.startswith('sj-osm:') else 'verified-osm-relation',
-   'isLiveGPS':False,'sourceDays':sorted(set(d for v in variants for d in v['days'])),
+   'osmWayNetwork':not sid.startswith('sj-osm:'),'isLiveGPS':False,'sourceDays':sorted(set(d for v in variants for d in v['days'])),
    'source':'GTFS Sverige 2, authentic VR Snabbtåg November 2026 service calendar',
    'vehicleModel':'VR Snabbtåg (specific consist unverified)',
    'vehiclePhotoStatus':'licensed-illustrative-example',
