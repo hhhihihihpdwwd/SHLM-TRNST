@@ -1,0 +1,108 @@
+name: Package07 complete Stockholm local railway final Chromium release gate
+on:
+  push:
+    branches: [feature/package07-local-final-audit]
+    paths:
+      - scripts/prepare_package07_site.py
+      - tests/package07-complete.mjs
+      - tests/package07-browser-smoke.mjs
+      - .github/workflows/package07-build-test.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43003462390
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable20_artifact
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43005050179
+          name: package07-verified-added-SL-journeys
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _integrated
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43004524222
+          name: package07-local-branch-audit
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _inventory
+      - name: Preserve exact publicly tested STABLE20 as source
+        run: |
+          mkdir -p _base
+          tar -xf _stable20_artifact/artifact.tar -C _base
+          cp -a _base _site
+          find _integrated -maxdepth 3 -type f -printf '%P %s bytes\n'
+      - name: Strictly append the 28 historic source-proven local journeys into exact production site
+        run: |
+          python -u scripts/prepare_package07_site.py _site _integrated/data/package07-candidate-rail.json _integrated/reports/package07-integration.json
+      - name: Complete immutable website guard including ALL 10,799 former trains, photo sprites, original UI and 107 original OSM rail shapes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=Path('_base');b=Path('_site')
+          allow={'data/rail.json','index.html','src/app.js','src/rail-data.js'}
+          for p in a.rglob('*'):
+           if not p.is_file():continue
+           name=str(p.relative_to(a))
+           if name not in allow:assert (b/name).read_bytes()==p.read_bytes(),('Protected old map/photo/train altered',name)
+          old=json.loads((a/'data/rail.json').read_text())
+          new=json.loads((b/'data/rail.json').read_text())
+          assert len(old['trips'])==10799 and len(new['trips'])==10827
+          assert len(old['shapes'])==len(new['shapes'])==107
+          assert new['trips'][:10799]==old['trips']
+          assert new['shapes']==old['shapes']
+          assert new['scope']==old['scope']
+          assert new['package06Audit']==old['package06Audit']
+          assert new['package05Audit']==old['package05Audit']
+          assert sum(t.get('package07Verified',False) for t in new['trips'])==28
+          assert new['package07Audit']['deferredJourneysWithoutConnectedOsm']==0
+          assert new['package07Audit']['verifiedAdditionalShortTurnReturnJourneys']==28
+          assert all(t.get('isLiveGPS') is False and t['geometryQuality']=='verified-osm-relation' for t in new['trips'][10799:])
+          for k,v in old['counts'].items():assert new['counts'][k]==v+sum(t['mode']==k for t in new['trips'][10799:])
+          assert 'app.js?v=package07-01' in (b/'index.html').read_text()
+          assert "from './rail-data.js?v=package07-01'" in (b/'src/app.js').read_text()
+          assert "TIMETABLE_URL='./data/rail.json?v=package07-01'" in (b/'src/rail-data.js').read_text()
+          print('FINAL ALL-SYSTEM STOCKHOLM RAIL GATE: 28 AUTHENTIC LOCAL RETURNS ADDED, 10799 ORIGINAL TRAINS AND EVERY REAL TRACK PRESERVED')
+          PY
+      - name: Test every restored train on EACH original station leg, nine local systems, all previous 16 services over full seven days
+        run: |
+          node --check tests/package07-complete.mjs
+          node --check tests/package07-browser-smoke.mjs
+          node tests/package07-complete.mjs _base/data/rail.json _site/data/rail.json _integrated/reports/package07-integration.json
+      - name: Chromium desktop and mobile inspect REAL nine Stockholm local filters, train images, accurate markers, next stop, occupancy, speed, satellite and follow
+        env:
+          SITE_ROOT: ${{ github.workspace }}/_site
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tests/package07-browser-smoke.mjs
+      - name: Publish exact green website artifact for protected main production deploy
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package07-original-source-evidence-and-final-census
+          path: |
+            _integrated/reports/package07-integration.json
+            _inventory/package07-local-inventory.json
