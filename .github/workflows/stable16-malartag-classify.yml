@@ -40,7 +40,7 @@ jobs:
       - name: Classify all original Tuesday operator journeys and compare genuine OSM geometries without inventing tracks
         run: |
           cd _source
-          python -u scripts/classify_malartag_stable15.py ../_stable/data/rail.json ../_inventory/data/malartag-five-seven-day-audit.json ../malartag-five-coverage.json
+          python -u scripts/classify_malartag_stable15.py ../_stable/data/rail.json "$(find ../_inventory -name malartag-five-seven-day-audit.json -type f -print -quit)" ../malartag-five-coverage.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
