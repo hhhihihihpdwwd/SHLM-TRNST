@@ -1,0 +1,32 @@
+name: STABLE17 full historical international railway operator inventory (NO DEPLOY)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable17-international-inventory.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/international-four-operators-stable17-01
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Retrieve and classify every Stockholm-calling original operator train across twelve 2026 reference days
+        run: |
+          python -m py_compile scripts/audit_international_four.py
+          python -u scripts/audit_international_four.py data/international-four-operator-history.json
+          python scripts/rdc_official_timetable.py data/rdc-official-historical.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stable17-all-four-operators-historic-inventory
+          path: |
+            data/international-four-operator-history.json
+            data/rdc-official-historical.json
+          if-no-files-found: error
