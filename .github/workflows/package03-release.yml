@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   pages: write
+  actions: read
   id-token: write
 concurrency:
   group: stockholm-rail-pages
@@ -116,6 +117,14 @@ jobs:
           assert {t['agency'] for t in d['trips'] if t.get('package03Verified')}=={'SJ','VR Snabbtåg'}
           print('PUBLIC WEBSITE HAS BOTH NEW SJ VR JOURNEYS 10789 / 107 SHAPES')
           PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: _pages_artifact
+      - name: Extract exact newly published files for the public browser reference
+        run: |
+          mkdir -p _site
+          tar -xf _pages_artifact/artifact.tar -C _site
       - name: Browser-check actual online map desktop and mobile for both new operators
         run: |
           npm install --no-save playwright@1.56.1
