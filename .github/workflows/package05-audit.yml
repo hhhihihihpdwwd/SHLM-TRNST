@@ -1,0 +1,42 @@
+name: Package05 full historic Vy Tåg and Tågab source audit
+on:
+  push:
+    branches: [feature/package05-vy-tagab]
+    paths:
+      - scripts/audit_package05.py
+      - .github/workflows/package05-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 42999610240
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _live_source
+      - name: Extract immutable public STABLE18 website
+        run: |
+          mkdir -p _site
+          tar -xf _live_source/artifact.tar -C _site
+      - name: Compare 12 original historical service days for Vy and Tågab
+        run: |
+          python -u scripts/audit_package05.py _site/data/rail.json data/package05-candidate.json reports/package05-audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package05-operator-source-evidence
+          path: |
+            data/package05-candidate.json
+            reports/package05-audit.json
+          retention-days: 14
