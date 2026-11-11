@@ -20,7 +20,7 @@ const server=createServer(async(req,res)=>{
  }catch{res.writeHead(404);res.end('not found')}
 });
 await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
-const host=('http://127.0.0.1:'+server.address().port);
+const host=(process.env.SMOKE_URL||('http://127.0.0.1:'+server.address().port)).replace(/\\/$/,'');
 let browser;
 try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
