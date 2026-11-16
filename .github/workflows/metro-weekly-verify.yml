@@ -1,0 +1,88 @@
+name: Metro complete seven-day GTFS reconstruction (no deploy until verified)
+on:
+  push:
+    branches: [fix/tunnelbana-weekly-completeness-20261116]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rebuild-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check and test weekly timetable engine
+        run: |
+          python -m py_compile scripts/build_weekly_metro_overlay.py
+          python -m unittest discover -s tests -p test_tunnelbana.py -v
+          node --check website/src/rail-data.js
+          node --check website/src/app.js
+          node --test tests/metro-weekly-overlay.test.mjs
+      - name: Save frozen baseline and count all Metro GTFS journeys
+        run: |
+          cp website/data/rail.json /tmp/stable21-rail-before.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/stable21-rail-before.json'))
+          print('BEFORE METRO',sum(t['mode']=='metro' for t in x['trips']))
+          print('BEFORE ALL',len(x['trips']), 'all 16 systems',x['scope'])
+          PY
+      - name: Import every original weekday and weekend GTFS trip, validate OSM, refuse any dropped train
+        timeout-minutes: 35
+        run: python -u scripts/build_weekly_metro_overlay.py
+      - name: Verify every source trip, every line, and non-Metro unchanged
+        run: |
+          python - <<'PY'
+          import collections,json,hashlib
+          before=json.load(open('/tmp/stable21-rail-before.json'))
+          after=json.load(open('website/data/rail.json'))
+          previous=[t for t in before['trips'] if t['mode']!='metro']
+          retained=[t for t in after['trips'] if t['mode']!='metro']
+          assert previous==retained and before['shapes'].items()<=after['shapes'].items()
+          assert before['scope']==after['scope']
+          assert {k:v for k,v in before['counts'].items() if k!='metro'}=={k:v for k,v in after['counts'].items() if k!='metro'}
+          days=after['metroWeeklyCoverage']
+          assert len(days)==7 and all(set(v)=={'10','11','13','14','17','18','19'} and all(n>0 for n in v.values()) for v in days.values())
+          assert sum(sum(v.values()) for v in days.values())==after['counts']['metro']
+          print('COMPLETE METRO GTFS WEEK COVERED',after['counts']['metro'], 'trains')
+          for d,lines in days.items():print('WEEK DAY',d,lines)
+          PY
+      - name: Assert representative Monday, Saturday, Sunday and Friday overnight positions
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './website/src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('website/data/rail.json','utf8'));
+          const samples=['2026-11-13T08:30:00+01:00','2026-11-14T01:15:00+01:00',
+             '2026-11-14T12:30:00+01:00','2026-11-15T12:30:00+01:00',
+             '2026-11-16T08:30:00+01:00','2026-11-16T19:30:00+01:00'];
+          for(const stamp of samples){
+            const epoch=Date.parse(stamp)/1000,active=activeRailTrips(d,epoch,20000);
+            const metro=active.filter(t=>t.mode==='metro');
+            if(!metro.length)throw Error('Metro missing at '+stamp);
+            if(metro.some(t=>railAt(t,epoch).pos.some(x=>!Number.isFinite(x))))
+             throw Error('Metro track invalid '+stamp);
+            console.log('WEEKLY ACTIVE',stamp,metro.length,JSON.stringify(Object.fromEntries(['10','11','13','14','17','18','19'].map(l=>[l,metro.filter(t=>t.line===l).length]))));
+          }
+          JS
+      - name: Install real Chromium for actual map-marker verification
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify all Metro map markers in Chromium at six real clock windows
+        timeout-minutes: 15
+        run: node --max-old-space-size=8192 tests/metro-weekly-browser.mjs
+      - name: Export verified website and timetable for inspection, NEVER deploy a failed build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metro-complete-seven-day-verified-preview
+          path: website/
+          retention-days: 7
+          compression-level: 6
