@@ -1,0 +1,123 @@
+name: Emergency rollback to exact pre-change STABLE21 website (no new timetable data)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/emergency-restore-stable21-20261116.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable21-website
+          path: _frozen
+      - name: Verify byte-exact archival site against original SHA256 manifest, no post-STABLE21 edits
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('_frozen/website')
+          assert root.is_dir()
+          manifest=json.loads((root/'STABLE21-MANIFEST.json').read_text())
+          assert manifest['publishedHistoricalTrainTemplates']==10827
+          assert manifest['originalVerifiedOsmRailShapes']==107
+          for rel,wanted in manifest['fileSha256'].items():
+           p=root/rel
+           assert p.is_file(),('STABLE21 file missing',rel)
+           actual=hashlib.sha256(p.read_bytes()).hexdigest()
+           assert actual==wanted,('STABLE21 backup corrupted',rel,actual,wanted)
+          d=json.loads((root/'data/rail.json').read_text())
+          assert len(d['trips'])==10827
+          assert len(d['shapes'])==107
+          assert 'metroWeekdaySimulation' not in d
+          assert 'commuterWeekdaySimulation' not in d
+          assert 'localWeekdaySimulation' not in d
+          assert 'app.js?v=package07-01' in (root/'index.html').read_text()
+          assert "rail.json?v=package07-01" in (root/'src/rail-data.js').read_text()
+          print('STABLE21 ORIGINAL ARCHIVE HASHES PASS',len(manifest['fileSha256']),'FILES; RESTORE EXACT ORIGINAL UNMODIFIED SITE')
+          PY
+          mkdir -p _site
+          cp -a _frozen/website/. _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
+  public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable21-website
+          path: _stable21_source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm real public page and ALL static files are from STABLE21, not later experiments
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?emergency-stable21-restore=1' | grep -Fq 'app.js?v=package07-01';then
+             echo 'ORIGINAL STABLE21 HTML RESTORED';break
+           fi
+           if [ "$i" = 60 ];then echo 'STABLE21 NOT YET PUBLIC';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 60 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package07-01' -o /tmp/restored-stable21-rail.json
+          curl -fLsS --max-time 30 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=package07-01' -o /tmp/restored-stable21-rail-data.js
+          curl -fLsS --max-time 30 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=package07-01' -o /tmp/restored-stable21-app.js
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          base=Path('_stable21_source/website')
+          manifest=json.loads((base/'STABLE21-MANIFEST.json').read_text())
+          for name,file in [('data/rail.json','/tmp/restored-stable21-rail.json'),('src/rail-data.js','/tmp/restored-stable21-rail-data.js'),('src/app.js','/tmp/restored-stable21-app.js')]:
+           got=hashlib.sha256(Path(file).read_bytes()).hexdigest()
+           assert got==manifest['fileSha256'][name],('PUBLIC FILE NOT ORIGINAL STABLE21',name)
+          d=json.load(open('/tmp/restored-stable21-rail.json'))
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          print('REAL PUBLIC ORIGINAL STABLE21 BYTES CONFIRMED: SOURCE, UI AND RAILTRACK CODE')
+          PY
+      - name: Public Chromium display smoke test, no source edits
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {chromium} from 'playwright';
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           const ctx=await browser.newContext({viewport:{width:1500,height:900}});
+           const page=await ctx.newPage(),errors=[];
+           page.on('pageerror',e=>errors.push(String(e)));
+           const response=await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?public-rollback-verification=1',{waitUntil:'domcontentloaded',timeout:90000});
+           assert.equal(response.status(),200);
+           await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
+           const filters=['commuter','metro','tram','roslags','saltsjo','all'];
+           for(const filter of filters){
+            await page.locator('[data-filter="'+filter+'"]').click();
+            await page.waitForFunction(()=>document.querySelectorAll('.leaflet-marker-icon').length===document.querySelectorAll('#vehicle-list button.vehicle').length,null,{timeout:30000});
+            console.log('RESTORED ORIGINAL PUBLIC',filter,'vehicle rows',await page.locator('#vehicle-list button.vehicle').count(),'markers',await page.locator('.leaflet-marker-icon').count());
+           }
+           assert.deepEqual(errors,[]);
+           await ctx.close();
+          }finally{await browser.close()}
+          JS
