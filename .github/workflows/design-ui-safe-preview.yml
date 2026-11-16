@@ -1,0 +1,59 @@
+name: Design-only Stockholm Rail preview – prove no source trains/routes change
+on:
+  push:
+    branches: [design/rail-observatory-ux-safe-20261116]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-safe-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Immutable STABLE21 train and route geometry protection gate
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('website')
+          hashes=json.loads((root/'STABLE21-MANIFEST.json').read_text())['fileSha256']
+          allow={'index.html','src/app.js'}
+          for file,digest in hashes.items():
+            if file in allow:continue
+            got=hashlib.sha256((root/file).read_bytes()).hexdigest()
+            assert got==digest,('FATAL TRAIN / TRACK / ORIGINAL PHOTO / APP ASSET CHANGED',file)
+          d=json.loads((root/'data/rail.json').read_text())
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          assert all('metroWeekdaySimulation' not in d for _ in range(1))
+          assert (root/'src/design-ui.css').is_file() and (root/'src/design-ui.js').is_file()
+          html=(root/'index.html').read_text()
+          for key in ['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag','all']:
+            assert html.count('data-filter="'+key+'"')==1
+          print('EXACT ORIGINAL STABLE21 TRAIN TIMES, PATHS, PHOTOS, MARKERS, RAIL FILTERS, 107 SHAPES ALL UNCHANGED')
+          PY
+      - name: JavaScript parse checks
+        run: |
+          node --check website/src/app.js
+          node --check website/src/design-ui.js
+          node --check website/src/rail-data.js
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Real desktop and phone Chromium UI interactions and every train category
+        timeout-minutes: 18
+        run: node --max-old-space-size=4096 tests/design-ui-browser-smoke.mjs
+      - name: Package only safe preview and screenshots, never replace LIVE
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockholm-rail-ux-design-preview-immutable-trains
+          path: |
+            website/
+            _design_preview/
+          retention-days: 7
+          compression-level: 6
