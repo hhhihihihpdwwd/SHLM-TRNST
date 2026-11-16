@@ -1,0 +1,9 @@
+{
+  "historicalMetroTemplates": 13372,
+  "weeklyPatterns": true,
+  "sourceArchive": "GTFS Sverige 2 November 4 2026",
+  "previewChromiumRun": 43840939139,
+  "nonMetroTripsAndRailShapesUnchanged": true,
+  "publicGitHubPagesChromiumVerified": true,
+  "railDataSHA256": "d9574380de7be53beb203c9d81795e6ab9bd2de411bbc3466df427dc2bf97a2e"
+}
