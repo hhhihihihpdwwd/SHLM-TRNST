@@ -1,0 +1,165 @@
+name: Refresh isolated DESIGN PREVIEW with full-width train photo and stacked next station
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-isolated-ux-large-photo-v2.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  prepare-safe-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable21-website
+          path: _original
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43856622226
+          artifact-ids: 14220784002
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _tested
+      - name: Assemble unmodified production root plus separate /design-preview/ path
+        run: |
+          mkdir -p _site/design-preview
+          cp -a _original/website/. _site/
+          cp -a _tested/website/. _site/design-preview/
+      - name: Byte-for-byte prove original public root is unchanged and preview has identical original trains and tracks
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          live=Path('_site');p=live/'design-preview'
+          original=Path('_original/website')
+          manifest=json.loads((original/'STABLE21-MANIFEST.json').read_text())
+          for name,digest in manifest['fileSha256'].items():
+           assert (live/name).is_file(),('ORIGINAL PUBLIC FILE MISSING',name)
+           assert hashlib.sha256((live/name).read_bytes()).hexdigest()==digest,('ORIGINAL WEBSITE WAS MODIFIED',name)
+           assert (live/name).read_bytes()==(original/name).read_bytes()
+           if name not in {'index.html','src/app.js'}:
+            assert (p/name).read_bytes()==(original/name).read_bytes(),('PREVIEW TAMPERED WITH ANY EXISTING RAIL DATA, TRAIN IMAGE, SHAPE, OR FILTER',name)
+          data=json.loads((p/'data/rail.json').read_text())
+          assert len(data['trips'])==10827 and len(data['shapes'])==107
+          assert (live/'data/rail.json').read_bytes()==(p/'data/rail.json').read_bytes()
+          assert (live/'src/rail-data.js').read_bytes()==(p/'src/rail-data.js').read_bytes()
+          assert (live/'src/rail-filter.js').read_bytes()==(p/'src/rail-filter.js').read_bytes()
+          assert 'app.js?v=package07-01' in (live/'index.html').read_text()
+          assert 'app.js?v=ux-20261116-01' in (p/'index.html').read_text()
+          assert 'design-ui.css?v=ux-20261116-02' in (p/'index.html').read_text()
+          assert (p/'src/design-ui.js').exists() and (p/'src/design-ui.css').exists()
+          print('RELEASE BLOCKER PASS: ORIGINAL PUBLIC ROOT 100% BYTE IDENTICAL; /design-preview/ IS SEPARATE; ORIGINAL 10827 TRAIN RECORDS AND 107 REAL SHAPES PRESERVED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: prepare-safe-preview
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.published.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: published
+  verify-public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable21-website
+          path: _original
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm actual root remains STABLE21 and separate preview serves latest design files and original GTFS
+        run: |
+          for i in $(seq 1 60);do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/design-preview/?ux-20261116-01' | grep -Fq 'app.js?v=ux-20261116-01';then
+              echo 'SEPARATE DESIGN PREVIEW LIVE';break
+            fi
+            if [ "$i" = 60 ];then echo 'DESIGN PREVIEW UNAVAILABLE';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 30 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?original-root-check=1' -o /tmp/original-index.html
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package07-01' -o /tmp/original-rail.json
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/design-preview/data/rail.json?v=package07-01' -o /tmp/preview-rail.json
+          curl -fLsS --max-time 30 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=package07-01' -o /tmp/original-app.js
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          old=Path('_original/website')
+          hashes=json.loads((old/'STABLE21-MANIFEST.json').read_text())['fileSha256']
+          for rel,file in [('index.html','/tmp/original-index.html'),('data/rail.json','/tmp/original-rail.json'),('src/app.js','/tmp/original-app.js')]:
+           got=hashlib.sha256(Path(file).read_bytes()).hexdigest()
+           assert got==hashes[rel],('ORIGINAL LIVE ROOT CHANGED',rel)
+          assert Path('/tmp/original-rail.json').read_bytes()==Path('/tmp/preview-rail.json').read_bytes()
+          print('REAL PUBLIC PRODUCTION WEBSITE UNCHANGED, EXACT STABLE21 ORIGINAL CHECKSUMS PASS')
+          PY
+      - name: Real PUBLIC Chromium smoke test on desktop and phone at /design-preview/
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          const data=JSON.parse(fs.readFileSync('/tmp/preview-rail.json','utf8'));
+          assert.equal(data.trips.length,10827);
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          const epoch=Date.parse('2026-11-16T08:30:00+01:00')/1000;
+          try{
+           for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
+            const ctx=await browser.newContext({viewport});
+            await ctx.addInitScript(time=>{const raw=Date.now.bind(Date),shift=time-raw();Date.now=()=>raw()+shift},epoch*1000);
+            const page=await ctx.newPage(),errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/design-preview/?live-design-public-check=1',
+              {waitUntil:'domcontentloaded',timeout:90000});
+            await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,
+              null,{timeout:90000});
+            assert.equal(await page.locator('header.topbar').count(),0);
+            await page.locator('#rail-next').click();
+            assert.equal(await page.locator('[data-carousel-position="current"]').getAttribute('data-filter'),'metro');
+            await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length===38,
+              null,{timeout:60000});
+            await page.waitForFunction(()=>document.querySelectorAll('.leaflet-marker-icon').length===38,
+              null,{timeout:60000});
+            await page.locator('.all-trains-button').click();
+            await page.waitForFunction(()=>document.querySelectorAll('.leaflet-marker-icon').length===232,null,{timeout:60000});
+            await page.locator('#info-toggle').click();
+            await page.locator('#map-info').waitFor({state:'visible'});
+            await page.locator('#info-close').click();
+            assert(await page.locator('#map-info').isHidden());
+            await page.locator('[data-carousel-position="current"]').click();
+            await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length===38,null,{timeout:60000});
+            await page.locator('#vehicle-list button.vehicle').first().click();
+            await page.locator('#selected-detail').waitFor({state:'visible'});
+            const hero=await page.locator('.detail-hero').boundingBox();
+            const photo=await page.locator('.image-placeholder').boundingBox();
+            const image=await page.locator('.image-placeholder img').boundingBox();
+            const station=await page.locator('.next-stop').boundingBox();
+            assert(hero&&photo&&image&&station,'Preview train detail missing');
+            assert(photo.width>=hero.width-40 && station.width>=hero.width-40,'Train picture and station must be full width');
+            assert(image.height>=150 && station.y>=photo.y+photo.height-1,
+              'Train photo must be visibly larger and next station must sit below it');
+            console.log('PUBLIC STRETCHED TRAIN PHOTO',viewport.width,Math.round(image.width)+'×'+Math.round(image.height),
+              'NEXT STATION BELOW',Math.round(station.width));
+            assert.deepEqual(errors,[]);
+            console.log('PUBLIC DESIGN PREVIEW REAL CHROMIUM',viewport.width,'ALL FILTERED MARKERS VALID, 38 METRO, 232 ALL, HELP AND CAROUSEL PASS');
+            await ctx.close();
+           }
+          }finally{await browser.close()}
+          JS
