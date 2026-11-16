@@ -110,9 +110,9 @@ try{
   const picture=await page.locator('.image-placeholder img').boundingBox();
   const nextStation=await page.locator('.next-stop').boundingBox();
   assert(hero&&photo&&picture&&nextStation,'Missing redesigned train photo / next-station layout');
-  assert(photo.width>=hero.width*.93,'Train photo is not full-width');
+  assert(photo.width>=hero.width-40,'Train photo is not full panel content width: '+JSON.stringify({hero:hero.width,photo:photo.width}));
   assert(picture.height>=150,'Train photo is still too small');
-  assert(nextStation.width>=hero.width*.93,'Next station card is not full-width');
+  assert(nextStation.width>=hero.width-40,'Next station card is not full panel content width: '+JSON.stringify({hero:hero.width,next:nextStation.width}));
   assert(nextStation.y>=photo.y+photo.height-1,'Next station card is not underneath photo');
   console.log('LARGE STACKED TRAIN PHOTO AND NEXT STATION',viewport.width,'PASS',
     'image',Math.round(picture.width)+'x'+Math.round(picture.height));
