@@ -1,0 +1,61 @@
+name: Audit STABLE23 remaining 14 systems against 7-day GTFS source
+on:
+  push:
+    branches: [audit/remaining-weekly-systems-20261116]
+    paths: [.github/workflows/audit-next-weekly-systems.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-sources:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inventory complete published GTFS source for every mode and calendar day
+        run: |
+          python -u - <<'PY'
+          import sys,json,collections,datetime as dt
+          sys.path.insert(0,'scripts')
+          from build_rail_keyless import fetch_archive,records,service_calendar,SOURCE_START
+          d=json.load(open('website/data/rail.json'))
+          groups=collections.defaultdict(list)
+          for t in d['trips']:
+           groups[(t['mode'],str(t.get('line','')),str(t.get('agency','')))].append(t)
+          print('STABLE23 16 SYSTEM BASELINE',len(d['trips']),'trips',d['counts'],'Metro weekly',d.get('metroWeekdaySimulation'),'commuter weekly',d.get('commuterWeekdaySimulation'))
+          for (mode,line,agency),rows in sorted(groups.items()):
+           weekdays=collections.Counter(r.get('serviceDay') for r in rows)
+           original=collections.Counter(r.get('archiveDay') for r in rows)
+           print('EXISTING',mode,'LINE',line,'OPERATOR',agency,'TEMPLATES',len(rows),'SERVICE DAYS',dict(weekdays),'ARCHIVE DAYS',dict(original))
+          dates=[SOURCE_START+dt.timedelta(days=i) for i in range(7)]
+          wanted=set(['7','12','21','25','26','27','28','29','30','31'])
+          with fetch_archive() as z:
+           calendar=service_calendar(z,dates)
+           service_dates=collections.defaultdict(set)
+           for day,sids in calendar.items():
+            for sid in sids:service_dates[sid].add(day)
+           agencies={r.get('agency_id'):r.get('agency_name','') for r in records(z,'agency.txt')}
+           routes={}
+           for r in records(z,'routes.txt'):
+            short=str(r.get('route_short_name','')).strip()
+            if short not in wanted:continue
+            agency=agencies.get(r.get('agency_id'),'')
+            if 'sl' not in agency.casefold() and 'stockholms lokaltrafik' not in agency.casefold():continue
+            routes[r['route_id']]=(short,r.get('route_type'),r.get('route_long_name',''),agency)
+           print('SOURCE MATCHED ROUTES',len(routes))
+           rows=collections.Counter()
+           ids=collections.defaultdict(set)
+           for r in records(z,'trips.txt'):
+            route=routes.get(r.get('route_id'))
+            if not route:continue
+            for day in service_dates.get(r.get('service_id'),[]):
+             rows[(route[0],day.isoformat())]+=1
+             ids[route[0]].add(r['trip_id'])
+           for line in sorted(wanted,key=int):
+            print('SOURCE SL LINE',line,'TRIPS BY DATE',{day.isoformat():rows[(line,day.isoformat())] for day in dates},'UNIQUE TRIPS',len(ids[line]))
+           notfound=wanted-{route[0] for route in routes.values()}
+           print('MISSING ROUTES IN SOURCE',sorted(notfound))
+          PY
