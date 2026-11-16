@@ -1,0 +1,10 @@
+{
+  "historicalMetroJourneys": 13372,
+  "historicalCommuterJourneys": 3528,
+  "sourceArchive": "GTFS Sverige 2 November 4, 2026",
+  "metroAndCommuterRepeatByHistoricalWeekday": true,
+  "notLiveGPS": true,
+  "publicChromiumTested": true,
+  "baseline": "archive/stable22-metro-weekly-website",
+  "railDataSha256": "f4724ee0d048b902c2905fa71edd8eb738e9e8c2d1b91350ee47e767bdd94247"
+}
