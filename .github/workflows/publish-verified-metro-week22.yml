@@ -25,21 +25,16 @@ jobs:
           merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: _approved
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          repository: hhhihihihpdwwd/SHLM-TRNST
-          run-id: 43006132073
-          name: github-pages
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: _published_old
+          ref: archive/stable21-website
+          path: _stable21_source
       - name: Compare all 15 non-Metro systems and every original OSM track to public STABLE21
         run: |
-          mkdir -p _old
-          tar -xf _published_old/artifact.tar -C _old
           python - <<'PY'
           import json
           from pathlib import Path
-          old=Path('_old');new=Path('_approved')
+          old=Path('_stable21_source/website');new=Path('_approved')
           for rel in ('index.html','src/app.js','src/rail-data.js','data/rail.json'):
            assert (new/rel).is_file(),('Missing approved website file',rel)
           previous=json.loads((old/'data/rail.json').read_text())
@@ -54,7 +49,7 @@ jobs:
           for oldfile in old.rglob('*'):
            if oldfile.is_file():
             p=oldfile.relative_to(old)
-            if str(p) not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
+            if str(p) not in {'index.html','src/app.js','src/rail-data.js','data/rail.json','STABLE21-MANIFEST.json'}:
              assert (new/p).read_bytes()==oldfile.read_bytes(),('Non-metro static assets changed',str(p))
           assert 'app.js?v=metro-week-01' in (new/'index.html').read_text()
           print('GREEN STABLE22: 13372 / 13372 ORIGINAL METRO GTFS WEEK TRIPS; ALL OTHER SYSTEMS AND PHOTOS UNCHANGED')
