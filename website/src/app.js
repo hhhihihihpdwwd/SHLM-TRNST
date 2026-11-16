@@ -1,6 +1,6 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
-import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=package07-01';
+import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=metro-week-01';
 import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=rdc-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {operatorMarkerSprites} from './operator-marker-sprites.js?v=operator-markers-01';
@@ -312,7 +312,7 @@ function showRealDetail(){
  const stops=v.stops,firstDeparture=stops[0][4],base=v.start-firstDeparture;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
- $('train-sub').textContent=(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema som simulerad reservavgång · OSM-spår, ingen GPS':v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(['verified-osm-relation','verified-osm-rail-ways'].includes(v.geometryQuality)?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema som simulerad reservavgång · OSM-spår, ingen GPS':(v.mode==='metro'&&railDataset?.metroWeekdaySimulation)?'Historisk veckodagstidtabell · OSM-spår, simulerad position · ingen GPS':v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(['verified-osm-relation','verified-osm-rail-ways'].includes(v.geometryQuality)?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  if(v.stopAlignmentCaveat)$('train-sub').textContent+=' · Enebybergs stationspunkt avviker cirka 690 m från OSM-linjen';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
