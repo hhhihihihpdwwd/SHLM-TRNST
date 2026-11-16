@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from build_rail_keyless import SOURCE_START, clock, fetch_archive, in_box, records, service_calendar
 from refine_osm_routes import choose_directional_shape
 from append_roslagsbanan import verified_match as verified_roslags_match
+from stitch_saltsjo_shortturns import stitch_saltsjo_25_26
 
 INPUT=Path(__file__).resolve().parents[1]/"website/data/rail.json"
 ZONE=ZoneInfo("Europe/Stockholm")
@@ -119,14 +120,23 @@ def rebuild(data,rows):
                 if chosen:break
         if chosen is None:
             chosen=choose_directional_shape(stops,list(allshapes.items()),MAX_STOP_ERROR)
+        crossing=None
+        if chosen is None and line=="26":
+            crossing=stitch_saltsjo_25_26(stops,inventory)
+            if crossing:
+                chosen=(crossing[0],crossing[1])
+                print("VERIFIED SALTSJO AUTHENTIC RAIL JUNCTION",line,len(group),
+                      "trips; old OSM parents",crossing[2],"junction gap metres",round(crossing[3],3),flush=True)
         if chosen is None:
             unmatched.append((line,len(group),group[0]["id"],stops[0][2],stops[-1][2]))
             continue
         sid,shape=chosen
         newshape[sid]=shape
         for r in group:
-            valid.append({**r,"shapeId":sid,"osmRelation":sid,
-                          "geometryQuality":"verified-osm-relation"})
+            clone={**r,"shapeId":sid,"osmRelation":sid,
+                    "geometryQuality":"verified-osm-relation"}
+            if crossing:clone["verifiedJoinedOsmRelations"]=crossing[2]
+            valid.append(clone)
     if unmatched:
         print("SL LOCAL UNVERIFIED PATTERNS",len(unmatched),"UNMATCHED TRAINS",sum(x[1] for x in unmatched),flush=True)
         for t in sorted(unmatched,key=lambda x:-x[1])[:100]:print("UNMATCHED",t,flush=True)
