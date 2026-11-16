@@ -1,0 +1,173 @@
+name: Deploy STABLE22 Metro complete historic week after independent Chromium validation
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-verified-metro-week22.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43840939139
+          artifact-ids: 14213635391
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43006132073
+          name: github-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _published_old
+      - name: Compare all 15 non-Metro systems and every original OSM track to public STABLE21
+        run: |
+          mkdir -p _old
+          tar -xf _published_old/artifact.tar -C _old
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_old');new=Path('_approved')
+          for rel in ('index.html','src/app.js','src/rail-data.js','data/rail.json'):
+           assert (new/rel).is_file(),('Missing approved website file',rel)
+          previous=json.loads((old/'data/rail.json').read_text())
+          fresh=json.loads((new/'data/rail.json').read_text())
+          assert fresh['counts']['metro']==13372 and fresh['metroWeekdaySimulation'] is True
+          assert len(fresh['trips'])==21402 and len(previous['trips'])==10827
+          assert previous['scope']==fresh['scope']
+          assert [t for t in previous['trips'] if t['mode']!='metro']==[t for t in fresh['trips'] if t['mode']!='metro']
+          assert all(fresh['shapes'][key]==val for key,val in previous['shapes'].items())
+          assert all(fresh['counts'][key]==val for key,val in previous['counts'].items() if key!='metro')
+          assert len(fresh['metroWeeklyCoverage'])==7
+          for oldfile in old.rglob('*'):
+           if oldfile.is_file():
+            p=oldfile.relative_to(old)
+            if str(p) not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
+             assert (new/p).read_bytes()==oldfile.read_bytes(),('Non-metro static assets changed',str(p))
+          assert 'app.js?v=metro-week-01' in (new/'index.html').read_text()
+          print('GREEN STABLE22: 13372 / 13372 ORIGINAL METRO GTFS WEEK TRIPS; ALL OTHER SYSTEMS AND PHOTOS UNCHANGED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
+  public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tunnelbana-weekly-completeness-20261116
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact public HTML and complete real public timetable
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?metro-weekly-stable22=1' | grep -Fq 'app.js?v=metro-week-01';then
+              echo 'PUBLIC STABLE22 HTML ONLINE';break
+            fi
+            if [ "$i" = 60 ];then echo 'PUBLIC SITE STILL OLD';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=metro-week-01' -o /tmp/public-stable22.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/public-stable22.json'))
+          assert d['counts']['metro']==13372 and d['metroWeekdaySimulation'] is True
+          assert len(d['trips'])==21402
+          print('PUBLIC LIVE DATA VERIFIED:',d['counts']['metro'],'Metro weekly trains')
+          PY
+      - name: Run real public Chromium check for all scheduled Metro markers
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips} from './website/src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('/tmp/public-stable22.json','utf8'));
+          const epoch=Date.parse('2026-11-16T08:30:00+01:00')/1000;
+          const expected=activeRailTrips(d,epoch,20000).filter(t=>t.mode==='metro').length;
+          assert.equal(expected,93);
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           const ctx=await browser.newContext({viewport:{width:1500,height:900}});
+           await ctx.addInitScript(t=>{const d=Date.now.bind(Date),offset=t-d();Date.now=()=>d()+offset},epoch*1000);
+           const page=await ctx.newPage(),errors=[];
+           page.on('pageerror',e=>errors.push(String(e)));
+           await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?chrome-metro-weekly=1',{waitUntil:'domcontentloaded',timeout:90000});
+           await page.locator('[data-filter="metro"]').click();
+           await page.waitForFunction(n=>document.querySelectorAll('#vehicle-list button.vehicle').length===n,expected,{timeout:90000});
+           await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,expected,{timeout:90000});
+           assert.equal(await page.locator('.leaflet-marker-icon').count(),expected);
+           assert.deepEqual(errors,[]);
+           console.log('REAL PUBLIC CHROMIUM: 93 of 93 scheduled Monday Metro markers visible');
+           await ctx.close();
+          }finally{await browser.close()}
+          JS
+  archive:
+    needs: public
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tunnelbana-weekly-completeness-20261116
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43840939139
+          artifact-ids: 14213635391
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_site
+      - name: Preserve exact audited STABLE22 43MB website source
+        run: |
+          rm -rf website
+          cp -a _approved_site website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path('website')
+          d=json.loads((root/'data/rail.json').read_text())
+          assert d['counts']['metro']==13372 and d['metroWeekdaySimulation']
+          (root/'STABLE22-METRO-WEEK-MANIFEST.json').write_text(json.dumps({
+             'historicalMetroTemplates':13372,'weeklyPatterns':True,
+             'sourceArchive':'GTFS Sverige 2 November 4 2026',
+             'previewChromiumRun':43840939139,
+             'nonMetroTripsAndRailShapesUnchanged':True,
+             'publicGitHubPagesChromiumVerified':True,
+             'railDataSHA256':hashlib.sha256((root/'data/rail.json').read_bytes()).hexdigest()
+          },indent=2))
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable22-metro-weekly-website
+          git add -f website
+          git commit -m "archive: STABLE22 exact public 13372 weekly Metro, 16 systems preserved"
+          git push origin HEAD:refs/heads/archive/stable22-metro-weekly-website
