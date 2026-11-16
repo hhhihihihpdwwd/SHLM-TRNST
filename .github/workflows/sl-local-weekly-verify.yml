@@ -2,7 +2,7 @@ name: Check SL all ten local-rail lines against full historical GTFS week (no de
 on:
   push:
     branches: [fix/sl-local-all-weekday-timetables-20261116]
-    paths: [.github/workflows/sl-local-weekly-verify.yml]
+    paths: [.github/workflows/sl-local-weekly-verify.yml, scripts/build_weekly_sl_local_overlay.py]
   workflow_dispatch:
 permissions:
   contents: read
