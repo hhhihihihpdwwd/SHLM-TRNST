@@ -63,6 +63,9 @@ try{
   assert.equal(await page.locator('[data-carousel-position="prev"]').count(),1);
   assert.equal(await page.locator('[data-carousel-position="next"]').count(),1);
   await verifyNoControlOverlap(page);
+  const mapBox=await page.locator('#map').boundingBox();
+  const credits=await page.locator('.leaflet-control-attribution').boundingBox();
+  assert(credits&&credits.y>mapBox.y+mapBox.height*.65,'OSM attribution was incorrectly moved to map center');
   await page.locator('#info-toggle').click();
   await page.locator('#map-info').waitFor({state:'visible'});
   assert((await page.locator('#map-info').textContent()).includes('PENDELTÅG'));
@@ -106,7 +109,14 @@ try{
    maxHeight:getComputedStyle(el).maxHeight,overflow:getComputedStyle(el).overflowY
   }));
   assert.equal(stopStyles.overflow,'auto');
-  assert.equal(stopStyles.overflow,'auto');
+  const nextBox=await page.locator('#stops .stop.next').boundingBox();
+  const stopBox=await page.locator('#stops').boundingBox();
+  assert(nextBox&&stopBox,'Next station must be in compact timeline');
+  assert(nextBox.y>=stopBox.y-2&&nextBox.y+nextBox.height<=stopBox.y+stopBox.height+2,
+    'Next station not visible inside the scrollable mini-route');
+  // At intermediate stations, focus is centered, not left at the start of trip.
+  const centerDelta=Math.abs((nextBox.y+nextBox.height/2)-(stopBox.y+stopBox.height/2));
+  assert(centerDelta<stopBox.height*.42,'Next station is too far from the focus area');
   await page.locator('#follow').click();
   assert((await page.locator('#follow').textContent()).includes('Följer'));
   const subdued=await page.locator('.leaflet-marker-icon:not(.is-selected)').first().evaluate(el=>getComputedStyle(el).opacity);
