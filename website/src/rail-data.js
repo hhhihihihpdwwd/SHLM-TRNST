@@ -112,13 +112,27 @@ export function activeRailTrips(dataset,epoch,limit=900){
          source.snallCrossborderVerified===true&&String(source.id).startsWith('SNALL-INTL-20261109:')&&!!source.sourceTripId))&&
        source.osmWayNetwork===true&&source.geometryQuality==='verified-osm-rail-ways');
   if(!['commuter','metro','tram','localrail','saltsjo','express','intercity','regional'].includes(source.mode)||!verified)continue;
-  if(repeating && source.serviceDay!==templateDay)continue;
+  // Metro alone is rebuilt from the complete seven-day GTFS source. Keep all
+  // other 16-system templates byte-for-byte and on their original daily clock.
+  const weeklyMetro=repeating&&dataset.metroWeekdaySimulation===true&&source.mode==='metro';
+  if(repeating&&!weeklyMetro&&source.serviceDay!==templateDay)continue;
+  if(weeklyMetro&&!dataset.metroWeekdaySourceDays?.[String(new Date(source.serviceDay+'T12:00:00Z').getUTCDay()===0?6:new Date(source.serviceDay+'T12:00:00Z').getUTCDay()-1)])
+   continue;
   for(let index=0;index<targetDays.length;index++){
-   const delta=shifts[index];
+   const targetDay=targetDays[index];
+   // A train departing Saturday at 24:30 remains Saturday service even though
+   // its marker appears on calendar Sunday; look at previous service day too.
+   if(weeklyMetro){
+    const sourceWeekday=new Date(source.serviceDay+'T12:00:00Z').getUTCDay();
+    const requestedWeekday=new Date(targetDay+'T12:00:00Z').getUTCDay();
+    if(sourceWeekday!==requestedWeekday)continue;
+   }
+   const delta=weeklyMetro
+     ?swedishMidnight(targetDay)-swedishMidnight(source.serviceDay)
+     :shifts[index];
    // Only trains actually within their historical departure–arrival interval.
     // No ghost trains 60 seconds before departure or 80 seconds after arrival.
     if(epoch<source.start+delta||epoch>=source.end+delta)continue;
-   const targetDay=targetDays[index];
    // Official EN344/345 have several historical variants of the same train.
    // Preserve daily illustrative operation as requested, but never display
    // alternative source itineraries as several parallel physical vehicles.
@@ -134,7 +148,8 @@ export function activeRailTrips(dataset,epoch,limit=900){
    // Stockholm Rail operator. Source weekday remains archival metadata only.
    const trip=repeating?{...source,id:source.id+':DAILY:'+targetDay,
     serviceDay:targetDay,start:source.start+delta,end:source.end+delta,
-    timetableProxy:'Same historical weekday service repeated daily',isLiveGPS:false}:source;
+    timetableProxy:weeklyMetro?'Archived seven-day schedule repeated by Swedish weekday':'Same historical weekday service repeated daily',
+    isLiveGPS:false}:source;
    const geom=geometry(trip.shapeId,dataset.shapes);
    if(!geom)continue;
    const track=anchors(trip,geom);
