@@ -1,0 +1,185 @@
+name: Deploy STABLE24 all ten SL local lines historical weekly timetable, verify all 16 systems
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-verified-local-week24.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43845781988
+          artifact-ids: 14214753975
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable23-metro-commuter-weekly-website
+          path: _stable23
+      - name: Preserve every non-local train, physical OSM line, all photos, UI, filter and station assets
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_stable23/website');new=Path('_approved')
+          prev=json.loads((old/'data/rail.json').read_text())
+          d=json.loads((new/'data/rail.json').read_text())
+          assert prev['scope']==d['scope']
+          assert len(prev['trips'])==23237 and len(d['trips'])==29430
+          assert d['counts']['metro']==13372 and d['counts']['commuter']==3528
+          assert d['counts']['tram']==7338 and d['counts']['localrail']==2191 and d['counts']['saltsjo']==1563
+          assert sum(d['counts'][key] for key in ('tram','localrail','saltsjo'))==11092
+          assert d['localWeekdaySimulation'] and d['metroWeekdaySimulation'] and d['commuterWeekdaySimulation']
+          assert len(d['localWeeklyCoverage'])==7
+          assert all(len(day)==10 and all(v>0 for v in day.values()) for day in d['localWeeklyCoverage'].values())
+          assert prev['metroWeeklyCoverage']==d['metroWeeklyCoverage']
+          assert prev['commuterWeeklyCoverage']==d['commuterWeeklyCoverage']
+          modes={'tram','localrail','saltsjo'}
+          assert [t for t in prev['trips'] if t['mode'] not in modes]==[t for t in d['trips'] if t['mode'] not in modes]
+          assert all(d['shapes'][k]==v for k,v in prev['shapes'].items())
+          assert all(d['counts'][k]==v for k,v in prev['counts'].items() if k not in modes)
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in d['trips'] if t['mode'] in modes)
+          for file in old.rglob('*'):
+           if not file.is_file():continue
+           rel=file.relative_to(old)
+           if str(rel) not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
+            assert (new/rel).read_bytes()==file.read_bytes(),('OLD ASSET CHANGED',str(rel))
+          assert 'app.js?v=sl-local-week-01' in (new/'index.html').read_text()
+          assert "from './rail-data.js?v=sl-local-week-01'" in (new/'src/app.js').read_text()
+          assert "rail.json?v=sl-local-week-01" in (new/'src/rail-data.js').read_text()
+          print('RELEASE GREEN: ORIGINAL 16 SYSTEMS, 27992 WEEK-SPECIFIC SL METRO+PENDELTAG+LOCAL, ALL PHOTOS AND OLD RAIL TRACKS PRESERVED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/sl-local-all-weekday-timetables-20261116
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm actual public GitHub Pages serves latest HTML and all 29,430 historic source records
+        run: |
+          for i in $(seq 1 60); do
+           if curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable24-complete-local=1' | grep -Fq 'app.js?v=sl-local-week-01';then
+            echo 'PUBLIC STABLE24 HTML LIVE';break
+           fi
+           if [ "$i" = 60 ];then echo 'PUBLIC PAGES STILL OLD';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=sl-local-week-01' -o /tmp/stable24-public.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/stable24-public.json'))
+          assert len(d['trips'])==29430
+          assert d['counts']['metro']==13372 and d['counts']['commuter']==3528
+          assert sum(d['counts'][x] for x in ('tram','localrail','saltsjo'))==11092
+          assert d['metroWeekdaySimulation'] and d['commuterWeekdaySimulation'] and d['localWeekdaySimulation']
+          print('PUBLIC STABLE24 JSON VERIFIED: 27992 ORIGINAL GTFS TRAINS FOR SEVEN HISTORICAL DAYS')
+          PY
+      - name: Chromium actual PUBLIC website verifies ALL 16 systems plus Alla tåg
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips} from './website/src/rail-data.js';
+          import {matchesRailFilter} from './website/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('/tmp/stable24-public.json','utf8'));
+          const stamp='2026-11-16T08:30:00+01:00',epoch=Date.parse(stamp)/1000;
+          const expected=activeRailTrips(d,epoch,20000);
+          const filters=['tram','nockeby','lidingo','city7','roslags','saltsjo','metro','commuter','arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag','all'];
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           const ctx=await browser.newContext({viewport:{width:1500,height:900}});
+           await ctx.addInitScript(time=>{const clock=Date.now.bind(Date),delta=time-clock();Date.now=()=>clock()+delta},epoch*1000);
+           const page=await ctx.newPage(),errors=[];
+           page.on('pageerror',e=>errors.push(String(e)));
+           await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable24-actual-chromium=1',{waitUntil:'domcontentloaded',timeout:90000});
+           await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
+           for(const f of filters){
+            const n=expected.filter(t=>matchesRailFilter(t,f)).length;
+            await page.locator('[data-filter="'+f+'"]').click();
+            await page.waitForFunction(count=>document.querySelectorAll('#vehicle-list button.vehicle').length===count,n,{timeout:45000});
+            await page.waitForFunction(count=>document.querySelectorAll('.leaflet-marker-icon').length===count,n,{timeout:45000});
+            console.log('PUBLIC STABLE24 CHROMIUM',f,n,'of',n,'list rows and train markers');
+           }
+           assert.deepEqual(errors,[]);
+           await ctx.close();
+          }finally{await browser.close()}
+          JS
+  archive:
+    needs: public
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/sl-local-all-weekday-timetables-20261116
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43845781988
+          artifact-ids: 14214753975
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _verified
+      - name: Preserve exact public STABLE24 website and immutable SHA256 manifest
+        run: |
+          rm -rf website
+          cp -a _verified website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('website')
+          d=json.loads((p/'data/rail.json').read_text())
+          assert len(d['trips'])==29430 and d['localWeekdaySimulation']
+          (p/'STABLE24-MON-SUN-SL-MANIFEST.json').write_text(json.dumps({
+           'historicalMetroWeek':13372,
+           'historicalPendeltagWeek':3528,
+           'historicalTenLocalSLWeek':11092,
+           'sourceArchive':'GTFS Sverige 2 Nov 4-10 2026',
+           'representativeHistoricalWeekdaySimulationNotActualLiveGPS':True,
+           'unchangedLongDistanceAndOtherSystems':True,
+           'all16SystemsPublicChromiumVerified':True,
+           'verifiedBuildRun':43845781988,
+           'railDataSha256':hashlib.sha256((p/'data/rail.json').read_bytes()).hexdigest()
+          },indent=2))
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable24-all-SL-weekly-website
+          git add -f website
+          git commit -m "archive: STABLE24 every historical SL metro, Pendeltag and 10 local lines + all 16 systems public Chromium green"
+          git push origin HEAD:refs/heads/archive/stable24-all-SL-weekly-website
