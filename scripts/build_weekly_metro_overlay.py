@@ -20,6 +20,7 @@ from build_rail_keyless import (
     service_calendar,
 )
 from refine_osm_routes import choose_directional_shape
+from metro_crossline_geometry import stitch_red_line
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "website/data/rail.json"
@@ -113,16 +114,26 @@ def rebuild(dataset,gtfs_rows):
     validated=[]; extra_shapes={}; failures=[]
     for (line,points),rows in patterns.items():
         chosen=choose_directional_shape(rows[0]["stops"],shapes[line],MAX_STOP_ERROR_METRES)
+        crossline_parents=None
+        if chosen is None:
+            composite=stitch_red_line(rows[0]["stops"],shapes,MAX_STOP_ERROR_METRES)
+            if composite is not None:
+                sid,shape,crossline_parents=composite
+                chosen=(sid,shape)
+                print("VERIFIED CROSSLINE",line,len(rows),"trips",sid,flush=True)
         if chosen is None:
             failures.append((line,len(rows),rows[0]["id"],rows[0]["stops"][0][2],rows[0]["stops"][-1][2]))
             continue
         sid,shape=chosen
-        # A reversed existing OSM relation is still real geometry, not an invented track.
+        # Reversals and cross-line joins use only verified OSM geometry.
         extra_shapes[sid]=shape
         for row in rows:
-            validated.append({**row,"shapeId":sid,
-                              "geometryQuality":"verified-osm-relation",
-                              "osmRelation":sid.removeprefix("metro-osm:")})
+            enriched={**row,"shapeId":sid,
+                      "geometryQuality":"verified-osm-relation",
+                      "osmRelation":sid.removeprefix("metro-osm:")}
+            if crossline_parents:
+                enriched["combinedVerifiedOsmRelations"]=list(crossline_parents)
+            validated.append(enriched)
     if failures:
         print("UNMATCHED METRO STOP PATTERNS",len(failures),"TRAINS",sum(x[1] for x in failures),flush=True)
         for row in sorted(failures,key=lambda x:-x[1])[:30]:print("UNMATCHED",row,flush=True)
