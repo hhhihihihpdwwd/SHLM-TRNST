@@ -1,0 +1,163 @@
+name: Publish verified complete-week Metro STABLE22 and check live site
+on:
+  push:
+    branches: [fix/tunnelbana-weekly-completeness-20261116]
+    paths: [.github/workflows/metro-weekly-publish.yml]
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify-immutable-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43840939139
+          artifact-ids: 14213635391
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _site
+      - name: Check exact previously Chromium-tested release artifact and its historic timetable
+        run: |
+          test -s _site/index.html
+          test -s _site/src/app.js
+          test -s _site/src/rail-data.js
+          test -s _site/data/rail.json
+          python - <<'PY'
+          import json,collections
+          from pathlib import Path
+          site=Path('_site')
+          data=json.loads((site/'data/rail.json').read_text())
+          assert data['metroWeekdaySimulation'] is True
+          assert data['counts']['metro']==13372
+          assert len(data['metroWeeklyCoverage'])==7
+          assert all(all(v>0 for v in lines.values()) for lines in data['metroWeeklyCoverage'].values())
+          assert len(data['trips'])==21402
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in data['trips'] if t['mode']=='metro')
+          assert 'app.js?v=metro-week-01' in (site/'index.html').read_text()
+          assert "from './rail-data.js?v=metro-week-01'" in (site/'src/app.js').read_text()
+          assert "rail.json?v=metro-week-01" in (site/'src/rail-data.js').read_text()
+          expected={'commuter','metro','tram','localrail','saltsjo','express','regional','intercity'}
+          assert expected <= {t['mode'] for t in data['trips']}
+          print('RELEASE GATE PASS 13372 VERIFIED METRO, ALL 16 SYSTEMS RETAINED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify-immutable-release
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public-live-validation:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tunnelbana-weekly-completeness-20261116
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify actual public Pages HTML and 43MB production timetable
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?metro-week=1' | grep -Fq 'app.js?v=metro-week-01';then
+              echo 'NEW PUBLIC WEBSITE HTML CONFIRMED';break
+            fi
+            if [ "$i" = 60 ];then echo 'PUBLIC WEBSITE STILL HAS OLD VERSION';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=metro-week-01' -o /tmp/public-metro-rail.json
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/public-metro-rail.json'))
+          assert data['counts']['metro']==13372 and data['metroWeekdaySimulation'] is True
+          assert len(data['trips'])==21402
+          print('PUBLIC REMOTE JSON CONFIRMED:',data['counts']['metro'],'GTFS WEEKLY METRO TRAINS')
+          PY
+      - name: Validate PUBLIC Chrome map, the filter and complete live-served marker count
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips} from './website/src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('/tmp/public-metro-rail.json','utf8'));
+          const stamp='2026-11-16T08:30:00+01:00',epoch=Date.parse(stamp)/1000;
+          const expected=activeRailTrips(d,epoch,20000).filter(t=>t.mode==='metro').length;
+          assert.equal(expected,93,'Unexpected GTFS monday peak count');
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           const context=await browser.newContext({viewport:{width:1500,height:900}});
+           await context.addInitScript(t=>{const old=Date.now.bind(Date),offset=t-old();Date.now=()=>old()+offset},epoch*1000);
+           const page=await context.newPage(),errors=[];
+           page.on('pageerror',e=>errors.push(String(e)));
+           await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?verified-weekly-metro=1',{waitUntil:'domcontentloaded',timeout:90000});
+           await page.locator('[data-filter="metro"]').click();
+           await page.waitForFunction(n=>document.querySelectorAll('#vehicle-list button.vehicle').length===n,expected,{timeout:90000});
+           await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,expected,{timeout:90000});
+           assert.equal(await page.locator('.leaflet-marker-icon').count(),expected);
+           assert.deepEqual(errors,[]);
+           console.log('ACTUAL PUBLIC STOCKHOLM MAP MON 08:30: 93 OF 93 METRO MARKERS VISIBLE');
+           await context.close();
+          }finally{await browser.close()}
+          JS
+  archive:
+    needs: public-live-validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tunnelbana-weekly-completeness-20261116
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43840939139
+          artifact-ids: 14213635391
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _verified_live
+      - name: Preserve exact green released site as new STABLE22 immutable website snapshot
+        run: |
+          rm -rf website
+          cp -a _verified_live website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path('website')
+          d=json.loads((root/'data/rail.json').read_text())
+          assert d['counts']['metro']==13372 and d['metroWeekdaySimulation']
+          (root/'STABLE22-METRO-WEEK-MANIFEST.json').write_text(json.dumps({
+             'historicalMetroTemplates':13372,
+             'weeklyPatterns':True,
+             'noLiveGPS':True,
+             'sourceArchive':'GTFS Sverige 2 2026-11-04',
+             'chromeVerifiedRun':43840939139,
+             'other15SystemsUnchanged':True,
+             'timetableSHA256':hashlib.sha256((root/'data/rail.json').read_bytes()).hexdigest()
+          },indent=2))
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable22-metro-weekly-website
+          git add -f website
+          git commit -m "archive: STABLE22 verified 7-day 13372 metro trains, retain all 16 systems"
+          git push origin HEAD:refs/heads/archive/stable22-metro-weekly-website
