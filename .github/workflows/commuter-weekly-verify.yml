@@ -1,0 +1,89 @@
+name: STABLE23 Pendeltag complete historical seven-day import (non-deploy)
+on:
+  push:
+    branches: [fix/pendeltag-weekly-completeness-20261116]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and previous weekly Metro regression tests
+        run: |
+          python -m py_compile scripts/build_weekly_commuter_overlay.py
+          node --check website/src/app.js
+          node --check website/src/rail-data.js
+          node --test tests/metro-weekly-overlay.test.mjs
+      - name: Freeze all original STABLE22 non-commuter records
+        run: cp website/data/rail.json /tmp/stable22-snapshot.json
+      - name: Reconstruct Pendeltag weekly GTFS and refuse every missing OSM pattern
+        timeout-minutes: 35
+        run: python -u scripts/build_weekly_commuter_overlay.py
+      - name: Check exact Metro preservation and all other operators
+        run: |
+          python - <<'PY'
+          import collections,json
+          old=json.load(open('/tmp/stable22-snapshot.json'))
+          new=json.load(open('website/data/rail.json'))
+          assert old['scope']==new['scope'] and old['metroWeekdaySimulation'] and new['metroWeekdaySimulation']
+          assert old['metroWeeklyCoverage']==new['metroWeeklyCoverage']
+          assert old['counts']['metro']==new['counts']['metro']==13372
+          assert [t for t in old['trips'] if t['mode']!='commuter']==[t for t in new['trips'] if t['mode']!='commuter']
+          assert all(new['shapes'][sid]==shape for sid,shape in old['shapes'].items())
+          assert len(new['commuterWeeklyCoverage'])==7
+          assert sum(sum(day.values()) for day in new['commuterWeeklyCoverage'].values())==new['counts']['commuter']
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in new['trips'] if t['mode']=='commuter')
+          print('STABLE23 PREVIEW READY',new['counts']['commuter'],'historical commuter journey rows + 13372 original Metro rows')
+          PY
+      - name: Run train-and-track runtime at every quarter hour over one weekly loop
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './website/src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('website/data/rail.json','utf8'));
+          for(const day of ['2026-11-09','2026-11-10','2026-11-11','2026-11-12','2026-11-13','2026-11-14','2026-11-15']){
+           let commuterPeak=0,metroPeak=0,commuterObserved=0;
+           for(let minute=0;minute<1440;minute+=15){
+            const hh=String(Math.floor(minute/60)).padStart(2,'0');
+            const mm=String(minute%60).padStart(2,'0');
+            const epoch=Date.parse(day+'T'+hh+':'+mm+':00+01:00')/1000;
+            const active=activeRailTrips(d,epoch,20000);
+            const metro=active.filter(t=>t.mode==='metro');
+            const commuter=active.filter(t=>t.mode==='commuter');
+            commuterPeak=Math.max(commuterPeak,commuter.length);
+            metroPeak=Math.max(metroPeak,metro.length);
+            commuterObserved+=commuter.length;
+            assert.equal(commuter.length,new Set(commuter.map(t=>t.id)).size);
+            for(const t of [...metro,...commuter]){
+             const state=railAt(t,epoch);
+             assert(state.pos.every(Number.isFinite),t.id+' invalid coords');
+            }
+           }
+           console.log('COMPLETE DAILY AUDIT',day,'commuter observations',commuterObserved,'commuter peak',commuterPeak,'metro peak',metroPeak);
+           assert(commuterPeak>0&&metroPeak>0);
+          }
+          JS
+      - name: Install Chromium desktop/mobile verification
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Browser verify Metro remains correct and complete Pendeltag markers appear
+        timeout-minutes: 15
+        run: node --max-old-space-size=8192 tests/commuter-weekly-browser.mjs
+      - name: Save only completely green preview
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable23-pendeltag-weekly-verified-preview
+          path: website/
+          retention-days: 7
