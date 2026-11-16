@@ -1,0 +1,11 @@
+{
+  "historicalMetroWeek": 13372,
+  "historicalPendeltagWeek": 3528,
+  "historicalTenLocalSLWeek": 11092,
+  "sourceArchive": "GTFS Sverige 2 Nov 4-10 2026",
+  "representativeHistoricalWeekdaySimulationNotActualLiveGPS": true,
+  "unchangedLongDistanceAndOtherSystems": true,
+  "all16SystemsPublicChromiumVerified": true,
+  "verifiedBuildRun": 43845781988,
+  "railDataSha256": "46c31657b42b18daf180d14acccc3d5fa48a584fda1746c3c6d96b826c016667"
+}
