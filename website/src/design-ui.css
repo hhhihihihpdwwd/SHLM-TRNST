@@ -180,7 +180,7 @@ button:focus-visible{outline:3px solid #3b978d;outline-offset:3px}
 .stops-title small{font-size:9px;letter-spacing:0;text-transform:none;font-weight:500;color:#91a2a0;display:block;margin-top:4px}
 .stops{
  padding:9px 13px 11px 17px;
- max-height:255px;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;
+ max-height:255px;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:auto;
  scrollbar-width:thin;scrollbar-color:#c9dcd7 transparent;
  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);
  mask-image:linear-gradient(to bottom,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);
