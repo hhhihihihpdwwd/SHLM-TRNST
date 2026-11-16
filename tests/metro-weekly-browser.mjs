@@ -43,6 +43,11 @@ try{
   await page.locator('[data-filter="metro"]').click();
   await page.waitForFunction(count=>document.querySelectorAll('#vehicle-list button.vehicle').length===count,
    expected.length,{timeout:90000});
+  // The sidebar updates synchronously; Leaflet markers follow on the next
+  // (up to 90 ms) animation tick. Do not count stale previous-filter icons.
+  await page.waitForFunction(count=>
+    document.querySelectorAll('.leaflet-marker-icon').length===count,
+    expected.length,{timeout:30000});
   const actualList=await page.locator('#vehicle-list button.vehicle').count();
   const actualMarkers=await page.locator('.leaflet-marker-icon').count();
   assert.equal(actualList,expected.length,'metro list mismatch '+stamp);
