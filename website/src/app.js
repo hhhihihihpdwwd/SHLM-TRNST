@@ -343,7 +343,7 @@ function showRealDetail(){
    const nextTop=nextNode.getBoundingClientRect().top;
    const listTop=container.getBoundingClientRect().top;
    const desired=container.scrollTop+(nextTop-listTop)-(container.clientHeight-nextNode.clientHeight)/2;
-   container.scrollTop=Math.max(0,desired);
+   container.scrollTo({top:Math.max(0,desired),behavior:'instant'});
   }
  }
  if(map){
