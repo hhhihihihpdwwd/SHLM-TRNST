@@ -1,0 +1,174 @@
+name: Deploy STABLE23 Pendeltag weekly and preserve full STABLE22 Metro
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-verified-commuter-week23.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43843329399
+          artifact-ids: 14213823087
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable22-metro-weekly-website
+          path: _stable22
+      - name: Preserve all 13,372 historic Metro trains plus every other non-commuter source and all authentic track shapes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          old=Path('_stable22/website');new=Path('_approved')
+          a=json.loads((old/'data/rail.json').read_text())
+          b=json.loads((new/'data/rail.json').read_text())
+          assert a['scope']==b['scope']
+          assert a['metroWeeklyCoverage']==b['metroWeeklyCoverage']
+          assert a['counts']['metro']==b['counts']['metro']==13372
+          assert b['counts']['commuter']==3528 and b['commuterWeekdaySimulation'] is True
+          assert len(a['trips'])==21402 and len(b['trips'])==23237
+          assert [t for t in a['trips'] if t['mode']!='commuter']==[t for t in b['trips'] if t['mode']!='commuter']
+          assert all(b['shapes'][key]==value for key,value in a['shapes'].items())
+          assert all(b['counts'][key]==value for key,value in a['counts'].items() if key!='commuter')
+          assert len(b['commuterWeeklyCoverage'])==7
+          assert sum(sum(counts.values()) for counts in b['commuterWeeklyCoverage'].values())==3528
+          assert {str(t['line']) for t in b['trips'] if t['mode']=='commuter'}=={'40','41','43','48'}
+          assert all(t['geometryQuality']=='verified-osm-relation' for t in b['trips'] if t['mode']=='commuter')
+          for file in old.rglob('*'):
+           if file.is_file():
+            rel=file.relative_to(old)
+            if str(rel) not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
+             assert (new/rel).read_bytes()==file.read_bytes(),('static asset modified',str(rel))
+          assert 'app.js?v=commuter-week-01' in (new/'index.html').read_text()
+          assert "from './rail-data.js?v=commuter-week-01'" in (new/'src/app.js').read_text()
+          assert "rail.json?v=commuter-week-01" in (new/'src/rail-data.js').read_text()
+          print('STABLE23 RELEASE GREEN 3528 HISTORICAL PENDLETAG / 13372 METRO / ALL REMAINING SYSTEMS UNMODIFIED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _approved
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/pendeltag-weekly-completeness-20261116
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify public HTML and GTFS Pendeltag + Metro weekly source
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable23-pendeltag=1' | grep -Fq 'app.js?v=commuter-week-01';then
+            echo 'PUBLIC STABLE23 ONLINE';break
+           fi
+           if [ "$i" = 60 ];then echo 'PUBLIC STABLE23 FAILED';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=commuter-week-01' -o /tmp/public-stable23.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/public-stable23.json'))
+          assert d['counts']['commuter']==3528 and d['counts']['metro']==13372
+          assert d['commuterWeekdaySimulation'] and d['metroWeekdaySimulation']
+          assert len(d['trips'])==23237
+          print('PUBLIC PENDLETAG WEEK 3528 VERIFIED; METRO WEEK 13372 VERIFIED')
+          PY
+      - name: Verify public train marker counts in actual Chromium browser
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips} from './website/src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('/tmp/public-stable23.json','utf8'));
+          const epoch=Date.parse('2026-11-16T08:30:00+01:00')/1000;
+          const b=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           const ctx=await b.newContext({viewport:{width:1500,height:900}});
+           await ctx.addInitScript(time=>{const current=Date.now.bind(Date),off=time-current();Date.now=()=>current()+off},epoch*1000);
+           const page=await ctx.newPage(),errors=[];
+           page.on('pageerror',e=>errors.push(String(e)));
+           await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?public-stable23-browser-check=1',{waitUntil:'domcontentloaded',timeout:90000});
+           for(const [filter,expected] of [['commuter',42],['metro',93]]){
+            assert.equal(activeRailTrips(d,epoch,20000).filter(t=>t.mode===filter).length,expected);
+            await page.locator('[data-filter="'+filter+'"]').click();
+            await page.waitForFunction(n=>document.querySelectorAll('#vehicle-list button.vehicle').length===n,expected,{timeout:90000});
+            await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,expected,{timeout:90000});
+            console.log('ACTUAL PUBLIC CHROMIUM',filter,expected,'of',expected,'markers and rows');
+           }
+           assert.deepEqual(errors,[]);
+           await ctx.close();
+          }finally{await b.close()}
+          JS
+  archive:
+    needs: public
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/pendeltag-weekly-completeness-20261116
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 43843329399
+          artifact-ids: 14213823087
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved_site
+      - name: Archive exact live-tested STABLE23
+        run: |
+          rm -rf website
+          cp -a _approved_site website
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('website');d=json.loads((p/'data/rail.json').read_text())
+          assert d['counts']['metro']==13372 and d['counts']['commuter']==3528
+          (p/'STABLE23-WEEKLY-SL-MANIFEST.json').write_text(json.dumps({
+            'historicalMetroJourneys':13372,'historicalCommuterJourneys':3528,
+            'sourceArchive':'GTFS Sverige 2 November 4, 2026',
+            'metroAndCommuterRepeatByHistoricalWeekday':True,
+            'notLiveGPS':True,
+            'publicChromiumTested':True,
+            'baseline':'archive/stable22-metro-weekly-website',
+            'railDataSha256':hashlib.sha256((p/'data/rail.json').read_bytes()).hexdigest()
+          },indent=2))
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable23-metro-commuter-weekly-website
+          git add -f website
+          git commit -m "archive: STABLE23 complete historical Metro/Pendeltag weekly patterns verified in public Chromium"
+          git push origin HEAD:refs/heads/archive/stable23-metro-commuter-weekly-website
