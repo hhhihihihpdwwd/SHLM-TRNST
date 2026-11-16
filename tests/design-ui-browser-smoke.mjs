@@ -65,7 +65,7 @@ try{
   await verifyNoControlOverlap(page);
   await page.locator('#info-toggle').click();
   await page.locator('#map-info').waitFor({state:'visible'});
-  assert((await page.locator('#map-info').textContent()).includes('16 SYSTEM'));
+  assert((await page.locator('#map-info').textContent()).includes('PENDELTÅG'));
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#map-info').isHidden(),true);
   console.log('HELP AND CONTROLS',viewport.width,'PASS');
