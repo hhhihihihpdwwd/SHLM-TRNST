@@ -16,7 +16,7 @@ let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
 function setupMap(){
  if(!window.L){$('map-fallback').hidden=false;return}
  map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([59.334,18.058],11);
- L.control.zoom({position:'bottomright'}).addTo(map);
+ L.control.zoom({position:'topright'}).addTo(map);
  setBaseLayer(false);
  railLayer=L.layerGroup().addTo(map);
  map.on('dragstart zoomstart',()=>{state.follow=false;updateFollow()});
@@ -340,7 +340,9 @@ function showRealDetail(){
   container.replaceChildren(fragment);
   const nextNode=container.children[idx];
   if(nextNode){
-   const desired=nextNode.offsetTop-container.offsetTop-(container.clientHeight-nextNode.offsetHeight)/2;
+   const nextTop=nextNode.getBoundingClientRect().top;
+   const listTop=container.getBoundingClientRect().top;
+   const desired=container.scrollTop+(nextTop-listTop)-(container.clientHeight-nextNode.clientHeight)/2;
    container.scrollTop=Math.max(0,desired);
   }
  }
