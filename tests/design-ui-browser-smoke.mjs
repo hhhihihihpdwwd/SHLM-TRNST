@@ -103,6 +103,19 @@ try{
   await page.screenshot({path:'_design_preview/'+(viewport.width<500?'mobile':'desktop')+'-map.png',fullPage:true});
   await page.locator('#vehicle-list button.vehicle').first().click();
   await page.locator('#selected-detail').waitFor({state:'visible'});
+  // The photo must be larger and occupy the full panel width, with the
+  // full-width next-station card BELOW it rather than beside it.
+  const hero=await page.locator('.detail-hero').boundingBox();
+  const photo=await page.locator('.image-placeholder').boundingBox();
+  const picture=await page.locator('.image-placeholder img').boundingBox();
+  const nextStation=await page.locator('.next-stop').boundingBox();
+  assert(hero&&photo&&picture&&nextStation,'Missing redesigned train photo / next-station layout');
+  assert(photo.width>=hero.width*.93,'Train photo is not full-width');
+  assert(picture.height>=150,'Train photo is still too small');
+  assert(nextStation.width>=hero.width*.93,'Next station card is not full-width');
+  assert(nextStation.y>=photo.y+photo.height-1,'Next station card is not underneath photo');
+  console.log('LARGE STACKED TRAIN PHOTO AND NEXT STATION',viewport.width,'PASS',
+    'image',Math.round(picture.width)+'x'+Math.round(picture.height));
   assert((await page.locator('#stops .stop').count())>=2,'Station timeline missing');
   assert.equal(await page.locator('#stops .stop.next').count(),1);
   const stopStyles=await page.locator('#stops').evaluate(el=>({
