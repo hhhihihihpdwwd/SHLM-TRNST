@@ -1,0 +1,41 @@
+name: Check SL all ten local-rail lines against full historical GTFS week (no deploy)
+on:
+  push:
+    branches: [fix/sl-local-all-weekday-timetables-20261116]
+    paths: [.github/workflows/sl-local-weekly-verify.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Original railway and metro/commuter weekly source reference
+        run: |
+          python -m py_compile scripts/build_weekly_sl_local_overlay.py
+          cp website/data/rail.json /tmp/stable23-source.json
+      - name: Integrate complete source without allowing a single unsupported track
+        run: python -u scripts/build_weekly_sl_local_overlay.py
+      - name: Refuse any difference to Metro, Pendeltag, long-distance trains
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('/tmp/stable23-source.json'))
+          b=json.load(open('website/data/rail.json'))
+          prior=[t for t in a['trips'] if t['mode'] not in ('tram','localrail','saltsjo')]
+          current=[t for t in b['trips'] if t['mode'] not in ('tram','localrail','saltsjo')]
+          assert prior==current
+          assert b['counts']['commuter']==a['counts']['commuter']==3528
+          assert b['counts']['metro']==a['counts']['metro']==13372
+          assert a['metroWeeklyCoverage']==b['metroWeeklyCoverage']
+          assert a['commuterWeeklyCoverage']==b['commuterWeeklyCoverage']
+          assert all(b['shapes'][k]==v for k,v in a['shapes'].items())
+          assert len(b['localWeeklyCoverage'])==7
+          assert all(len(day)==10 and all(n>0 for n in day.values()) for day in b['localWeeklyCoverage'].values())
+          print('TEN SL LINES, 7 WEEKDAYS VERIFIED, ALL OTHER TRAIN SYSTEMS UNCHANGED')
+          PY
