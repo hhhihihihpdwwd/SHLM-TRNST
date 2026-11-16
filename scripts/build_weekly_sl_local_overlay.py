@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from build_rail_keyless import SOURCE_START, clock, fetch_archive, in_box, records, service_calendar
 from refine_osm_routes import choose_directional_shape
+from append_roslagsbanan import verified_match as verified_roslags_match
 
 INPUT=Path(__file__).resolve().parents[1]/"website/data/rail.json"
 ZONE=ZoneInfo("Europe/Stockholm")
@@ -107,6 +108,15 @@ def rebuild(data,rows):
     for (line,station_pattern),group in patterns.items():
         stops=group[0]["stops"]
         chosen=choose_directional_shape(stops,list(inventory[line].items()),MAX_STOP_ERROR)
+        if chosen is None and line in ("27","28","29"):
+            # The verified Roslagsbanan parser explicitly documents the ~690 m
+            # Enebyberg GTFS vs OSM station offset. Never move any rail vertex.
+            for sid,source_shape in inventory[line].items():
+                for suffix,geometry in (("",source_shape),(":reverse",list(reversed(source_shape)))):
+                    if verified_roslags_match(stops,geometry):
+                        chosen=(sid+suffix,geometry)
+                        break
+                if chosen:break
         if chosen is None:
             chosen=choose_directional_shape(stops,list(allshapes.items()),MAX_STOP_ERROR)
         if chosen is None:
