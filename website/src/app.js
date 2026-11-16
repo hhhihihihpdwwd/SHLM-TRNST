@@ -9,6 +9,7 @@ import {vyMarkerSprites} from './vy-marker-sprite.js?v=vy-01';
 import {tagabMarker} from './tagab-marker-sprite.js?v=tagab-01';
 import {rdcMarker} from './rdc-marker-sprite.js?v=rdc-01';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=rdc-01';
+import {initializeDesignChrome,syncRailCarousel} from './design-ui.js?v=ux-20261116-01';
 const $=id=>document.getElementById(id);
 const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
 let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
@@ -292,6 +293,7 @@ function showRealList(){
  }
 }
 function selectReal(v){
+ $('stops').dataset.stopKey='';
  lastPhotoVehicleId=null;
  state.selected=v;state.station=false;state.follow=false;selectedRouteId=null;selectedRouteLines=null;
  $('vehicle-list').hidden=true;$('station-view').hidden=true;$('selected-detail').hidden=false;
@@ -300,6 +302,7 @@ function selectReal(v){
  const p=railAt(v,Date.now()/1000).pos;if(map)map.flyTo(p,12,{duration:1});
 }
 function clearReal(){
+ $('stops').dataset.stopKey='';
  lastPhotoVehicleId=null;
  state.selected=null;state.follow=false;clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;$('station-view').hidden=true;
@@ -321,12 +324,25 @@ function showRealDetail(){
  const occ=occupancy(mock,idx,now.weekday,Math.floor(now.seconds/3600));
  $('occupancy-value').textContent=occ+'%';$('occupancy-fill').style.width=occ+'%';
  const speed=$('speed-value');if(speed)speed.textContent=current.kmh+' km/h';
- const container=$('stops');container.innerHTML='';
- for(let i=0;i<stops.length;i++){
-  const node=document.createElement('div');node.className='stop'+(i<idx?' passed':i===idx?' next':'');
-  const label=document.createElement('span');label.textContent=stops[i][2];
-  const time=document.createElement('span');time.textContent=toTime(stops[i][i===0?4:3]);
-  node.append(label,time);container.append(node);
+ const container=$('stops');
+ // Rebuild only when the next station changes or a different train is selected.
+ // Preserve user-controlled scrolling on every 1.4 s simulation refresh.
+ const stopKey=v.id+':'+idx;
+ if(container.dataset.stopKey!==stopKey){
+  container.dataset.stopKey=stopKey;
+  const fragment=document.createDocumentFragment();
+  for(let i=0;i<stops.length;i++){
+   const node=document.createElement('div');node.className='stop'+(i<idx?' passed':i===idx?' next':'');
+   const label=document.createElement('span');label.textContent=stops[i][2];
+   const time=document.createElement('span');time.textContent=toTime(stops[i][i===0?4:3]);
+   node.append(label,time);fragment.append(node);
+  }
+  container.replaceChildren(fragment);
+  const nextNode=container.children[idx];
+  if(nextNode){
+   const desired=nextNode.offsetTop-container.offsetTop-(container.clientHeight-nextNode.offsetHeight)/2;
+   container.scrollTop=Math.max(0,desired);
+  }
  }
  if(map){
   const segments=railPathSplit(v,current.meters);
@@ -388,7 +404,7 @@ function tickReal(){
   const markerStyle=selectedHere?'selected':selected?'dimmed':'normal';
   if(marker._railStyle!==markerStyle){
    marker._railStyle=markerStyle;
-   marker.setOpacity(markerStyle==='dimmed'?.27:1);
+   marker.setOpacity(markerStyle==='dimmed'?.65:1);
    marker.setIcon(miniRailIcon(v,selectedHere));
    marker.setZIndexOffset(selectedHere?1100:0);
   }
@@ -412,7 +428,7 @@ async function initializeReal(){
    }else hint.textContent='Planerade positioner på verifierade GTFS-linjer · ingen GPS';
  }
  const heading=document.querySelector('.sidebar-heading h1');if(heading)heading.textContent=railFilterTitle(state.filter);
- realLastList=0;tickReal();
+ realLastList=0;tickReal();focusFilteredActiveTrains(false);
 }
 function tick(){
  if(railDataset){tickReal();return}
@@ -447,6 +463,28 @@ function tick(){
  }
  const time=performance.now();
  if(state.selected&&time-lastDetailUpdate>1900){lastDetailUpdate=time;refreshSelected()}
+}
+// Presentation-only camera framing: center ONLY the actual vehicles of the
+// selected filter; never replace verified GTFS tracks with guessed geometry.
+function focusFilteredActiveTrains(animate=true){
+ if(!map||!railDataset||!window.L)return;
+ const epoch=Date.now()/1000;
+ const visible=activeRailTrips(railDataset,epoch,10000)
+   .filter(t=>matchesRailFilter(t,state.filter));
+ const positions=visible.map(t=>railAt(t,epoch)?.pos)
+   .filter(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite));
+ if(!positions.length)return; // Zero departures: never invent a train or camera position.
+ state.follow=false;updateFollow();
+ if(positions.length===1){
+  map.flyTo(positions[0],Math.min(12,Math.max(9,map.getZoom())),{duration:animate?.82:0});
+  return;
+ }
+ const b=L.latLngBounds(positions);
+ if(!b.isValid())return;
+ const mobile=window.matchMedia('(max-width:740px)').matches;
+ const padding=mobile?[46,36]:[64,66];
+ map.flyToBounds(b,{padding,paddingTopLeft:padding,paddingBottomRight:padding,
+   maxZoom:state.filter==='all'?11:13,duration:animate?.95:0,animate});
 }
 // The SJ expansion can leave the camera zoomed out over Scandinavia.
 // Keep Lidingöbanan focused on the verified Ropsten–Gåshaga endpoints,
@@ -539,20 +577,17 @@ function start(){
   if(heading)heading.textContent=railFilterTitle(state.filter);
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
   if(state.selected&&!matchesRailFilter(state.selected,state.filter))clearSelected();
-  if(state.filter==='lidingo')focusLidingoLine();
-  if(state.filter==='malartag')focusMalartagPilot();
-  if(state.filter==='vr')focusVrSnabbtag();
-  if(state.filter==='snalltaget')focusSnalltaget();
-  if(state.filter==='vy')focusVyTåg();
-  if(state.filter==='tagab')focusTagab();
-  if(state.filter==='rdc')focusRdcEuroNight();
+  // The carousel uses this very same original filter state and handler.
+  syncRailCarousel(state.filter);
   refreshList();tick();
+  focusFilteredActiveTrains();
  });
  $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
  $('home').onclick=()=>{clearSelected();map?.flyTo([59.334,18.058],11,{duration:1.1})};
  $('tab-trains').onclick=clearSelected;
  $('clear').onclick=clearSelected;
  $('follow').onclick=()=>{state.follow=!state.follow;updateFollow()};
+ initializeDesignChrome();
  tick();setInterval(tick,100);requestAnimationFrame(followFrame);loadPhotoCatalog().then(()=>{lastPhotoVehicleId=null;if(state.selected&&railDataset)showVerifiedPhoto(state.selected)});initializeReal();
 }
 start();
