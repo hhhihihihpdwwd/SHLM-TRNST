@@ -15,6 +15,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Original railway and metro/commuter weekly source reference
         run: |
           python -m py_compile scripts/build_weekly_sl_local_overlay.py
@@ -39,3 +42,46 @@ jobs:
           assert all(len(day)==10 and all(n>0 for n in day.values()) for day in b['localWeeklyCoverage'].values())
           print('TEN SL LINES, 7 WEEKDAYS VERIFIED, ALL OTHER TRAIN SYSTEMS UNCHANGED')
           PY
+      - name: Verify correct imported daily schedule and every stop path over all 7 days at quarter-hour intervals
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {activeRailTrips,railAt} from './website/src/rail-data.js';
+          import {matchesRailFilter} from './website/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('website/data/rail.json','utf8'));
+          assert(d.localWeekdaySimulation && d.metroWeekdaySimulation && d.commuterWeekdaySimulation);
+          const dates=['2026-11-09','2026-11-10','2026-11-11','2026-11-12','2026-11-13','2026-11-14','2026-11-15'];
+          const filters=['tram','nockeby','lidingo','city7','roslags','saltsjo','metro','commuter','arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag'];
+          for(const day of dates){
+           const seen=Object.fromEntries(filters.map(f=>[f,0]));
+           for(let minutes=0;minutes<1440;minutes+=15){
+            const hh=String(Math.floor(minutes/60)).padStart(2,'0'),mm=String(minutes%60).padStart(2,'0');
+            const epoch=Date.parse(day+'T'+hh+':'+mm+':00+01:00')/1000;
+            const trips=activeRailTrips(d,epoch,25000);
+            assert.equal(trips.length,new Set(trips.map(t=>t.id)).size);
+            for(const trip of trips){
+             const train=railAt(trip,epoch);
+             assert(train.pos.every(Number.isFinite)&&Number.isFinite(train.kmh),'Invalid track '+trip.id);
+            }
+            for(const name of filters)seen[name]+=trips.filter(t=>matchesRailFilter(t,name)).length;
+           }
+           for(const f of ['metro','commuter','tram','nockeby','lidingo','city7','roslags','saltsjo'])
+            assert(seen[f]>0,'No scheduled SL rail on '+day+' '+f);
+           console.log('ALL SYSTEMS HISTORICAL DAY',day,JSON.stringify(seen));
+          }
+          JS
+      - name: Install real Chromium for 16-system desktop and mobile browser regression
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Check exactly every marker and vehicle list row for every provider filter and ALL TRAINS
+        timeout-minutes: 15
+        run: node --max-old-space-size=8192 tests/sl-local-weekly-all-systems-browser.mjs
+      - name: Store only fully green preview, NEVER deploy a failed or partial timetable
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable24-all-local-SL-weekly-verified-preview
+          path: website/
+          retention-days: 7
