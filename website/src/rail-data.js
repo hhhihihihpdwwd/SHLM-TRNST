@@ -116,8 +116,8 @@ export function activeRailTrips(dataset,epoch,limit=900){
   // other 16-system templates byte-for-byte and on their original daily clock.
   const weeklyMetro=repeating&&dataset.metroWeekdaySimulation===true&&source.mode==='metro';
   if(repeating&&!weeklyMetro&&source.serviceDay!==templateDay)continue;
-  if(weeklyMetro&&!dataset.metroWeekdaySourceDays?.[String(new Date(source.serviceDay+'T12:00:00Z').getUTCDay()===0?6:new Date(source.serviceDay+'T12:00:00Z').getUTCDay()-1)])
-   continue;
+  if(weeklyMetro&&(!source.serviceDay||!dataset.metroWeekdaySourceDays))
+   throw Error('Incomplete Metro weekly schedule metadata');
   for(let index=0;index<targetDays.length;index++){
    const targetDay=targetDays[index];
    // A train departing Saturday at 24:30 remains Saturday service even though
