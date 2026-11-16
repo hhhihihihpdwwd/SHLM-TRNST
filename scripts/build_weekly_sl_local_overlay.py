@@ -136,6 +136,8 @@ def rebuild(data,rows):
             clone={**r,"shapeId":sid,"osmRelation":sid,
                     "geometryQuality":"verified-osm-relation"}
             if crossing:clone["verifiedJoinedOsmRelations"]=crossing[2]
+            if line in ("27","28") and any("enebyberg" in st[2].casefold() for st in stops):
+                clone["stopAlignmentCaveat"]="GTFS Enebyberg ~690m from OSM route geometry"
             valid.append(clone)
     if unmatched:
         print("SL LOCAL UNVERIFIED PATTERNS",len(unmatched),"UNMATCHED TRAINS",sum(x[1] for x in unmatched),flush=True)
