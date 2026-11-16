@@ -1,6 +1,6 @@
 // GTFS timetable adapter: UTC epoch for times, source shape coordinates for positions.
 // No fallback straight-track geometry for actual services.
-const TIMETABLE_URL='./data/rail.json?v=metro-week-01';
+const TIMETABLE_URL='./data/rail.json?v=commuter-week-01';
 const pathCache=new Map(),projectionCache=new Map();
 export async function loadRailTimetable(){
  try {
@@ -112,22 +112,26 @@ export function activeRailTrips(dataset,epoch,limit=900){
          source.snallCrossborderVerified===true&&String(source.id).startsWith('SNALL-INTL-20261109:')&&!!source.sourceTripId))&&
        source.osmWayNetwork===true&&source.geometryQuality==='verified-osm-rail-ways');
   if(!['commuter','metro','tram','localrail','saltsjo','express','intercity','regional'].includes(source.mode)||!verified)continue;
-  // Metro alone is rebuilt from the complete seven-day GTFS source. Keep all
-  // other 16-system templates byte-for-byte and on their original daily clock.
+  // Metro and Pendeltåg now follow independently verified historical SL
+  // weekday-specific GTFS. All other train systems keep their prior behavior.
   const weeklyMetro=repeating&&dataset.metroWeekdaySimulation===true&&source.mode==='metro';
-  if(repeating&&!weeklyMetro&&source.serviceDay!==templateDay)continue;
+  const weeklyCommuter=repeating&&dataset.commuterWeekdaySimulation===true&&source.mode==='commuter';
+  const weeklyTransit=weeklyMetro||weeklyCommuter;
+  if(repeating&&!weeklyTransit&&source.serviceDay!==templateDay)continue;
   if(weeklyMetro&&(!source.serviceDay||!dataset.metroWeekdaySourceDays))
    throw Error('Incomplete Metro weekly schedule metadata');
+  if(weeklyCommuter&&(!source.serviceDay||!dataset.commuterWeekdaySourceDays))
+   throw Error('Incomplete Pendeltåg weekly schedule metadata');
   for(let index=0;index<targetDays.length;index++){
    const targetDay=targetDays[index];
    // A train departing Saturday at 24:30 remains Saturday service even though
    // its marker appears on calendar Sunday; look at previous service day too.
-   if(weeklyMetro){
+   if(weeklyTransit){
     const sourceWeekday=new Date(source.serviceDay+'T12:00:00Z').getUTCDay();
     const requestedWeekday=new Date(targetDay+'T12:00:00Z').getUTCDay();
     if(sourceWeekday!==requestedWeekday)continue;
    }
-   const delta=weeklyMetro
+   const delta=weeklyTransit
      ?swedishMidnight(targetDay)-swedishMidnight(source.serviceDay)
      :shifts[index];
    // Only trains actually within their historical departure–arrival interval.
@@ -148,7 +152,7 @@ export function activeRailTrips(dataset,epoch,limit=900){
    // Stockholm Rail operator. Source weekday remains archival metadata only.
    const trip=repeating?{...source,id:source.id+':DAILY:'+targetDay,
     serviceDay:targetDay,start:source.start+delta,end:source.end+delta,
-    timetableProxy:weeklyMetro?'Archived seven-day schedule repeated by Swedish weekday':'Same historical weekday service repeated daily',
+    timetableProxy:weeklyTransit?'Archived seven-day schedule repeated by Swedish weekday':'Same historical weekday service repeated daily',
     isLiveGPS:false}:source;
    const geom=geometry(trip.shapeId,dataset.shapes);
    if(!geom)continue;
