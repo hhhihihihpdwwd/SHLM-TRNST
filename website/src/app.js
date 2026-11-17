@@ -214,7 +214,13 @@ function miniRailIcon(v,chosen=false){
   v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
  // Only the three user-approved 3D front markers are replaced.
  // Other vehicle types retain their ORIGINAL icons and geometries.
- const img=updatedThreeTrainMarkers[operatorKey]||
+ // The only two changed marker assignments: user-approved B artwork.
+ // The actual rail routes, photos, train list and every other icon are untouched.
+ const img=v.mode==='localrail'&&['27','28','29'].includes(String(v.line))
+   ?'./src/assets/roslagsbanan-B-approved.webp'
+   :v.mode==='saltsjo'&&['25','26'].includes(String(v.line))
+   ?'./src/assets/saltsjobanan-B-approved.webp'
+   :updatedThreeTrainMarkers[operatorKey]||
    (operatorKey==='rdc'?rdcMarker:operatorKey==='tagab'?tagabMarker:
     operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey]||vyMarkerSprites[operatorKey])?
     originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey));
