@@ -57,6 +57,11 @@ try{
   page.on('pageerror',err=>exceptions.push(String(err)));
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
+  assert.equal(await page.title(),'Stockholm Rail','Tab and share-card name must be exactly Stockholm Rail');
+  assert.equal(await page.locator('meta[name="application-name"]').getAttribute('content'),'Stockholm Rail');
+  assert.equal(await page.locator('meta[property="og:title"]').getAttribute('content'),'Stockholm Rail');
+  assert.equal(await page.locator('meta[name="apple-mobile-web-app-title"]').getAttribute('content'),'Stockholm Rail');
+  assert.equal(await page.locator('.foot').innerText(),'Stockholm Rail');
   assert.equal(await page.locator('header.topbar').count(),0,'Large top banner must be gone');
   assert.equal(await page.locator('#map-info').isHidden(),true,'Info initially hidden');
   assert.equal(await page.locator('[data-carousel-position="current"]').count(),1);
@@ -68,7 +73,10 @@ try{
   assert(credits&&credits.y>mapBox.y+mapBox.height*.65,'OSM attribution was incorrectly moved to map center');
   await page.locator('#info-toggle').click();
   await page.locator('#map-info').waitFor({state:'visible'});
-  assert((await page.locator('#map-info').textContent()).includes('PENDELTÅG'));
+  assert.equal((await page.locator('#map-info .info-heading span').innerText()).trim(),'Om kartan','Help heading must not be overwritten');
+  assert.equal((await page.locator('#map-info > strong').innerText()).trim(),'Stockholm Rail','Help card brand must remain Stockholm Rail');
+  assert((await page.locator('#map-info > span').innerText()).includes('Pendeltåg'),
+    'Historic source description must appear separately from the app name');
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#map-info').isHidden(),true);
   console.log('HELP AND CONTROLS',viewport.width,'PASS');
