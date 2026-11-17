@@ -8,6 +8,7 @@ import {approvedTrainMarkers} from './approved-train-markers.js?v=train-icons-02
 import {vyMarkerSprites} from './vy-marker-sprite.js?v=vy-01';
 import {tagabMarker} from './tagab-marker-sprite.js?v=tagab-01';
 import {rdcMarker} from './rdc-marker-sprite.js?v=rdc-01';
+import {updatedThreeTrainMarkers} from './updated-train-markers.js?v=markers-3d-01';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=rdc-01';
 import {initializeDesignChrome,syncRailCarousel} from './design-ui.js?v=ux-20261116-01';
 const $=id=>document.getElementById(id);
@@ -211,7 +212,12 @@ function miniRailIcon(v,chosen=false){
  const operatorKey=markerSpriteKey(v);
  const imageKey=v.mode==='tram'?'tram':v.mode==='metro'?'metro':
   v.mode==='commuter'?'commuter':v.mode==='localrail'?'localrail':v.mode==='saltsjo'?'localrail':v.mode==='express'?'rail_arlanda':v.mode==='rail'&&/arlanda express/i.test(v.agency+' '+v.destination)?'rail_arlanda':'rail';
- const img=operatorKey==='rdc'?rdcMarker:operatorKey==='tagab'?tagabMarker:operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey]||vyMarkerSprites[operatorKey])?originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey);
+ // Only the three user-approved 3D front markers are replaced.
+ // Other vehicle types retain their ORIGINAL icons and geometries.
+ const img=updatedThreeTrainMarkers[operatorKey]||
+   (operatorKey==='rdc'?rdcMarker:operatorKey==='tagab'?tagabMarker:
+    operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey]||vyMarkerSprites[operatorKey])?
+    originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey));
  const size=chosen?27:19;
  const html='<img alt="" aria-hidden="true" draggable="false" class="rail-photo-marker" src="'+img+'">';
  return L.divIcon({className:'rail-photo-icon'+(chosen?' is-selected':''),html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
