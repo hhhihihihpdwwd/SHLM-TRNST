@@ -19,6 +19,11 @@ SOURCES={
  "rdc":[
   "2026-10-10 8818 RDC EuroNight ankommer till Stockholm.jpg",
   "2026-10-10 8814 RDC EuroNight ankommer till Stockholm.jpg",
+  "20230220 Deutschland BTE SJ-Euronight Hamburg-Altona.jpg",
+  "20230525 Deutschland BTE SJ-Euronight Berlin.jpg",
+  "2024-02-07 SJ EN346 01.jpg",
+  "2024-08-23 4382 SJ Rc6 1413 med SJ EuroNight i Nässjö.jpg",
+  "2023-03-23 0694 SJ Rc6 1420 med Euronight-tåget mot Hamburg.jpg",
  ],
  "oresund":[
   "Öresundståg, Växjö, 20220806.jpg",
@@ -75,7 +80,8 @@ for category,titles in SOURCES.items():
     "size",resized.size,flush=True)
 ROOT.joinpath("metadata.json").write_text(json.dumps(records,ensure_ascii=False,indent=2),encoding="utf8")
 cw,ch=480,394
-sheet=Image.new("RGB",(cw*3,ch*3),(239,244,243))
+from math import ceil
+sheet=Image.new("RGB",(cw*3,ch*ceil(len(records)/3)),(239,244,243))
 draw=ImageDraw.Draw(sheet)
 for n,record in enumerate(records):
  x=(n%3)*cw;y=(n//3)*ch
