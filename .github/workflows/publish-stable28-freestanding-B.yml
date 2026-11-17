@@ -1,0 +1,299 @@
+name: STABLE28 Fix opaque local-rail icon tiles, exact tested freestanding trains
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-stable28-freestanding-B.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable27-approved-B-roslags-saltsjo-website
+          path: _previous
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44108787235
+          artifact-ids: 14339063581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _tested
+      - name: Refuse changes to any earlier timetable, track, photos, or marker art
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import hashlib,json,io
+          old=Path('_previous/website');new=Path('_tested/website')
+          a={str(p.relative_to(old)):p for p in old.rglob('*') if p.is_file()}
+          b={str(p.relative_to(new)):p for p in new.rglob('*') if p.is_file()}
+          assert set(a)<=set(b),('Baseline site files removed',set(a)-set(b))
+          created=set(b)-set(a)
+          assert created=={'src/assets/roslagsbanan-B-standalone.webp','src/assets/saltsjobanan-B-standalone.webp'},('Unexpected new assets',created)
+          edited={p for p in a if a[p].read_bytes()!=b[p].read_bytes()}
+          assert edited=={'index.html','src/app.js'},('Unrelated old data/source changed',edited)
+          assert b['index.html'].read_text()==a['index.html'].read_text().replace(
+             'app.js?v=approved-local-b-01','app.js?v=stable28-freestanding-01')
+          app=a['src/app.js'].read_text()
+          expected=app.replace(
+           './src/assets/roslagsbanan-B-approved.webp',
+           './src/assets/roslagsbanan-B-standalone.webp?v=free-train-01').replace(
+           './src/assets/saltsjobanan-B-approved.webp',
+           './src/assets/saltsjobanan-B-standalone.webp?v=free-train-01').replace(
+           '// The only two changed marker assignments: user-approved B artwork.',
+           '// Only two image sources change: the same approved B train motifs with their surrounding white/dark tiles cut away.')
+          assert b['src/app.js'].read_text()==expected,'App logic changed unexpectedly'
+          for rel,sha in [
+           ('src/assets/roslagsbanan-B-standalone.webp','ed1153f82cf5cd22fdcb3913c297722ef8616ed25be63e1bf29fa11b75021130'),
+           ('src/assets/saltsjobanan-B-standalone.webp','d5733ca80357793ee0da35935df0ef46e2e49ada4f19894632df91eced7cf5b4')]:
+           raw=b[rel].read_bytes()
+           assert hashlib.sha256(raw).hexdigest()==sha,('Not the screenshot-approved freestanding artwork',rel)
+           from PIL import Image
+           im=Image.open(io.BytesIO(raw)).convert('RGBA')
+           assert im.size==(48,48)
+           assert all(im.getpixel(pt)[3]==0 for pt in [(0,0),(47,0),(0,47),(47,47),(0,24),(24,0)])
+           assert im.getpixel((24,25))[3]>200
+          d=json.loads(b['data/rail.json'].read_text())
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          print('GREEN RELEASE: only TWO transparent train-front sprites + HTML cache invalidation; ALL existing GTFS, paths, photos and other 16-system assets identical')
+          PY
+      - name: Assemble exactly the already Chromium-tested website and existing design-preview alias
+        run: |
+          mkdir -p _site/design-preview
+          cp -a _tested/website/. _site/
+          cp -a _tested/website/. _site/design-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: integrity
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: pages
+  public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/freestanding-roslags-saltsjo-markers-20261117
+          path: _code
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44108787235
+          artifact-ids: 14339063581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _tested
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compare ACTUAL public content byte for byte, including alpha-mask image binaries
+        run: |
+          for i in $(seq 1 60); do
+           if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable28-b=1' | grep -Fq 'app.js?v=stable28-freestanding-01';then
+            echo 'PUBLIC STABLE28 CACHE-FRESH HTML ONLINE';break
+           fi
+           if [ "$i" = 60 ];then echo 'PUBLIC WEBSITE STILL SHOWING OLD ICONS';exit 1;fi
+           sleep 10
+          done
+          python - <<'PY'
+          from pathlib import Path
+          from urllib.request import urlopen,Request
+          import hashlib,json,time
+          root=Path('_tested/website')
+          base='https://hhhihihihpdwwd.github.io/SHLM-TRNST/'
+          paths=['index.html','src/app.js','data/rail.json','src/rail-data.js','src/rail-filter.js',
+                 'photos/catalog.json','photos/approved.json',
+                 'src/assets/roslagsbanan-B-standalone.webp','src/assets/saltsjobanan-B-standalone.webp']
+          for name in paths:
+           expected=hashlib.sha256((root/name).read_bytes()).digest()
+           for attempt in range(3):
+            try:
+             request=Request(base+name+'?stable28-verified-1',headers={'Cache-Control':'no-cache','User-Agent':'StockholmRail-verified-release/2'})
+             raw=urlopen(request,timeout=90).read()
+             break
+            except Exception:
+             if attempt==2:raise
+             time.sleep(3)
+           assert hashlib.sha256(raw).digest()==expected,('PUBLIC SHA256 differs from tested site',name)
+           print('PUBLIC EXACT BYTES VERIFIED',name,len(raw))
+          d=json.loads((root/'data/rail.json').read_text())
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          print('NO GTFS OR RAIL SHAPE DRIFT, only freestanding train image pixels')
+          PY
+      - name: Inspect PUBLIC Leaflet map at actual 19px/27px scales; reject ANY white or dark tile
+        timeout-minutes: 18
+        run: |
+          cd _code
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips} from './website/src/rail-data.js';
+          import {matchesRailFilter} from './website/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('../_tested/website/data/rail.json','utf8'));
+          const t=Date.parse('2026-11-16T08:30:00+01:00')/1000;
+          const active=activeRailTrips(d,t,10000);
+          const modes=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo',
+           'arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag'];
+          const target={
+            roslags:'./src/assets/roslagsbanan-B-standalone.webp?v=free-train-01',
+            saltsjo:'./src/assets/saltsjobanan-B-standalone.webp?v=free-train-01'
+          };
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
+            const ctx=await browser.newContext({viewport});
+            await ctx.addInitScript(epoch=>{
+             const old=Date.now.bind(Date),offset=epoch-old();Date.now=()=>old()+offset;
+            },t*1000);
+            const page=await ctx.newPage(),errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            const response=await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?public-stable28-verified=1',
+              {waitUntil:'domcontentloaded',timeout:90000});
+            assert.equal(response.status(),200);
+            assert.equal(await page.title(),'Stockholm Rail');
+            await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
+            for(const name of modes){
+             assert.equal(await page.locator('[data-carousel-position="current"]').getAttribute('data-filter'),name);
+             const count=active.filter(v=>matchesRailFilter(v,name)).length;
+             await page.waitForFunction(n=>document.querySelectorAll('#vehicle-list button.vehicle').length===n,count,{timeout:60000});
+             await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,count,{timeout:60000});
+             if(name in target){
+              await page.waitForFunction(x=>{
+               const imgs=[...document.querySelectorAll('.leaflet-marker-icon img.rail-photo-marker')];
+               return imgs.length===x.n&&imgs.every(el=>
+                el.getAttribute('src')===x.path&&el.complete&&el.naturalWidth===48&&el.naturalHeight===48);
+              },{n:count,path:target[name]},{timeout:60000});
+              const check=await page.locator('.leaflet-marker-icon img.rail-photo-marker').first().evaluate(img=>{
+               const canvas=document.createElement('canvas');canvas.width=48;canvas.height=48;
+               const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,48,48);
+               const a=(x,y)=>ctx.getImageData(x,y,1,1).data[3];
+               return {corner:[a(0,0),a(47,0),a(0,47),a(47,47),a(0,24),a(24,0)],
+                front:a(24,25),size:parseFloat(getComputedStyle(img).width)};
+              });
+              assert(check.corner.every(n=>n===0),'OLD WHITE/DARK ICON SQUARE STILL VISIBLE '+name+' '+JSON.stringify(check));
+              assert(check.front>200&&check.size===19,'FREESTANDING TRAIN DID NOT RENDER AT STANDARD SIZE '+name);
+              console.log('REAL PUBLIC TRAIN SILHOUETTE',viewport.width,name,count,'corners',check.corner,'size',check.size);
+             }
+             await page.locator('#rail-next').click();
+            }
+            await page.locator('.all-trains-button').click();
+            await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,active.length,{timeout:90000});
+            for(const name of ['roslags','saltsjo']){
+             for(let tries=0;tries<17;tries++){
+              if(await page.locator('[data-carousel-position="current"]').getAttribute('data-filter')===name)break;
+              await page.locator('#rail-next').click();
+             }
+             await page.locator('[data-carousel-position="current"]').click();
+             await page.waitForFunction(n=>document.querySelectorAll('#vehicle-list button.vehicle').length===n,
+               active.filter(v=>matchesRailFilter(v,name)).length,{timeout:60000});
+             await page.locator('#vehicle-list button.vehicle').first().click();
+             await page.locator('#selected-detail').waitFor({state:'visible'});
+             await page.waitForFunction(()=>document.querySelectorAll('.leaflet-marker-icon.is-selected img.rail-photo-marker').length===1,
+               null,{timeout:60000});
+             const selected=await page.locator('.leaflet-marker-icon.is-selected img.rail-photo-marker').evaluate(img=>({
+              src:img.getAttribute('src'),size:parseFloat(getComputedStyle(img).width)
+             }));
+             assert(selected.src===target[name]&&selected.size===27,'Selected train icon differs from original size');
+             await page.locator('#follow').click();
+             assert((await page.locator('#follow').textContent()).includes('Följer'));
+             await page.locator('#clear').click();
+             await page.locator('#selected-detail').waitFor({state:'hidden'});
+            }
+            assert.deepEqual(errors,[],'Public browser exceptions');
+            console.log('PUBLIC STABLE28 ALL 16 SYSTEMS AND BOTH ALPHA-TRANSPARENT TRAIN MOTIFS VERIFIED',viewport.width,active.length);
+            await ctx.close();
+           }
+          }finally{await browser.close()}
+          JS
+  archive:
+    needs: public
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/freestanding-roslags-saltsjo-markers-20261117
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44108787235
+          artifact-ids: 14339063581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _tested
+      - name: Archive exact new public website separately, never alter old stable branches
+        run: |
+          rm -rf website
+          cp -a _tested/website website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path('website')
+          json.loads((root/'data/rail.json').read_text())
+          (root/'STABLE28-SILHOUETTE-MARKERS-MANIFEST.json').write_text(json.dumps({
+           'priorStable':'archive/stable27-approved-B-roslags-saltsjo-website',
+           'currentStable':'archive/stable28-freestanding-localrail-train-icons',
+           'onlyTrainImageModes':['Roslagsbanan 27/28/29','Saltsjobanan 25/26'],
+           'previousGTFSandTracksUnchanged':True,
+           'originalUserApprovedBTrainMotifsRetained':True,
+           'whiteAndDarkBackgroundTilesRemoved':True,
+           'realPublicChromiumAlphaPixelTests':True,
+           'greenBuildRun':44108787235,
+           'railJsonSha256':hashlib.sha256((root/'data/rail.json').read_bytes()).hexdigest()
+          },indent=2))
+          PY
+          git config user.name "stockholm-rail-backup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable28-freestanding-localrail-train-icons
+          git add -f website
+          git commit -m "archive: STABLE28 original B train motifs with transparent backdrop, 16 systems tested on public site"
+          git push origin HEAD:refs/heads/archive/stable28-freestanding-localrail-train-icons
+  rollback-on-public-failure:
+    if: ${{ always() && needs.deploy.result == 'success' && needs.public.result == 'failure' }}
+    needs: [deploy,public]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable27-approved-B-roslags-saltsjo-website
+          path: _original
+      - name: Prepare the exact previous public website
+        run: |
+          mkdir -p _rollback/design-preview
+          cp -a _original/website/. _rollback/
+          cp -a _original/website/. _rollback/design-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: stable28-emergency-restore
+          path: _rollback
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: stable28-emergency-restore
