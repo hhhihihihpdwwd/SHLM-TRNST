@@ -1,0 +1,238 @@
+name: STABLE26 Publish three 3D train icons and three genuine licensed close-up photos
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-stable26-real-train-art.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  strict-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable25-stockholm-rail-website
+          path: _stable25_backup
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable26-3d-markers-real-photos-website
+          path: _stable26_source
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44093221871
+          artifact-ids: 14332018369
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _chromium_green
+      - name: Byte-match frozen STABLE26 source to precisely pretested desktop/mobile artifact
+        run: |
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          old=Path('_stable25_backup/website')
+          frozen=Path('_stable26_source/website')
+          green=Path('_chromium_green/website')
+          assert all(p.is_dir() for p in (old,frozen,green))
+          def inventory(root):
+           return {str(p.relative_to(root)):p for p in root.rglob('*') if p.is_file()}
+          a=inventory(old);b=inventory(frozen);g=inventory(green)
+          assert set(b)==set(g)
+          assert all(b[k].read_bytes()==g[k].read_bytes() for k in b), 'Source drifted after green browser tests'
+          assert not set(a)-set(g)
+          assert set(g)-set(a)=={
+           'src/updated-train-markers.js',
+           'photos/images/metro_c20_green_near_2026.webp',
+           'photos/images/rail_rdc_euronight_near_2026.webp',
+           'photos/images/rail_oresund_near.webp'
+          }
+          modified={k for k in a if a[k].read_bytes()!=g[k].read_bytes()}
+          assert modified=={'src/app.js','src/photos.js','index.html',
+            'photos/catalog.json','photos/approved.json'},modified
+          assert a['data/rail.json'].read_bytes()==g['data/rail.json'].read_bytes()
+          d=json.loads(g['data/rail.json'].read_text())
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          origCat=json.loads(a['photos/catalog.json'].read_text())
+          revised=json.loads(g['photos/catalog.json'].read_text())
+          newApproved=json.loads(g['photos/approved.json'].read_text())
+          assert set(origCat)==set(revised)
+          keys={'metro_c20_green','rail_rdc_euronight','rail_oresund'}
+          assert all(origCat[k]==revised[k] for k in origCat if k not in keys)
+          for k in keys:
+           x=revised[k]
+           assert x['originalPhoto'] is True
+           assert x['license'].startswith('CC BY') and x['source'].startswith('https://commons.wikimedia.org/wiki/File:')
+           assert x['path'].endswith('.webp') and (green/x['path']).is_file()
+           assert newApproved[k]['source']==x['source']
+          assert "updatedThreeTrainMarkers[operatorKey]" in g['src/app.js'].read_text()
+          assert "./src/app.js?v=artwork-real-01" in g['index.html'].read_text()
+          assert "real-photos-01" in g['src/photos.js'].read_text()
+          print('PREDEPLOY VERIFIED: exactly same STABLE26 code as successful 16-system Chrome tests; all 10827 train trips / 107 rail geometries and other photos byte-identical to stable25')
+          PY
+      - name: Build safe public root plus preserved design-preview alias
+        run: |
+          mkdir -p _site/design-preview
+          cp -a _chromium_green/website/. _site/
+          cp -a _chromium_green/website/. _site/design-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: strict-preflight
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
+  verify-public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable26-3d-markers-real-photos-website
+          path: _verified
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm exact original rail map plus new marker and licensed-photo binaries at PUBLIC URL
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable26-artwork=1' | grep -Fq './src/app.js?v=artwork-real-01';then
+              echo 'STABLE26 LIVE HTML CONFIRMED';break
+            fi
+            if [ "$i" = 60 ];then echo 'Public source still not STABLE26';exit 1;fi
+            sleep 10
+          done
+          python - <<'PY'
+          import json,hashlib,urllib.request,time
+          from pathlib import Path
+          root=Path('_verified/website')
+          paths=['index.html','data/rail.json','src/app.js','src/photos.js',
+           'src/updated-train-markers.js','photos/catalog.json','photos/approved.json',
+           'photos/images/metro_c20_green_near_2026.webp',
+           'photos/images/rail_rdc_euronight_near_2026.webp',
+           'photos/images/rail_oresund_near.webp',
+           'photos/images/rail_malartag.webp']
+          base='https://hhhihihihpdwwd.github.io/SHLM-TRNST/'
+          for rel in paths:
+           if not (root/rel).exists():
+            if rel=='photos/images/rail_malartag.webp':continue
+            raise AssertionError(('Source missing',rel))
+           local=(root/rel).read_bytes()
+           url=base+rel+'?remote-proof-stable26-01'
+           for attempt in range(4):
+            try:
+             req=urllib.request.Request(url,headers={'User-Agent':'StockholmRail-QA/1.0','Cache-Control':'no-cache'})
+             content=urllib.request.urlopen(req,timeout=90).read()
+             break
+            except Exception:
+             if attempt==3:raise
+             time.sleep(3)
+           assert hashlib.sha256(content).digest()==hashlib.sha256(local).digest(),('Public file differs',rel)
+           print('PUBLIC REAL FILE VERIFIED',rel,len(content))
+          remote=json.loads(urllib.request.urlopen(base+'data/rail.json?stable26-historic-proof').read())
+          assert len(remote['trips'])==10827 and len(remote['shapes'])==107
+          print('PUBLIC STABLE26: original train timetable and OSM rail geometry intact, all 3 CC genuine train photos and 3 new 3D marker data live')
+          PY
+      - name: Real public Chrome test of all train systems, marker source decoding, carousel and photo details
+        timeout-minutes: 18
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips} from './_verified/website/src/rail-data.js';
+          import {matchesRailFilter} from './_verified/website/src/rail-filter.js';
+          import {updatedThreeTrainMarkers} from './_verified/website/src/updated-train-markers.js';
+          const data=JSON.parse(fs.readFileSync('./_verified/website/data/rail.json','utf8'));
+          const catalog=JSON.parse(fs.readFileSync('./_verified/website/photos/catalog.json','utf8'));
+          const epoch=Date.parse('2026-11-16T08:30:00+01:00')/1000;
+          const running=activeRailTrips(data,epoch,10000);
+          const filters=['commuter','metro','tram','nockeby','lidingo','city7','roslags',
+            'saltsjo','arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag'];
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+           for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
+            const ctx=await browser.newContext({viewport});
+            await ctx.addInitScript(now=>{const real=Date.now.bind(Date),offset=now-real();Date.now=()=>real()+offset},epoch*1000);
+            const page=await ctx.newPage(),errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable26-live-chrome=1',{waitUntil:'domcontentloaded',timeout:90000});
+            assert.equal(await page.title(),'Stockholm Rail');
+            await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
+            for(const mode of filters){
+             assert.equal(await page.locator('[data-carousel-position="current"]').getAttribute('data-filter'),mode);
+             const n=running.filter(t=>matchesRailFilter(t,mode)).length;
+             await page.waitForFunction(x=>document.querySelectorAll('#vehicle-list button.vehicle').length===x,n,{timeout:60000});
+             await page.waitForFunction(x=>document.querySelectorAll('.leaflet-marker-icon').length===x,n,{timeout:60000});
+             if(['rdc','tagab','malartag'].includes(mode)&&n){
+               const elems=page.locator('.leaflet-marker-icon img.rail-photo-marker');
+               assert.equal(await elems.count(),n);
+               const vals=await elems.evaluateAll(imgs=>imgs.map(el=>({src:el.getAttribute('src'),ok:el.complete&&el.naturalWidth>0})));
+               assert(vals.every(x=>x.src===updatedThreeTrainMarkers[mode]&&x.ok),mode+' missing new genuine 3D icon');
+             }
+             console.log('PUBLIC 16-SYSTEM RAIL',viewport.width,mode,n,'markers + vehicles verified');
+             await page.locator('#rail-next').click();
+            }
+            await page.locator('.all-trains-button').click();
+            await page.waitForFunction(x=>document.querySelectorAll('.leaflet-marker-icon').length===x,running.length,{timeout:90000});
+            for(const key of ['metro_c20_green','rail_rdc_euronight','rail_oresund']){
+             const path=catalog[key].path;
+             const url=new URL(path, 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/').href;
+             const result=await page.evaluate(async src=>{
+              const image=new Image();image.src=src;await image.decode();
+              return {width:image.naturalWidth,height:image.naturalHeight};
+             },url);
+             assert.deepEqual(result,{width:640,height:400});
+             console.log('REAL CC TRAIN PHOTO LIVE',viewport.width,key);
+            }
+            await page.locator('#info-toggle').click();
+            await page.locator('#map-info').waitFor({state:'visible'});
+            await page.locator('#info-close').click();
+            assert.deepEqual(errors,[]);
+            await ctx.close();
+           }
+          } finally {await browser.close()}
+          console.log('PUBLIC STABLE26 ALL FILTERS, ALL TRAIN MARKERS, ALL REAL PHOTOS SUCCESS');
+          JS
+  rollback-if-public-invalid:
+    if: ${{ always() && needs.deploy.result == 'success' && needs.verify-public.result == 'failure' }}
+    needs: [deploy, verify-public]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable25-stockholm-rail-website
+          path: _rollback
+      - name: Restore pre-change STABLE25 and its design-preview alias after public failure
+        run: |
+          mkdir -p _fallback/design-preview
+          cp -a _rollback/website/. _fallback/
+          cp -a _rollback/website/. _fallback/design-preview/
+          echo 'PUBLIC VALIDATION FAILED - ROLLBACK TO IMMUTABLE STABLE25'
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: stable26-rollback-pages
+          path: _fallback
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: stable26-rollback-pages
