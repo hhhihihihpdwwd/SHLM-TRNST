@@ -2,7 +2,14 @@
 <html lang="sv">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stockholm Rail — RDC EuroNight · 16 system</title>
+<title>Stockholm Rail</title>
+<meta name="application-name" content="Stockholm Rail">
+<meta name="apple-mobile-web-app-title" content="Stockholm Rail">
+<meta name="og:site_name" content="Stockholm Rail">
+<meta property="og:title" content="Stockholm Rail">
+<meta name="twitter:title" content="Stockholm Rail">
+<meta name="description" content="Stockholm Rail – historiska tågtidtabeller och simulerade positioner på järnvägskartan. Inte live-GPS.">
+<meta name="theme-color" content="#204c54">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -32,8 +39,8 @@
      <div class="info-hub">
        <button id="info-toggle" class="info-toggle" aria-label="Information om kartan" aria-expanded="false" aria-controls="map-info" title="Om kartan">?</button>
        <section class="map-note" id="map-info" aria-label="Om kartan" hidden>
-         <div class="info-heading"><span>Om Stockholm Rail</span><button type="button" id="info-close" class="info-close" aria-label="Stäng information">×</button></div>
-         <strong>STOCKHOLM RAIL · 16 SYSTEM · SJ · MÄLARTÅG · VR · SNÄLLTÅGET · VY · TÅGAB · RDC</strong>
+         <div class="info-heading"><span>Om kartan</span><button type="button" id="info-close" class="info-close" aria-label="Stäng information">×</button></div>
+         <strong>Stockholm Rail</strong>
          <span>Historiska tidtabeller och simulerade positioner på granskade spår. Ej live-GPS eller faktisk beläggning.</span>
        </section>
      </div>
@@ -58,7 +65,7 @@
      <div class="follow-row"><button class="follow-btn" id="follow">◎ Följ tåget</button></div>
    </div>
    <div id="station-view" hidden><div class="detail-top"><div><span class="eyebrow">STATION VIEW / PROTOTYP</span><h2>Stockholm Central</h2><div class="detail-sub">Schematiska spår · demonstration, inga verkliga plattformstilldelningar</div></div></div><div id="platforms"></div><div class="station-footnote">En framtida version ansluter Trafikverkets spårdata och verklig stationsgeometri. Nuvarande spår och tider är exempel.</div></div>
-   <div class="foot">STOCKHOLM RAIL <span>01 · FOUNDATION</span></div>
+   <div class="foot">Stockholm Rail</div>
   </aside>
  </main>
 </div>
