@@ -1,0 +1,14 @@
+{
+  "priorStable": "archive/stable27-approved-B-roslags-saltsjo-website",
+  "currentStable": "archive/stable28-freestanding-localrail-train-icons",
+  "onlyTrainImageModes": [
+    "Roslagsbanan 27/28/29",
+    "Saltsjobanan 25/26"
+  ],
+  "previousGTFSandTracksUnchanged": true,
+  "originalUserApprovedBTrainMotifsRetained": true,
+  "whiteAndDarkBackgroundTilesRemoved": true,
+  "realPublicChromiumAlphaPixelTests": true,
+  "greenBuildRun": 44108787235,
+  "railJsonSha256": "859c8542300db5f13c4faab3091ff979387036fde42dea09b795892367871cdd"
+}
