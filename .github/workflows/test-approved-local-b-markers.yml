@@ -1,0 +1,92 @@
+name: Verify only Roslagsbanan and Saltsjobanan approved B symbols (never auto deploy)
+on:
+  push:
+    branches: [assets/localrail-saltsjo-approved-b-markers-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  immutable-source-and-live-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable26-3d-markers-real-photos-website
+          path: _baseline
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove source changes ONLY affect two marker assignments and app cache
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          prev=Path('_baseline/website')
+          updated=Path('website')
+          old={str(f.relative_to(prev)):f for f in prev.rglob('*') if f.is_file()}
+          now={str(f.relative_to(updated)):f for f in updated.rglob('*') if f.is_file()}
+          assert set(old)<=set(now),('A formerly working asset disappeared',set(old)-set(now))
+          permitted={'src/assets/roslagsbanan-B-approved.webp','src/assets/saltsjobanan-B-approved.webp'}
+          assert set(now)-set(old)==permitted,('Extra new app files',set(now)-set(old))
+          allowed={'src/app.js','index.html'}
+          for path,p in old.items():
+            if path not in allowed:
+              assert p.read_bytes()==now[path].read_bytes(),('Existing production file modified',path)
+          a=(prev/'index.html').read_text()
+          b=(updated/'index.html').read_text()
+          assert b==a.replace('app.js?v=artwork-real-01','app.js?v=approved-local-b-01')
+          oldimg=""" const img=updatedThreeTrainMarkers[operatorKey]||
+             (operatorKey==='rdc'?rdcMarker:operatorKey==='tagab'?tagabMarker:
+              operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey]||vyMarkerSprites[operatorKey])?
+              originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey));"""
+          newimg=""" // The only two changed marker assignments: user-approved B artwork.
+           // The actual rail routes, photos, train list and every other icon are untouched.
+           const img=v.mode==='localrail'&&['27','28','29'].includes(String(v.line))
+             ?'./src/assets/roslagsbanan-B-approved.webp'
+             :v.mode==='saltsjo'&&['25','26'].includes(String(v.line))
+             ?'./src/assets/saltsjobanan-B-approved.webp'
+             :updatedThreeTrainMarkers[operatorKey]||
+             (operatorKey==='rdc'?rdcMarker:operatorKey==='tagab'?tagabMarker:
+              operatorKey&&(approvedTrainMarkers[operatorKey]||operatorMarkerSprites[operatorKey]||vyMarkerSprites[operatorKey])?
+              originalOperatorSpriteUrl(operatorKey):originalSpriteUrl(imageKey));"""
+          app_old=(prev/'src/app.js').read_text()
+          app_new=(updated/'src/app.js').read_text()
+          assert app_old.count(oldimg)==1
+          assert app_new==app_old.replace(oldimg,newimg),('Unexpected JavaScript changes beyond two B markers')
+          # Exact uploaded, approved artwork rendered at 72x72 map-marker
+          # resolution. Git object SHA1 comparisons ensure images are not
+          # accidentally swapped or corrupted in transit.
+          expected={
+           'src/assets/roslagsbanan-B-approved.webp':'01839c19d7dd4652806edf75bb20d9752e59351c',
+           'src/assets/saltsjobanan-B-approved.webp':'41da3ac52cc36c2ac786d5d50f93e8203c4800ef'}
+          for name,want in expected.items():
+            blob=now[name].read_bytes()
+            got=hashlib.sha1(b'blob '+str(len(blob)).encode()+b'\0'+blob).hexdigest()
+            assert got==want,('APPROVED B MOTIF CORRUPTED',name,got,want)
+            assert blob[:4]==b'RIFF' and blob[8:12]==b'WEBP'
+            assert len(blob)>2000
+          print('PASS: ONLY 2 APPROVED B MARKER IMAGES + 2 CACHE/ASSIGNMENT FILES CHANGED; ALL ORIGINAL DATA, PHOTOS, TRACKS, OTHER ICONS BYTE-IDENTICAL')
+          PY
+      - name: JavaScript syntax and original photo provenance regression
+        run: |
+          node --check website/src/app.js
+          node --check website/src/rail-data.js
+          node --check website/src/rail-filter.js
+      - name: Install real browser
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Browser tests across all 16 systems, all five lines, mobile and desktop
+        timeout-minutes: 20
+        run: node --max-old-space-size=4096 tests/local-b-original-marker-browser.mjs
+      - name: Save independent preview release, no publication
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockholm-rail-approved-b-symbols-verified
+          path: |
+            website/
+            _local-b-previews/
+          retention-days: 7
