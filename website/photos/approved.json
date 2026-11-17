@@ -14,11 +14,17 @@
     "license": "CC BY-SA 4.0"
   },
   "metro_c20_green": {
-    "title": "SL C20 Gamla Stan, Stockholm.jpg",
-    "label": "Tunnelbana C20 – Außenaufnahme",
-    "source": "https://commons.wikimedia.org/wiki/File:SL_C20_Gamla_Stan,_Stockholm.jpg",
-    "author": "Kabelleger / David Gubler",
-    "license": "CC BY-SA 4.0"
+    "title": "SL C20, Högdalen metro - 20260515 - 06.jpg",
+    "label": "Tunnelbana C20 vid Högdalen – verkligt frontfoto (exempelbild)",
+    "source": "https://commons.wikimedia.org/wiki/File:SL_C20,_Högdalen_metro_-_20260515_-_06.jpg",
+    "author": "AleWi",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "path": "photos/images/metro_c20_green_near_2026.webp",
+    "modifications": "Authentisches Commons-Foto: Zugfront enger beschnitten, 640×400 px, zu WebP konvertiert; keine KI-Fotografie.",
+    "originalPhoto": true,
+    "illustrative": true,
+    "sha256": "3000337403e32a062fde874f2846d48d8a70f63e28a15b2774a873959e29df69"
   },
   "commuter_x60": {
     "title": "SL X60, Stockholm Centralstation, 20240106 - 06.jpg",
@@ -133,11 +139,17 @@
     "license": "CC BY-SA 4.0"
   },
   "rail_oresund": {
-    "title": "18.05.22 Kristianstad X31K 4319+X31K 4402 (52094208294).jpg",
-    "label": "Öresundståg X31 – am Bahnhof Kristianstad",
-    "source": "https://commons.wikimedia.org/wiki/File:18.05.22_Kristianstad_X31K_4319%2BX31K_4402_(52094208294).jpg",
-    "author": "Phil Richards from London, UK",
-    "license": "CC BY-SA 2.0"
+    "title": "I11 449 Bf Malmö C, X31 4606.jpg",
+    "label": "Öresundståg X31 i Malmö C – verkligt närfoto (exempelbild)",
+    "source": "https://commons.wikimedia.org/wiki/File:I11_449_Bf_Malm%C3%B6_C,_X31_4606.jpg",
+    "author": "Falk2",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "path": "photos/images/rail_oresund_near.webp",
+    "modifications": "Authentisches Commons-Foto: Zugfront enger beschnitten, 640×400 px, zu WebP konvertiert; keine KI-Fotografie.",
+    "originalPhoto": true,
+    "illustrative": true,
+    "sha256": "bb03c23f0211e657506d02321a360408bc7f9814e4848194eeabb93ec03bde06"
   },
   "tram_lidingo21": {
     "title": "Ropsten, Lidingöbanan, 20230326, bild 13.jpg",
@@ -152,5 +164,18 @@
     "source": "https://commons.wikimedia.org/wiki/File:X10p_232_at_Stockholms_%C3%B6stra.jpg",
     "author": "Metrophil",
     "license": "CC BY-SA 3.0"
+  },
+  "rail_rdc_euronight": {
+    "title": "2026-10-10 8814 RDC EuroNight ankommer till Stockholm.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:2026-10-10_8814_RDC_EuroNight_ankommer_till_Stockholm.jpg",
+    "author": "G och J",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "label": "RDC EuroNight nära Stockholm – verkligt Vectron-foto, närmare beskuret (exempelbild)",
+    "path": "photos/images/rail_rdc_euronight_near_2026.webp",
+    "modifications": "Authentisches Commons-Foto: Zugfront enger beschnitten, 640×400 px, zu WebP konvertiert; keine KI-Fotografie.",
+    "originalPhoto": true,
+    "illustrative": true,
+    "sha256": "65a8523f97fae36b7e24ebbc1855d43cb47e50b8c8072cd2eeab845907348071"
   }
 }
