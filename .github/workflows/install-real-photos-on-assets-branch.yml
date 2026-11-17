@@ -1,0 +1,51 @@
+name: Prepare exactly three licensed real photos on artwork branch
+on:
+  push:
+    branches: [assets/3d-markers-real-licensed-photos-20261117]
+    paths: [.github/workflows/install-real-photos-on-assets-branch.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Pillow from maintained distribution
+        run: python -m pip install pillow
+      - name: Decode authentic Commons photographs, validate source identities and licenses, preserve originals
+        run: python -u scripts/apply_real_photo_replacements.py
+      - name: Confirm only three new image files and their attributed metadata changed
+        run: |
+          git diff --name-only
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('website/photos')
+          a=json.loads((p/'approved.json').read_text())
+          c=json.loads((p/'catalog.json').read_text())
+          keys=['metro_c20_green','rail_rdc_euronight','rail_oresund']
+          for key in keys:
+           for entry in (a[key],c[key]):
+            assert entry['originalPhoto'] is True and entry['illustrative'] is True
+            assert entry['license'].startswith('CC BY')
+            assert (Path('website')/entry['path']).stat().st_size>8000
+          assert c['rail_oresund']['author']=='Falk2'
+          assert c['metro_c20_green']['author']=='AleWi'
+          assert c['rail_rdc_euronight']['author']=='G och J'
+          print('ALL THREE VERIFIED REAL PHOTOGRAPHS AND CREDITS PRESENT')
+          PY
+      - name: Commit exact three new licensed images plus their credits on feature branch ONLY
+        run: |
+          git config user.name "stockholm-rail-asset-builder"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/photos/images/metro_c20_green_near_2026.webp website/photos/images/rail_rdc_euronight_near_2026.webp website/photos/images/rail_oresund_near.webp website/photos/catalog.json website/photos/approved.json
+          git diff --cached --stat
+          git commit -m "assets: three cropped real Wikimedia photographs with CC attribution; preserve originals"
+          git push origin HEAD:refs/heads/assets/3d-markers-real-licensed-photos-20261117
