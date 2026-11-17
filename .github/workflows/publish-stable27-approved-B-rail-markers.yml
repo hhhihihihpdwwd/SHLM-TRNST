@@ -180,10 +180,19 @@ jobs:
                 await page.waitForFunction(c=>document.querySelectorAll('#vehicle-list button.vehicle').length===c,n,{timeout:60000});
                 await page.waitForFunction(c=>document.querySelectorAll('.leaflet-marker-icon').length===c,n,{timeout:60000});
                 if(mode in expectedPaths){
+                  assert(n>0);
+                  // Public GitHub Pages assets can finish decoding a moment
+                  // after the marker node is inserted. Wait for the ACTUAL
+                  // replacement image to load, not just the number of markers.
+                  await page.waitForFunction(({src,count})=>{
+                    const imgs=[...document.querySelectorAll('.leaflet-marker-icon img.rail-photo-marker')];
+                    return imgs.length===count&&imgs.every(img=>
+                      img.getAttribute('src')===src&&img.complete&&
+                      img.naturalWidth===72&&img.naturalHeight===72);
+                  },{src:expectedPaths[mode],count:n},{timeout:60000});
                   const images=await page.locator('.leaflet-marker-icon img.rail-photo-marker').evaluateAll(imgs=>
                     imgs.map(img=>({src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth===72&&img.naturalHeight===72})));
                   assert.equal(images.length,n);
-                  assert(n>0);
                   assert(images.every(img=>img.loaded&&img.src===expectedPaths[mode]),'Incorrect live '+mode+' B image');
                 }
                 console.log('PUBLIC STABLE27',viewport.width,mode,n,'vehicle markers verified');
