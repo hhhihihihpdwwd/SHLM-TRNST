@@ -140,11 +140,16 @@ jobs:
           import assert from 'node:assert/strict';
           import fs from 'node:fs';
           import {chromium} from 'playwright';
-          import {activeRailTrips,railAt} from './_stable25/website/src/rail-data.js';
+          import {activeRailTrips,railAt,railPathSplit} from './_stable25/website/src/rail-data.js';
           import {matchesRailFilter} from './_stable25/website/src/rail-filter.js';
           const d=JSON.parse(fs.readFileSync('/tmp/stable25-live-rail.json','utf8'));
           const epoch=Date.parse('2026-11-16T08:30:00+01:00')/1000;
           const live=activeRailTrips(d,epoch,15000);
+          const commuter=live.find(v=>v.mode==='commuter');
+          assert(commuter,'Test commuter not found');
+          const route=railPathSplit(commuter,railAt(commuter,epoch).meters);
+          assert(route.past.length+route.future.length>=2,'Verified commuter geometry missing from original GTFS');
+
           const filterNames=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag'];
           const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
           try{
@@ -197,7 +202,26 @@ jobs:
                 'Full-width photo / stacked next station regression');
               assert(await page.locator('#stops .stop').count()>=2);
               assert(await page.locator('#stops .stop.next').count()===1);
-              assert(await page.locator('.leaflet-overlay-pane path').count()>0,'Selected train rail geometry missing');
+              // Leaflet is configured with preferCanvas:true. Valid route
+              // polylines are rasterized onto Canvas, NOT SVG <path>.
+              await page.waitForFunction(()=>{
+                if(document.querySelectorAll('.leaflet-overlay-pane svg path').length>0)return true;
+                const canvases=[...document.querySelectorAll('.leaflet-overlay-pane canvas')];
+                for(const canvas of canvases){
+                  if(!canvas.width||!canvas.height)continue;
+                  try{
+                    const ctx=canvas.getContext('2d');
+                    if(!ctx)continue;
+                    const pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+                    let painted=0;
+                    for(let i=3;i<pixels.length;i+=4){
+                      if(pixels[i]>0 && ++painted>20)return true;
+                    }
+                  }catch(e){/* A canvas inaccessible to pixel reads cannot be evidence. */}
+                }
+                return false;
+              },null,{timeout:25000});
+              console.log('PUBLIC STABLE25 ROUTE: visible rail geometry painted on Leaflet Canvas');
               await page.locator('#follow').click();
               assert((await page.locator('#follow').textContent()).includes('Följer'));
               await page.locator('#clear').click();
@@ -242,5 +266,8 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: stable25-rollback-pages
           path: _recovered-original/website
       - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: stable25-rollback-pages
