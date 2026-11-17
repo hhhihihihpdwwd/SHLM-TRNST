@@ -1,7 +1,7 @@
 let photoCatalog={};
 export async function loadPhotoCatalog(){
  try{
-  const response=await fetch('./photos/catalog.json?v=rdc-01',{cache:'no-cache'});
+  const response=await fetch('./photos/catalog.json?v=real-photos-01',{cache:'no-cache'});
   if(response.ok)photoCatalog=await response.json();
  }catch(e){console.warn('Local rail photos not available',e)}
  return Object.keys(photoCatalog).length;
