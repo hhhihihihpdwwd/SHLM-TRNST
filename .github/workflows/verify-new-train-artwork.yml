@@ -2,7 +2,7 @@ name: Verify authentic photos and new 3D icons without changing train service
 on:
   push:
     branches: [assets/3d-markers-real-licensed-photos-20261117]
-    paths: [.github/workflows/verify-new-train-artwork.yml]
+    paths: [.github/workflows/verify-new-train-artwork.yml, tests/real-photo-marker-browser.mjs]
   workflow_dispatch:
 permissions:
   contents: read
