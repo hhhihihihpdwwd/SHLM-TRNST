@@ -420,8 +420,8 @@ async function initializeReal(){
  railDataset=data;
  state.selected=null;state.follow=false;markers.forEach(m=>map?.removeLayer(m));markers.clear();clearRoutes();
  $('vehicle-list').hidden=false;$('selected-detail').hidden=true;
- const label=document.querySelector('.map-note strong');if(label)label.textContent='PENDELTÅG · TUNNELBANA · TVÄRBANAN · LOKALBANOR · SPÅRVÄG CITY · ROSLAGSBANAN · SALTSJÖBANAN · ARLANDA EXPRESS · SJ · MÄLARTÅG';
- const hint=document.querySelector('.map-note span');
+ const label=document.querySelector('.map-note strong');if(label)label.textContent='Stockholm Rail';
+ const hint=document.querySelector('.map-note > span');
  if(hint){
    if(data.type?.startsWith('historical-')){
      const verified=Object.values(data.routeRefinement?.verifiedTrips||{}).reduce((sum,n)=>sum+Number(n||0),0);
