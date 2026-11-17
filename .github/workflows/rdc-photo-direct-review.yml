@@ -1,0 +1,25 @@
+name: Review genuine EuroNight photos via Wikimedia CDN (no deploy)
+on:
+  push:
+    branches: [assets/3d-markers-real-licensed-photos-20261117]
+    paths: [.github/workflows/rdc-photo-direct-review.yml, scripts/review_extra_rdc_direct.py]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  photo-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check pillow requests
+      - run: python -u scripts/review_extra_rdc_direct.py
+      - if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genuine-licensed-euronight-closeup-review
+          path: _rdc_close_photo_candidates/
+          retention-days: 7
