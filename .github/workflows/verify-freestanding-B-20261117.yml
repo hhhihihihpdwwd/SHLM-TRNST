@@ -1,0 +1,80 @@
+name: Verify freestanding B train icons visually, no deploy until all pass
+on:
+  push:
+    branches: [fix/freestanding-roslags-saltsjo-markers-20261117]
+    paths: [.github/workflows/verify-freestanding-B-20261117.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-visual-and-byte-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable27-approved-B-roslags-saltsjo-website
+          path: _stable27
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install --disable-pip-version-check pillow
+      - name: Generate only the two free-standing train images from original B artwork
+        run: |
+          python -u scripts/build_standalone_b_rail_markers.py
+      - name: Enforce every old site asset (except app.js) byte-for-byte unchanged
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          from PIL import Image
+          new,old=Path('website'),Path('_stable27/website')
+          previous={str(p.relative_to(old)):p for p in old.rglob('*') if p.is_file()}
+          now={str(p.relative_to(new)):p for p in new.rglob('*') if p.is_file()}
+          inserted={'src/assets/roslagsbanan-B-standalone.webp','src/assets/saltsjobanan-B-standalone.webp'}
+          assert set(now)-set(previous)==inserted,('Unexpected website files',set(now)-set(previous))
+          assert set(previous)-set(now)==set(),('Removed website files',set(previous)-set(now))
+          changed=[]
+          for path,orig in previous.items():
+            if now[path].read_bytes()!=orig.read_bytes():changed.append(path)
+          assert changed==['src/app.js'],('Unexpected code/photo/map/train data changed',changed)
+          app=now['src/app.js'].read_text()
+          oldapp=previous['src/app.js'].read_text()
+          expected=oldapp.replace('./src/assets/roslagsbanan-B-approved.webp',
+              './src/assets/roslagsbanan-B-standalone.webp?v=free-train-01').replace(
+              './src/assets/saltsjobanan-B-approved.webp',
+              './src/assets/saltsjobanan-B-standalone.webp?v=free-train-01').replace(
+              '// The only two changed marker assignments: user-approved B artwork.',
+              '// Only two image sources change: the same approved B train motifs with their surrounding white/dark tiles cut away.')
+          assert app==expected,('App changes exceed two approved marker sources',len(app),len(expected))
+          for name in inserted:
+            im=Image.open(now[name]).convert('RGBA')
+            assert im.size==(48,48) and im.getpixel((0,0))[3]==0
+            assert im.getpixel((47,0))[3]==0 and im.getpixel((47,47))[3]==0
+            assert im.getpixel((24,25))[3]>200
+          d=json.loads(now['data/rail.json'].read_text())
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          print('SOURCE SAFETY VERIFIED: 10827 old timetable trips; all 107 track shapes; all other photos/icons unchanged; two transparent icon files only')
+          PY
+          node --check website/src/app.js
+      - name: Install actual Chromium headless
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Browser inspect image corner transparency, normal 19px sizes, selected 27px, all 16 systems and smartphone
+        timeout-minutes: 20
+        run: node --max-old-space-size=4096 tests/freestanding-rail-markers-browser.mjs
+      - name: Store ONLY passing website and browser screenshots; do not deploy failing work
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable28-standalone-roslags-saltsjo-approved-preview
+          path: |
+            website/
+            _freestanding-b-previews/
+          retention-days: 7
+          compression-level: 6
