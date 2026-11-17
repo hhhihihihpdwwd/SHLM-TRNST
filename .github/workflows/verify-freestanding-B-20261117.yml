@@ -2,7 +2,7 @@ name: Verify freestanding B train icons visually, no deploy until all pass
 on:
   push:
     branches: [fix/freestanding-roslags-saltsjo-markers-20261117]
-    paths: [.github/workflows/verify-freestanding-B-20261117.yml]
+    paths: [.github/workflows/verify-freestanding-B-20261117.yml, website/index.html]
   workflow_dispatch:
 permissions:
   contents: read
@@ -41,7 +41,11 @@ jobs:
           changed=[]
           for path,orig in previous.items():
             if now[path].read_bytes()!=orig.read_bytes():changed.append(path)
-          assert changed==['src/app.js'],('Unexpected code/photo/map/train data changed',changed)
+          assert set(changed)=={'index.html','src/app.js'},('Unexpected code/photo/map/train data changed',changed)
+          oldhtml=previous['index.html'].read_text()
+          html=now['index.html'].read_text()
+          assert html==oldhtml.replace('./src/app.js?v=approved-local-b-01','./src/app.js?v=stable28-freestanding-01')
+          print('CACHE VERSION ONLY: browser loads freshly corrected app.js')
           app=now['src/app.js'].read_text()
           oldapp=previous['src/app.js'].read_text()
           expected=oldapp.replace('./src/assets/roslagsbanan-B-approved.webp',
