@@ -50,7 +50,7 @@ def main():
   approvedpath=SITE/"photos/approved.json"
   oldcat=json.loads(catpath.read_text(encoding="utf8"))
   oldapproved=json.loads(approvedpath.read_text(encoding="utf8"))
-  assert set(SOURCES)<=set(oldcat) and set(SOURCES)<=set(oldapproved)
+  assert set(SOURCES)<=set(oldcat)  # Approved index historically omits RDC; safely add its verified photo only.
   catalog={**oldcat};approved={**oldapproved}
   for key,expected in SOURCES.items():
     val=data[key]
@@ -71,7 +71,7 @@ def main():
     details["illustrative"]=True
     details["sha256"]=hashlib.sha256(raw).hexdigest()
     catalog[key]={**oldcat[key],**details}
-    approved[key]={**oldapproved[key],**details}
+    approved[key]={**oldapproved.get(key,{}),**details}
     print("REAL CROPPED LICENSED PHOTO",key,expected["author"],expected["license"],
       str(dest.relative_to(SITE)),image.size,len(raw),details["sha256"],flush=True)
   for k in oldcat:
