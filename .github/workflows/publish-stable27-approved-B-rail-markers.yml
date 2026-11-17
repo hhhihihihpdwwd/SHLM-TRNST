@@ -1,0 +1,235 @@
+name: STABLE27 Publish only approved Roslagsbanan and Saltsjöbanan B marker images
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-stable27-approved-B-rail-markers.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  strict-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable26-3d-markers-real-photos-website
+          path: _baseline
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable27-approved-B-roslags-saltsjo-website
+          path: _stable27
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44101370257
+          artifact-ids: 14335319398
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _chromium_green
+      - name: Freeze EXACT green website; block any change beyond these two icons
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          prev=Path('_baseline/website')
+          frozen=Path('_stable27/website')
+          tested=Path('_chromium_green/website')
+          def inv(root):
+            return {str(p.relative_to(root)):p for p in root.rglob('*') if p.is_file()}
+          a,b,c=inv(prev),inv(frozen),inv(tested)
+          assert set(b)==set(c),('Archived candidate drift from Chromium-tested file set',set(b)^set(c))
+          assert all(b[k].read_bytes()==c[k].read_bytes() for k in b), 'Archived candidate differs from exact green preview!'
+          assert not set(a)-set(b),'An original photo or app file disappeared'
+          added={'src/assets/roslagsbanan-B-approved.webp','src/assets/saltsjobanan-B-approved.webp'}
+          assert set(b)-set(a)==added,('Unexpected new file',set(b)-set(a))
+          modified={k for k in a if a[k].read_bytes()!=b[k].read_bytes()}
+          assert modified=={'src/app.js','index.html'},('Unexpected existing file changed',modified)
+          assert a['data/rail.json'].read_bytes()==b['data/rail.json'].read_bytes()
+          baseline=json.loads(a['data/rail.json'].read_text())
+          current=json.loads(b['data/rail.json'].read_text())
+          assert len(current['trips'])==len(baseline['trips'])==10827
+          assert len(current['shapes'])==len(baseline['shapes'])==107
+          assert a['photos/catalog.json'].read_bytes()==b['photos/catalog.json'].read_bytes()
+          assert a['photos/approved.json'].read_bytes()==b['photos/approved.json'].read_bytes()
+          assert b['index.html'].read_text()==a['index.html'].read_text().replace(
+             'app.js?v=artwork-real-01','app.js?v=approved-local-b-01')
+          assert 'roslagsbanan-B-approved.webp' in b['src/app.js'].read_text()
+          assert 'saltsjobanan-B-approved.webp' in b['src/app.js'].read_text()
+          expected={
+           'src/assets/roslagsbanan-B-approved.webp':'01839c19d7dd4652806edf75bb20d9752e59351c',
+           'src/assets/saltsjobanan-B-approved.webp':'41da3ac52cc36c2ac786d5d50f93e8203c4800ef'
+          }
+          for name,want in expected.items():
+            raw=b[name].read_bytes()
+            actual=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+            assert actual==want,('Incorrect icon content',name,actual)
+          print('STABLE27 RELEASE GATE PASSED: both B-art icons exactly matched tested assets, other 16-system files and all 10827 trains unchanged')
+          PY
+      - name: Release exact green archive with unchanged design-preview alias
+        run: |
+          mkdir -p _site/design-preview
+          cp -a _chromium_green/website/. _site/
+          cp -a _chromium_green/website/. _site/design-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: strict-preflight
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.page.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: page
+  verify-public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable27-approved-B-roslags-saltsjo-website
+          path: _tested
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm actual PUBLIC original rail data and both image binaries
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable27-approved-B=1' | grep -Fq 'app.js?v=approved-local-b-01'; then
+              echo 'STABLE27 NEW HOME ONLINE';break
+            fi
+            if [ "$i" = 60 ];then echo 'PUBLIC SITE NOT NEW VERSION';exit 1;fi
+            sleep 10
+          done
+          python - <<'PY'
+          import hashlib,json,time,urllib.request
+          from pathlib import Path
+          source=Path('_tested/website')
+          base='https://hhhihihihpdwwd.github.io/SHLM-TRNST/'
+          paths=[
+           'index.html','src/app.js','src/rail-data.js','src/rail-filter.js',
+           'data/rail.json','photos/catalog.json','photos/approved.json',
+           'src/updated-train-markers.js',
+           'src/assets/roslagsbanan-B-approved.webp',
+           'src/assets/saltsjobanan-B-approved.webp'
+          ]
+          for p in paths:
+            local=(source/p).read_bytes()
+            for attempt in range(3):
+              try:
+                req=urllib.request.Request(base+p+'?approved-B-27',
+                  headers={'Cache-Control':'no-cache','User-Agent':'StockholmRail-release-qa/1.0'})
+                online=urllib.request.urlopen(req,timeout=90).read()
+                break
+              except Exception:
+                if attempt==2:raise
+                time.sleep(3)
+            assert hashlib.sha256(online).digest()==hashlib.sha256(local).digest(),('PUBLIC FILE MISMATCH',p)
+            print('REMOTE SHA256 OK',p,len(online))
+          public=json.loads(urllib.request.urlopen(base+'data/rail.json?v=approved-B-27').read())
+          assert len(public['trips'])==10827 and len(public['shapes'])==107
+          print('LIVE STABLE27 DATA MATCHES ORIGINAL, NO TRACK OR GTFS CHANGE')
+          PY
+      - name: Verify every actual PUBLIC B marker and all 16 systems on desktop and phone
+        timeout-minutes: 18
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips} from './_tested/website/src/rail-data.js';
+          import {matchesRailFilter} from './_tested/website/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('./_tested/website/data/rail.json','utf8'));
+          const epoch=Date.parse('2026-11-16T08:30:00+01:00')/1000;
+          const active=activeRailTrips(d,epoch,10000);
+          const expectedPaths={
+            roslags:'./src/assets/roslagsbanan-B-approved.webp',
+            saltsjo:'./src/assets/saltsjobanan-B-approved.webp'
+          };
+          const filters=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo',
+           'arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag'];
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+            for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
+              const ctx=await browser.newContext({viewport});
+              await ctx.addInitScript(t=>{
+               const old=Date.now.bind(Date),delta=t-old();Date.now=()=>old()+delta;
+              },epoch*1000);
+              const page=await ctx.newPage(),errors=[];
+              page.on('pageerror',e=>errors.push(String(e)));
+              const response=await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?public-stable27-check=1',
+                {waitUntil:'domcontentloaded',timeout:90000});
+              assert.equal(response.status(),200);
+              assert.equal(await page.title(),'Stockholm Rail');
+              await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
+              for(const mode of filters){
+                assert.equal(await page.locator('[data-carousel-position="current"]').getAttribute('data-filter'),mode);
+                const n=active.filter(t=>matchesRailFilter(t,mode)).length;
+                await page.waitForFunction(c=>document.querySelectorAll('#vehicle-list button.vehicle').length===c,n,{timeout:60000});
+                await page.waitForFunction(c=>document.querySelectorAll('.leaflet-marker-icon').length===c,n,{timeout:60000});
+                if(mode in expectedPaths){
+                  const images=await page.locator('.leaflet-marker-icon img.rail-photo-marker').evaluateAll(imgs=>
+                    imgs.map(img=>({src:img.getAttribute('src'),loaded:img.complete&&img.naturalWidth===72&&img.naturalHeight===72})));
+                  assert.equal(images.length,n);
+                  assert(n>0);
+                  assert(images.every(img=>img.loaded&&img.src===expectedPaths[mode]),'Incorrect live '+mode+' B image');
+                }
+                console.log('PUBLIC STABLE27',viewport.width,mode,n,'vehicle markers verified');
+                await page.locator('#rail-next').click();
+              }
+              await page.locator('.all-trains-button').click();
+              await page.waitForFunction(c=>document.querySelectorAll('.leaflet-marker-icon').length===c,
+                active.length,{timeout:90000});
+              const all=await page.locator('.leaflet-marker-icon img.rail-photo-marker').evaluateAll(imgs=>
+               imgs.map(img=>img.getAttribute('src')));
+              assert.equal(all.length,active.length);
+              for(const mode of ['roslags','saltsjo'])
+                assert.equal(all.filter(path=>path===expectedPaths[mode]).length,
+                  active.filter(t=>matchesRailFilter(t,mode)).length);
+              await page.locator('#info-toggle').click();
+              await page.locator('#map-info').waitFor({state:'visible'});
+              await page.locator('#info-close').click();
+              assert.deepEqual(errors,[]);
+              await ctx.close();
+            }
+          }finally{await browser.close()}
+          console.log('PUBLIC STABLE27 B ICONS, ALL OPERATORS AND ORIGINAL TRAINS VERIFIED');
+          JS
+  rollback-on-public-failure:
+    if: ${{ always() && needs.deploy.result == 'success' && needs.verify-public.result == 'failure' }}
+    needs: [deploy, verify-public]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable26-3d-markers-real-photos-website
+          path: _old
+      - name: Reconstruct pre-change STABLE26 root and preview alias
+        run: |
+          mkdir -p _rollback/design-preview
+          cp -a _old/website/. _rollback/
+          cp -a _old/website/. _rollback/design-preview/
+          echo 'PUBLIC STABLE27 CHECK FAILED: ROLLBACK TO STABLE26'
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: stable27-emergency-rollback
+          path: _rollback
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: stable27-emergency-rollback
