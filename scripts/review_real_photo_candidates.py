@@ -36,6 +36,7 @@ session=requests.Session()
 session.headers.update({"User-Agent":USER_AGENT,"Accept":"application/json,image/webp,image/jpeg,*/*"})
 records=[]
 for category,titles in SOURCES.items():
+ if category!="rdc":continue # Already reviewed and downloaded other two source categories.
  for i,title in enumerate(titles):
   obj=None
   for attempt in range(3):
