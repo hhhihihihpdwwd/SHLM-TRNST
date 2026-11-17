@@ -1,0 +1,246 @@
+name: STABLE 25 - Promote verified Stockholm Rail design to production
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-stable25-stockholm-rail.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify-tested-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable21-website
+          path: _fallback
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable25-stockholm-rail-website
+          path: _stable25
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44084557948
+          artifact-ids: 14328428049
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _tested
+      - name: Strict hash compare against GREEN Chromium artifact and pre-change rail assets
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          old=Path('_fallback/website')
+          version=Path('_stable25/website')
+          tested=Path('_tested/website')
+          manifest=json.loads((old/'STABLE21-MANIFEST.json').read_text())
+          def files(root):
+            return {str(p.relative_to(root)):p for p in root.rglob('*') if p.is_file()}
+          before,after,approved=files(old),files(version),files(tested)
+          assert set(approved)==set(after),('Test artifact does not match STABLE25 branch inventory',len(approved),len(after))
+          for name,p in approved.items():
+            assert p.read_bytes()==after[name].read_bytes(),('STABLE25 drift from tested exact file',name)
+          assert set(before)<=set(approved),('Pre-change file missing',list(set(before)-set(approved)))
+          assert set(approved)-set(before)=={'src/design-ui.css','src/design-ui.js'},('Unexpected new files',set(approved)-set(before))
+          for name,p in before.items():
+            if name not in {'index.html','src/app.js'}:
+              assert approved[name].read_bytes()==p.read_bytes(),('Original railway/marker/assets changed',name)
+          for name,sha in manifest['fileSha256'].items():
+            if name not in {'index.html','src/app.js'}:
+              assert hashlib.sha256(approved[name].read_bytes()).hexdigest()==sha,('Known-good file hash mismatch',name)
+          d=json.loads((tested/'data/rail.json').read_text())
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          assert 'metroWeekdaySimulation' not in d
+          html=(tested/'index.html').read_text()
+          assert '<title>Stockholm Rail</title>' in html
+          assert '<meta name="application-name" content="Stockholm Rail">' in html
+          assert '<meta property="og:title" content="Stockholm Rail">' in html
+          assert '<meta property="og:site_name" content="Stockholm Rail">' in html
+          assert '<meta name="apple-mobile-web-app-title" content="Stockholm Rail">' in html
+          assert 'RDC EuroNight · 16 system' not in html and '01 · FOUNDATION' not in html
+          assert "const hint=document.querySelector('.map-note > span');" in (tested/'src/app.js').read_text()
+          assert "label.textContent='Stockholm Rail'" in (tested/'src/app.js').read_text()
+          for f in ['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag','all']:
+            assert html.count('data-filter="'+f+'"')==1,('Missing or duplicate filter',f)
+          print('STABLE25 GATE PASS: exactly same files as green browser test; original 10827 train templates and 107 tracks byte-for-byte preserved')
+          PY
+      - name: Assemble STABLE25 as canonical root, retain matching design-preview alias
+        run: |
+          mkdir -p _site/design-preview
+          cp -a _tested/website/. _site/
+          cp -a _tested/website/. _site/design-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify-tested-release
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.page.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: page
+  verify-public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable25-stockholm-rail-website
+          path: _stable25
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify public GitHub Pages root branding and original GTFS SHA256
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable25-name-check=1' | grep -Fq '<title>Stockholm Rail</title>';then
+              echo 'STABLE25 ROOT ONLINE';break
+            fi
+            if [ "$i" = 60 ];then echo 'ROOT STILL NOT STABLE25';exit 1;fi
+            sleep 10
+          done
+          curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/' -o /tmp/stable25-live-index.html
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package07-01' -o /tmp/stable25-live-rail.json
+          curl -fLsS --max-time 30 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=ux-20261116-01' -o /tmp/stable25-live-app.js
+          curl -fLsS --max-time 30 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/design-ui.css?v=ux-20261116-02' -o /tmp/stable25-live-design.css
+          curl -fLsS --max-time 25 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/design-preview/' -o /tmp/stable25-live-preview.html
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          source=Path('_stable25/website')
+          for rel,got in [('index.html','/tmp/stable25-live-index.html'),
+                          ('data/rail.json','/tmp/stable25-live-rail.json'),
+                          ('src/app.js','/tmp/stable25-live-app.js'),
+                          ('src/design-ui.css','/tmp/stable25-live-design.css')]:
+            expected=hashlib.sha256((source/rel).read_bytes()).hexdigest()
+            actual=hashlib.sha256(Path(got).read_bytes()).hexdigest()
+            assert expected==actual,('PUBLIC RESOURCE DIFFERS FROM TESTED STABLE25',rel)
+          assert (source/'index.html').read_bytes()==Path('/tmp/stable25-live-preview.html').read_bytes()
+          d=json.loads(Path('/tmp/stable25-live-rail.json').read_text())
+          assert len(d['trips'])==10827 and len(d['shapes'])==107
+          print('PUBLIC STABLE25 BYTES MATCH GREEN SOURCE, 10827 TRAINS, 107 VERIFIED SHAPES, ROOT + DESIGN PREVIEW ALIAS')
+          PY
+      - name: Run live public Chromium through 16 filters, route details, train photo, navigation and mobile
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          import {activeRailTrips,railAt} from './_stable25/website/src/rail-data.js';
+          import {matchesRailFilter} from './_stable25/website/src/rail-filter.js';
+          const d=JSON.parse(fs.readFileSync('/tmp/stable25-live-rail.json','utf8'));
+          const epoch=Date.parse('2026-11-16T08:30:00+01:00')/1000;
+          const live=activeRailTrips(d,epoch,15000);
+          const filterNames=['commuter','metro','tram','nockeby','lidingo','city7','roslags','saltsjo','arlanda','sj','vr','snalltaget','vy','tagab','rdc','malartag'];
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+            for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
+              const ctx=await browser.newContext({viewport});
+              await ctx.addInitScript(now=>{
+                const real=Date.now.bind(Date),offset=now-real();Date.now=()=>real()+offset;
+              },epoch*1000);
+              const page=await ctx.newPage(),errors=[];
+              page.on('pageerror',e=>errors.push(String(e)));
+              const response=await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable25-public-browser=1',
+                {waitUntil:'domcontentloaded',timeout:90000});
+              assert.equal(response.status(),200);
+              assert.equal(await page.title(),'Stockholm Rail');
+              assert.equal(await page.locator('meta[property="og:site_name"]').getAttribute('content'),'Stockholm Rail');
+              await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
+              const check=async f=>{
+                const n=live.filter(t=>matchesRailFilter(t,f)).length;
+                await page.waitForFunction(expected=>
+                  document.querySelectorAll('#vehicle-list button.vehicle').length===expected,
+                  n,{timeout:60000});
+                await page.waitForFunction(expected=>
+                  document.querySelectorAll('.leaflet-marker-icon').length===expected,
+                  n,{timeout:60000});
+                console.log('PUBLIC STABLE25',viewport.width,f,n,'of',n,'markers and vehicle rows');
+                return n;
+              };
+              for(const filter of filterNames){
+                assert.equal(await page.locator('[data-carousel-position="current"]').getAttribute('data-filter'),filter);
+                await check(filter);
+                await page.locator('#rail-next').click();
+              }
+              assert.equal(await page.locator('[data-carousel-position="current"]').getAttribute('data-filter'),'commuter');
+              await check('commuter');
+              await page.locator('.all-trains-button').click();
+              assert.equal(await check('all'),live.length);
+              await page.locator('#info-toggle').click();
+              await page.locator('#map-info').waitFor({state:'visible'});
+              assert.equal((await page.locator('#map-info > strong').innerText()).trim(),'Stockholm Rail');
+              assert.equal((await page.locator('#map-info .info-heading span').innerText()).trim(),'Om kartan');
+              await page.locator('#info-close').click();
+              await page.locator('[data-carousel-position="current"]').click();
+              await check('commuter');
+              await page.locator('#vehicle-list button.vehicle').first().click();
+              await page.locator('#selected-detail').waitFor({state:'visible'});
+              const photo=await page.locator('.image-placeholder').boundingBox();
+              const picture=await page.locator('.image-placeholder img').boundingBox();
+              const next=await page.locator('.next-stop').boundingBox();
+              assert(photo&&picture&&next&&picture.height>=150&&next.y>=photo.y+photo.height-1,
+                'Full-width photo / stacked next station regression');
+              assert(await page.locator('#stops .stop').count()>=2);
+              assert(await page.locator('#stops .stop.next').count()===1);
+              assert(await page.locator('.leaflet-overlay-pane path').count()>0,'Selected train rail geometry missing');
+              await page.locator('#follow').click();
+              assert((await page.locator('#follow').textContent()).includes('Följer'));
+              await page.locator('#clear').click();
+              await page.locator('#selected-detail').waitFor({state:'hidden'});
+              await page.locator('#satellite').click();
+              assert((await page.locator('#satellite').textContent()).includes('Karta'));
+              await page.locator('#home').click();
+              assert.deepEqual(errors,[], 'No JavaScript exceptions allowed');
+              await ctx.close();
+            }
+            // Independently evaluate historical simulated trips across the
+            // full seven-day calendar, including night and weekend windows.
+            for(let day=9;day<=15;day++){
+              const date='2026-11-'+String(day).padStart(2,'0');
+              for(const time of ['00:30:00','08:30:00','13:30:00','19:30:00','23:30:00']){
+                const t=Date.parse(date+'T'+time+'+01:00')/1000;
+                const trains=activeRailTrips(d,t,15000);
+                assert(trains.every(v=>{
+                  const p=railAt(v,t)?.pos;
+                  return Array.isArray(p)&&p.length===2&&p.every(Number.isFinite);
+                }),'Invalid existing railway position at '+date+' '+time);
+              }
+            }
+            console.log('PUBLIC STABLE25 FULL LIVE BROWSER + 35 HISTORICAL TIME SLICES PASS');
+          } finally {await browser.close()}
+          JS
+  rollback-if-public-broken:
+    if: ${{ always() && needs.deploy.result == 'success' && needs.verify-public.result == 'failure' }}
+    needs: [deploy, verify-public]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable21-website
+          path: _recovered-original
+      - name: Restore exactly pre-design STABLE21 if any real public production test failed
+        run: |
+          echo 'PUBLIC TEST FAILED: RESTORING ARCHIVED STABLE21, NEVER KEEPING BROKEN BUILD'
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _recovered-original/website
+      - uses: actions/deploy-pages@v4
