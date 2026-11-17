@@ -109,7 +109,14 @@ try{
   page.on('pageerror',e=>errors.push(String(e)));
   await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.querySelectorAll('#vehicle-list button.vehicle').length>0,null,{timeout:90000});
-  await page.locator('[data-filter="'+mode+'"]').click();
+  // The carousel deliberately hides all but the current and adjacent
+  // categories. Reach target through its visible, genuine navigation.
+  for(let nav=0;nav<filters.length+1;nav++){
+    const current=await page.locator('[data-carousel-position="current"]').getAttribute('data-filter');
+    if(current===mode)break;
+    await page.locator('#rail-next').click();
+    if(nav===filters.length)throw Error('Missing operator slide '+mode);
+  }
   await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,count,{timeout:60000});
   const all=await page.locator('.leaflet-marker-icon img.rail-photo-marker').evaluateAll(els=>
     els.map(el=>({src:el.getAttribute('src'),loaded:el.complete&&el.naturalWidth>0})));
