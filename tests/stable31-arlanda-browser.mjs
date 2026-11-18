@@ -21,8 +21,9 @@ const server=createServer(async(req,res)=>{
   res.end(payload);
  }catch(e){res.writeHead(404);res.end('not found')}
 });
-await new Promise(r=>server.listen(0,'127.0.0.1',r));
-const url='http://127.0.0.1:'+server.address().port+'/';
+const online=process.env.STABLE31_TEST_URL;
+if(!online)await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const url=online||'http://127.0.0.1:'+server.address().port+'/';
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
  for(const day of ['2026-11-16','2026-11-17','2026-11-18','2026-11-19',
@@ -54,5 +55,5 @@ try{
     '3-station line, verified OSM and photo');
   await context.close();
  }
-}finally{await browser.close();server.close()}
+}finally{await browser.close();if(!online)server.close()}
 console.log('ALL SEVEN ARLANDA GTFS DAYTYPE BROWSER CHECKS GREEN');
