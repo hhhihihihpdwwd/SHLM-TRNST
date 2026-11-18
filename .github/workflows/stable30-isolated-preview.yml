@@ -1,0 +1,141 @@
+name: STABLE30 isolated full-SL public preview (preserve STABLE29 main)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable30-isolated-preview.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _stable28
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _candidate
+      - name: Unmodified STABLE29 root and independently green STABLE30 only in /stable30-preview/
+        run: |
+          mkdir -p _site/design-preview _site/stable29-preview _site/stable30-preview
+          cp -a _stable29/website/. _site/
+          cp -a _stable28/website/. _site/design-preview/
+          cp -a _stable29/website/. _site/stable29-preview/
+          cp -a _candidate/website/. _site/stable30-preview/
+      - name: Byte compare every production file against archived stable production
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          old=Path('_stable29/website');root=Path('_site');new=root/'stable30-preview'
+          oldfiles={str(p.relative_to(old)):p for p in old.rglob('*') if p.is_file()}
+          prod={str(p.relative_to(root)):p for p in root.rglob('*') if p.is_file() and not set(p.parts)&{'stable30-preview','design-preview','stable29-preview'}}
+          assert oldfiles.keys()==prod.keys()
+          for rel,file in oldfiles.items():
+           assert prod[rel].read_bytes()==file.read_bytes(),('Changed main-site file',rel)
+           if rel not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
+            assert (new/rel).read_bytes()==file.read_bytes(),('Changed marker/photo/OSM/UI asset',rel)
+          olddata=json.loads((old/'data/rail.json').read_text())
+          d=json.loads((new/'data/rail.json').read_text())
+          modes={'commuter','tram','localrail','saltsjo'}
+          assert len(d['trips'])==sum(d['counts'].values())
+          assert d['counts']['metro']==13372 and d['counts']['commuter']==3528
+          assert d['counts']['tram']==7338 and d['counts']['localrail']==2191 and d['counts']['saltsjo']==1563
+          assert [t for t in olddata['trips'] if t['mode'] not in modes]==[t for t in d['trips'] if t['mode'] not in modes]
+          assert all(d['shapes'][k]==v for k,v in olddata['shapes'].items())
+          print('PUBLIC STAGING: all original live bytes protected and new 7-day SL GTFS exact')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy-preview:
+    needs: stage
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.web.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: web
+  verify-public:
+    needs: deploy-preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable30-complete-all-sl-20261118
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _original
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable24-all-SL-weekly-website
+          path: _week
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read public root original and preview HTML/GTFS, check byte identity
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable30-preview/?check-stable30=1' | grep -Fq 'app.js?v=stable30-sl-week-20261118-01';then
+            echo 'STABLE30 PUBLIC PREVIEW ONLINE';break
+           fi
+           if [ "$i" = 60 ];then echo 'NO PREVIEW ONLINE';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/' -o /tmp/s30old-index
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=stable29-metro-20261118-01' -o /tmp/s30old-data
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable30-preview/' -o /tmp/s30new-index
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable30-preview/data/rail.json?v=stable30-sl-week-20261118-01' -o /tmp/s30new-data
+          python - <<'PY'
+          from pathlib import Path
+          orig=Path('_original/website');tested=Path('_release/website')
+          for name,got,base in [
+           ('STABLE29 HTML','/tmp/s30old-index',orig/'index.html'),
+           ('STABLE29 GTFS','/tmp/s30old-data',orig/'data/rail.json'),
+           ('STABLE30 HTML','/tmp/s30new-index',tested/'index.html'),
+           ('STABLE30 GTFS','/tmp/s30new-data',tested/'data/rail.json')]:
+            assert Path(got).read_bytes()==base.read_bytes(),('NOT SAME LIVE BYTES',name)
+          print('BYTE-IDENTICAL ORIGINAL PUBLIC ROOT and NEW VERIFIED STABLE30 GTFS')
+          PY
+      - name: Test actual isolated published candidate, source and map on desktop+phone
+        timeout-minutes: 25
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          STABLE29_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable30-preview/' STABLE29_SHOTS='_published-preview-shots' node --max-old-space-size=8192 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable30-public-preview-qa-screenshots
+          path: _published-preview-shots/
+          retention-days: 7
