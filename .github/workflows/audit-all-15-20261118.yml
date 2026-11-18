@@ -1,0 +1,59 @@
+name: Readonly audit ALL 15 non-Metro rail systems against source GTFS and LIVE map (18 Nov)
+on:
+  push:
+    branches: [audit/all-15-other-systems-20261118]
+    paths: [.github/workflows/audit-all-15-20261118.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable24-all-SL-weekly-website
+          path: _stable24
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assert GTFS completeness for seven SL system families vs independently rebuilt weekly schedule
+        run: |
+          node --check tests/audit-15-systems-20261118.mjs
+          node --max-old-space-size=6000 tests/audit-15-systems-20261118.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: readonly-20261118-full-15-source-parity
+          path: _audit_15/data-vs-archived-gtfs.json
+          retention-days: 7
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Playwright Chromium, real production website, list/marker/photo count, every railway type on desktop and phone
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          mkdir -p _audit_15
+          node --max-old-space-size=6000 tests/audit-15-public-browser-20261118.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: readonly-20261118-real-public-Chromium-15-systems
+          path: _audit_15/
+          retention-days: 7
