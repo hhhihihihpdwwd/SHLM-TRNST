@@ -1,0 +1,219 @@
+name: STABLE31 publish verified authentic seven-day Arlanda Express with safe rollback
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable31-promote-arlanda.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  approved-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _stable28
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable30-complete-sl-weekly-website
+          path: _stable30
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44286411921
+          artifact-ids: 14419652260
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable31
+      - name: Verify exactly already public-tested candidate and no changes to existing photos, marker sprites, OSM tracks or any other train
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          a=Path('_stable30/website');b=Path('_stable31/website')
+          aa={str(p.relative_to(a)):p for p in a.rglob('*') if p.is_file()}
+          bb={str(p.relative_to(b)):p for p in b.rglob('*') if p.is_file()}
+          assert aa.keys()==bb.keys(),('Website source inventory drift',set(aa)^set(bb))
+          modified={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for name,p in aa.items():
+           if name not in modified:
+            assert p.read_bytes()==bb[name].read_bytes(),('Original asset changed',name)
+          old=json.loads((a/'data/rail.json').read_text())
+          new=json.loads((b/'data/rail.json').read_text())
+          assert new['arlandaWeekdaySimulation'] and new['counts']['express']==1240
+          assert old['counts']['express']==540
+          assert new['metroWeekdaySimulation'] and new['commuterWeekdaySimulation'] and new['localWeekdaySimulation']
+          assert new['counts']['metro']==13372 and new['counts']['commuter']==3528
+          assert len(new['trips'])==len(old['trips'])+700
+          assert [r for r in new['trips'] if r.get('agency')!='Arlanda Express']==[r for r in old['trips'] if r.get('agency')!='Arlanda Express']
+          assert old['shapes']==new['shapes']
+          assert '<title>Stockholm Rail</title>' in (b/'index.html').read_text()
+          assert 'app.js?v=stable31-arlanda-week-20261118-01' in (b/'index.html').read_text()
+          assert "rail.json?v=stable31-arlanda-week-20261118-01" in (b/'src/rail-data.js').read_text()
+          print('APPROVED: ALL 1240 REAL ARLANDA GTFS SOURCE TRAINS, 7-DAY CHROME-GREEN PREVIEW. ALL OTHER 15 SYSTEMS, 3D SYMBOLS, PHOTOS AND RAILS UNCHANGED')
+          PY
+      - name: Assemble exact STABLE31 on root, preserve all previous frozen previews
+        run: |
+          mkdir -p _site/design-preview _site/stable29-preview _site/stable30-preview _site/stable31-preview
+          cp -a _stable31/website/. _site/
+          cp -a _stable28/website/. _site/design-preview/
+          cp -a _stable29/website/. _site/stable29-preview/
+          cp -a _stable30/website/. _site/stable30-preview/
+          cp -a _stable31/website/. _site/stable31-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: approved-candidate
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.live.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: live
+  verify-real-public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 46
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable31-seven-day-arlanda-20261118
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable30
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44286411921
+          artifact-ids: 14419652260
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compare actual LIVE production pages, entire 55MB data and JS bytes against green tested source
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable31-production=1' | grep -Fq 'app.js?v=stable31-arlanda-week-20261118-01';then
+            echo 'STABLE31 EXACT RELEASE VISIBLE ON MAIN';break
+           fi
+           if [ "$i" = 60 ];then echo 'NEW MAIN VERSION NOT PUBLIC';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/' -o /tmp/liveindex
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=stable31-arlanda-week-20261118-01' -o /tmp/livedata
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=stable31-arlanda-week-20261118-01' -o /tmp/liveapp
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=stable31-arlanda-week-20261118-01' -o /tmp/liverail
+          python - <<'PY'
+          from pathlib import Path
+          for a,b in [('index.html','/tmp/liveindex'),('data/rail.json','/tmp/livedata'),
+                      ('src/app.js','/tmp/liveapp'),('src/rail-data.js','/tmp/liverail')]:
+            assert (Path('_release/website')/a).read_bytes()==Path(b).read_bytes(),('NOT TESTED CODE PUBLIC',a)
+          print('EXACT PUBLISHED STABLE31 BYTES EQUAL CHROMIUM-GREEN CANDIDATE')
+          PY
+      - name: Real public Arlanda Express all weekdays and 16-mode train map, photos, routes and mobile
+        timeout-minutes: 30
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          STABLE31_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/' node --max-old-space-size=6144 tests/stable31-arlanda-browser.mjs
+          STABLE29_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/' STABLE29_SHOTS='_stable31_public_photo_visual' node --max-old-space-size=6144 tests/stable29-browser-qa.mjs
+          node --max-old-space-size=6144 tests/stable31-arlanda-preservation.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable31-public-browser-screens-and-preservation
+          path: |
+            _stable31_public_photo_visual/
+            _release/qa/
+          retention-days: 7
+  archive-tested-version:
+    needs: verify-real-public
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable31-seven-day-arlanda-20261118
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44286411921
+          artifact-ids: 14419652260
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - name: Archive exact production green site only
+        run: |
+          rm -rf website
+          cp -a _approved/website website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          d=json.loads(Path('website/data/rail.json').read_text())
+          assert d['arlandaWeekdaySimulation'] is True and d['counts']['express']==1240
+          assert d['metroWeekdaySimulation'] and d['commuterWeekdaySimulation'] and d['localWeekdaySimulation']
+          meta={'app':'Stockholm Rail','backupOf':'archive/stable30-complete-sl-weekly-website',
+           'arlandaGTFSweek':1240,'saturdayArchiveJourneys':160,
+           'nationalOtherSevenOperatorsPreserved':True,
+           'original3DiconsAndPhotosPreserved':True,
+           'originalOSMShapesPreserved':True,
+           'notRealtimeGPS':True,
+           'greenBuild':44286411921,'greenPublicPreview':44287719324,
+           'greenPublicMain':${{ github.run_id }},
+           'dataSHA256':hashlib.sha256(Path('website/data/rail.json').read_bytes()).hexdigest()}
+          Path('website/STABLE31-MANIFEST.json').write_text(json.dumps(meta,ensure_ascii=False,indent=2))
+          PY
+          git config user.name "stockholm-rail-stable-archive"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable31-complete-arlanda-seven-day-website
+          git add -f website
+          git commit -m "archive: STABLE31 complete GTFS 7-day Arlanda plus metro/commuter/local full week; preserve 7 other national operators"
+          git push origin HEAD:refs/heads/archive/stable31-complete-arlanda-seven-day-website
+  rollback-if-any-public-test-fails:
+    if: ${{ always() && needs.deploy.result == 'success' && needs.verify-real-public.result == 'failure' }}
+    needs: [deploy, verify-real-public]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable30-complete-sl-weekly-website
+          path: _stable30
+      - uses: actions/configure-pages@v5
+      - name: Restore previous exact STABLE30 if public website is broken
+        run: |
+          mkdir -p _site/stable30-preview
+          cp -a _stable30/website/. _site/
+          cp -a _stable30/website/. _site/stable30-preview/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: stable31-failure-back-to-stable30
+          path: _site
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: stable31-failure-back-to-stable30
