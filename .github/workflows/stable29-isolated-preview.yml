@@ -1,0 +1,133 @@
+name: STABLE29 isolated public preview with original production root preserved
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable29-isolated-preview.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _original
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44274809017
+          artifact-ids: 14414316941
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _verified
+      - name: Assemble unchanged production homepage plus isolated /stable29-preview/
+        run: |
+          test -f _verified/website/index.html
+          test -f _verified/website/data/rail.json
+          mkdir -p _site/stable29-preview
+          cp -a _original/website/. _site/
+          cp -a _verified/website/. _site/stable29-preview/
+      - name: Prove all existing files at production root are byte-identical STABLE28
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          root=Path('_site');original=Path('_original/website');preview=root/'stable29-preview'
+          oldfiles={str(f.relative_to(original)):f for f in original.rglob('*') if f.is_file()}
+          current={str(f.relative_to(root)):f for f in root.rglob('*') if f.is_file() and 'stable29-preview' not in f.parts}
+          assert oldfiles.keys()==current.keys(),('Original production files added/removed',set(oldfiles)^set(current))
+          for rel,f in oldfiles.items():
+           assert f.read_bytes()==current[rel].read_bytes(),('Original page changed',rel)
+           if rel not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
+            assert f.read_bytes()==(preview/rel).read_bytes(),('Nonmetro image, icon, shape asset changed',rel)
+          previous=json.loads((original/'data/rail.json').read_text())
+          next=json.loads((preview/'data/rail.json').read_text())
+          assert previous['counts']['metro']==2797 and next['counts']['metro']==13372
+          assert len(previous['trips'])==10827 and len(next['trips'])==21402
+          assert [t for t in previous['trips'] if t['mode']!='metro']==[t for t in next['trips'] if t['mode']!='metro']
+          assert all(next['shapes'][k]==v for k,v in previous['shapes'].items())
+          assert next['metroWeekdaySimulation'] is True
+          assert 'stable29-metro-20261118-01' in (preview/'index.html').read_text()
+          print('GREEN: production root STABLE28 unchanged byte for byte; public preview contains every real GTFS subway journey')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy-preview:
+    needs: verify-release
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.published.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: published
+  verify-public-preview:
+    needs: deploy-preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable29-complete-tunnelbana-preserve-28-20261118
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _original
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44274809017
+          artifact-ids: 14414316941
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check public original root is unchanged; preview is complete exact verified data
+        run: |
+          for i in $(seq 1 60); do
+           if curl -fLsS --max-time 15 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable29-preview/?stable29-preview=1' | grep -Fq 'app.js?v=stable29-metro-20261118-01';then
+            echo 'SEPARATE STABLE29 PREVIEW IS LIVE';break
+           fi
+           if [ "$i" = 60 ];then echo 'PREVIEW NOT PUBLIC';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 20 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?preservation-check=1' -o /tmp/stable29-untouched-root.html
+          curl -fLsS --max-time 100 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=package07-01' -o /tmp/stable29-untouched-rail.json
+          curl -fLsS --max-time 120 -H 'Cache-Control: no-cache' 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable29-preview/data/rail.json?v=stable29-metro-20261118-01' -o /tmp/stable29-preview-rail.json
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          base=Path('_original/website')
+          for local,old in [('/tmp/stable29-untouched-root.html','index.html'),('/tmp/stable29-untouched-rail.json','data/rail.json')]:
+           assert Path(local).read_bytes()==(base/old).read_bytes(),('Production homepage or train source changed!',old)
+          candidate=Path('_release/website/data/rail.json')
+          assert Path('/tmp/stable29-preview-rail.json').read_bytes()==candidate.read_bytes(),'Live preview not matching tested source'
+          d=json.loads(candidate.read_text())
+          assert d['counts']['metro']==13372 and len(d['metroWeeklyCoverage'])==7
+          print('PUBLIC PREVIEW EXACT VERIFIED ASSET, EXISTING ROOT STILL STABLE28 BYTE-IDENTICAL')
+          PY
+      - name: Real GitHub Pages browser verifies original icons, week Metro, all filters, map route and photos
+        timeout-minutes: 25
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          STABLE29_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable29-preview/' STABLE29_SHOTS='_public_preview_screenshots' node --max-old-space-size=6144 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable29-public-preview-visual-proof
+          path: _public_preview_screenshots/
+          retention-days: 7
