@@ -1,0 +1,75 @@
+name: STABLE30 verify all complete seven-day SL journeys without changing Stockholm Rail live
+on:
+  push:
+    branches: [fix/stable30-complete-all-sl-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verified-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _original
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable24-all-SL-weekly-website
+          path: _week
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact protections – no interface, icons, photo, rail or non-SL operator change
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('_original/website');branch=Path('website')
+          prior={str(p.relative_to(src)):p for p in src.rglob('*') if p.is_file()}
+          proposed={str(p.relative_to(branch)):p for p in branch.rglob('*') if p.is_file()}
+          assert set(prior)==set(proposed),('Unexpected addition/removal of website assets',set(prior)^set(proposed))
+          allow={'index.html','src/app.js','src/rail-data.js'}
+          for path in prior:
+           if path not in allow:
+            assert prior[path].read_bytes()==proposed[path].read_bytes(),('Original STABLE29 site asset differs',path)
+          print('STABLE30 SOURCE PROTECTION: all photos, marker sprites, design, rail data, other operators, and website files byte-identical')
+          PY
+      - name: Assemble only modified timetable logic and same production UI
+        run: |
+          mkdir -p _release/website
+          cp -a _original/website/. _release/website/
+          cp -a website/index.html _release/website/index.html
+          cp -a website/src/app.js _release/website/src/app.js
+          cp -a website/src/rail-data.js _release/website/src/rail-data.js
+          node --check _release/website/src/app.js
+          node --check _release/website/src/rail-data.js
+          python -m py_compile scripts/merge_stable30_all_sl.py
+      - name: Merge complete seven-day verified GTFS commuter + 10 local lines, zero invented geometry
+        timeout-minutes: 10
+        run: |
+          python -u scripts/merge_stable30_all_sl.py --current _original/website/data/rail.json --complete-week _week/website/data/rail.json --output _release/website/data/rail.json
+      - name: One thousand one hundred twenty source-to-render parity assertions with actual train positions across all sixteen systems
+        timeout-minutes: 18
+        run: node --max-old-space-size=8192 tests/stable30-all-sl-preservation.mjs
+      - name: Chromium desktop+phone all filters, metro peaks, newly restored SL trips, photos and OSM route
+        timeout-minutes: 25
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --max-old-space-size=8192 tests/stable29-browser-qa.mjs
+      - name: Archive exact tested version and screenshots – NEVER MODIFY PRODUCTION
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable30-verified-all-sl-seven-day-week-preserved-national
+          path: |
+            _release/website/
+            _release/qa/
+            _release/qa-screenshots/
+          retention-days: 7
+          compression-level: 4
