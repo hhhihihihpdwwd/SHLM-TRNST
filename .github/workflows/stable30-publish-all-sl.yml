@@ -1,0 +1,212 @@
+name: STABLE30 promote verified full SL week to Stockholm Rail with public QA and rollback
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable30-publish-all-sl.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _original
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _stable28
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _green
+      - name: Confirm green public-preview bytes, original markers/photos/rails and seven-day commuter and local GTFS
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          source=Path('_original/website');release=Path('_green/website')
+          originals={str(p.relative_to(source)):p for p in source.rglob('*') if p.is_file()}
+          tested={str(p.relative_to(release)):p for p in release.rglob('*') if p.is_file()}
+          assert originals.keys()==tested.keys()
+          permitted={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
+          for name,p in originals.items():
+           if name not in permitted:assert p.read_bytes()==tested[name].read_bytes(),('Existing UI/icon/photo/other rail data changed',name)
+          original=json.loads((source/'data/rail.json').read_text())
+          d=json.loads((release/'data/rail.json').read_text())
+          assert all(d[k] is True for k in ['metroWeekdaySimulation','commuterWeekdaySimulation','localWeekdaySimulation'])
+          assert d['counts']['metro']==13372 and d['counts']['commuter']==3528
+          assert d['counts']['tram']==7338 and d['counts']['localrail']==2191 and d['counts']['saltsjo']==1563
+          preserved={'metro','express','intercity','regional'}
+          for mode in preserved:
+           assert [t for t in original['trips'] if t['mode']==mode]==[t for t in d['trips'] if t['mode']==mode],('Existing original train changed',mode)
+          assert all(d['shapes'][k]==v for k,v in original['shapes'].items())
+          assert '<title>Stockholm Rail</title>' in (release/'index.html').read_text()
+          assert 'app.js?v=stable30-sl-week-20261118-01' in (release/'index.html').read_text()
+          assert 'rail.json?v=stable30-sl-week-20261118-01' in (release/'src/rail-data.js').read_text()
+          print('PROMOTION GATE PASS. Same already public Chromium-tested 54MB GTFS release; all original photos/OSM/icons/8 national systems and Metro untouched.')
+          PY
+      - name: Deploy EXACT green build at main; preserve previous version paths
+        run: |
+          mkdir -p _site/design-preview _site/stable29-preview _site/stable30-preview
+          cp -a _green/website/. _site/
+          cp -a _stable28/website/. _site/design-preview/
+          cp -a _original/website/. _site/stable29-preview/
+          cp -a _green/website/. _site/stable30-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.page.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: page
+  public-QA:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 43
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable30-complete-all-sl-20261118
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _original
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable24-all-SL-weekly-website
+          path: _week
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify actual production GitHub Pages content is byte-identical to approved green GTFS and JS
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 15 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable30-public-check=1' | grep -Fq 'app.js?v=stable30-sl-week-20261118-01';then
+            echo 'STABLE30 PUBLIC MAIN ONLINE';break
+           fi
+           if [ "$i" = 60 ];then echo 'PUBLIC ROOT NOT UPDATED';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/' -o /tmp/s30-index
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=stable30-sl-week-20261118-01' -o /tmp/s30-rail
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=stable30-sl-week-20261118-01' -o /tmp/s30-app
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/rail-data.js?v=stable30-sl-week-20261118-01' -o /tmp/s30-rail-module
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          root=Path('_release/website')
+          for name,local in [('index.html','/tmp/s30-index'),('data/rail.json','/tmp/s30-rail'),
+                ('src/app.js','/tmp/s30-app'),('src/rail-data.js','/tmp/s30-rail-module')]:
+           assert (root/name).read_bytes()==Path(local).read_bytes(),('PUBLIC RELEASE NOT BYTE IDENTICAL',name)
+          print('GREEN: Live Stockholm Rail main exact same already-approved GTFS and source JS.')
+          PY
+      - name: All 16-system original-geometry and source journey identities across 70 times
+        timeout-minutes: 15
+        run: node --max-old-space-size=8192 tests/stable30-all-sl-preservation.mjs
+      - name: Real public Chromium desktop + smartphone all filters, 7-day SL, photos, rail paths and follow
+        timeout-minutes: 25
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          STABLE29_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/' STABLE29_SHOTS='_production_browser_shots' node --max-old-space-size=8192 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable30-actual-production-browser-screenshots
+          path: _production_browser_shots/
+          retention-days: 7
+  archive-after-public-QA:
+    needs: public-QA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable30-complete-all-sl-20261118
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - name: Archive exactly public-tested full-STABLE30 source with SHA256 and immutable national source
+        run: |
+          rm -rf website
+          cp -a _approved/website website
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          d=json.loads(Path('website/data/rail.json').read_text())
+          assert d['metroWeekdaySimulation'] and d['commuterWeekdaySimulation'] and d['localWeekdaySimulation']
+          inv={'app':'Stockholm Rail','baseline':'archive/stable29-complete-metro-week-website',
+             'sourceWeek':'archive/stable24-all-SL-weekly-website','verifiedFullSLWeek':True,
+             'allNationalOperatorsPreserved':True,
+             'GTFSHistoricOnlyNotLiveGPS':True,'candidateVerifiedRun':44283531282,
+             'publicPreviewTestRun':44283950659,'productionTestRun':${{ github.run_id }},
+             'dataFileSHA256':hashlib.sha256(Path('website/data/rail.json').read_bytes()).hexdigest(),
+             'tripCount':len(d['trips']), 'metroTrips':13372,'commuterTrips':3528,
+             'localSlTrips':7338+2191+1563,'noNewArtificialRailGeometry':True}
+          Path('website/STABLE30-MANIFEST.json').write_text(json.dumps(inv,ensure_ascii=False,indent=2))
+          PY
+          git config user.name "stockholm-rail-stable-archive"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable30-complete-sl-weekly-website
+          git add -f website
+          git commit -m "archive: STABLE30 source-complete Metro Pendeltag all 10 local SL weekday services; 8 nationals unchanged"
+          git push origin HEAD:refs/heads/archive/stable30-complete-sl-weekly-website
+  rollback-production-if-broken:
+    if: ${{ always() && needs.deploy.result == 'success' && needs.public-QA.result == 'failure' }}
+    needs: [deploy, public-QA]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _rollback29
+      - uses: actions/configure-pages@v5
+      - name: Restore exactly previous public website
+        run: |
+          mkdir -p _site/stable29-preview
+          cp -a _rollback29/website/. _site/
+          cp -a _rollback29/website/. _site/stable29-preview/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: stable30-failure-rollback-to-29
+          path: _site
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: stable30-failure-rollback-to-29
