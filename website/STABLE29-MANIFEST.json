@@ -1,0 +1,13 @@
+{
+  "appName": "Stockholm Rail",
+  "baseline": "archive/stable28-freestanding-localrail-train-icons",
+  "sevenDayHistoricalMetroTrips": 13372,
+  "otherRailTripsPreserved": 8030,
+  "verifiedMeterSource": "GTFS Sverige 2 historical source November 2026, not live GPS",
+  "sourceAndRealPublicPreviewChromiumVerified": true,
+  "completeWeekBuildRun": 44274809017,
+  "publicPreviewWorkflowRun": 44275407192,
+  "productionPublicWorkflowRun": 44275906438,
+  "metroAndOtherRailOriginalShapesPreserved": true,
+  "railJsonSHA256": "3d9515c72f7c2c0bf1713c8eed5e898e7f00403e116a43cc138ed2f8c58d1392"
+}
