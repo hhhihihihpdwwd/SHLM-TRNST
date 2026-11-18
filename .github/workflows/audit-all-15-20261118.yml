@@ -2,7 +2,7 @@ name: Readonly audit ALL 15 non-Metro rail systems against source GTFS and LIVE 
 on:
   push:
     branches: [audit/all-15-other-systems-20261118]
-    paths: [.github/workflows/audit-all-15-20261118.yml]
+    paths: [.github/workflows/audit-all-15-20261118.yml, tests/audit-15-public-browser-20261118.mjs, tests/audit-15-systems-20261118.mjs]
   workflow_dispatch:
 permissions:
   contents: read
