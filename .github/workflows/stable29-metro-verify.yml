@@ -1,0 +1,78 @@
+name: STABLE29 verify complete week Tunnelbana while STABLE28 stays untouched (no production deploy)
+on:
+  push:
+    branches: [fix/stable29-complete-tunnelbana-preserve-28-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _stable28
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable22-metro-weekly-website
+          path: _historicweek
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate exact original baseline, original markers, photos, tracks and project files
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          stable=Path('_stable28/website')
+          current=Path('website')
+          orig={str(f.relative_to(stable)):f for f in stable.rglob('*') if f.is_file()}
+          fresh={str(f.relative_to(current)):f for f in current.rglob('*') if f.is_file()}
+          assert set(orig)==set(fresh),('Accidentally removed/added production asset files',set(orig)^set(fresh))
+          for rel,f in orig.items():
+            if rel in {'index.html','src/app.js','src/rail-data.js'}:continue
+            assert f.read_bytes()==fresh[rel].read_bytes(),('Accidentally modified STABLE28 production asset',rel)
+          for rel in ['src/approved-train-markers.js','src/updated-train-markers.js','src/design-ui.css','src/operator-marker-sprites.js','src/photos.js','photos/approved.json','data/rail.json']:
+            assert (stable/rel).read_bytes()==(current/rel).read_bytes(),('Protected marker/photo/data asset changed',rel)
+          assert len((stable/'data/rail.json').read_bytes())>10_000_000
+          print('GREEN ORIGINAL STABLE28: all images, two approved B markers, other train systems, GPS simulation, static files byte-identical')
+          PY
+      - name: Assemble only new Metro clock adapter, original UI/photos/symbols and original STABLE28 source
+        run: |
+          mkdir -p _release/website
+          cp -a _stable28/website/. _release/website/
+          cp -a website/index.html _release/website/index.html
+          cp -a website/src/app.js _release/website/src/app.js
+          cp -a website/src/rail-data.js _release/website/src/rail-data.js
+          node --check _release/website/src/app.js
+          node --check _release/website/src/rail-data.js
+          python -m py_compile scripts/merge_stable29_metro.py
+      - name: Strict merge from authenticated historical source; fail if any line, stop or original track changes
+        timeout-minutes: 10
+        run: |
+          python -u scripts/merge_stable29_metro.py --base _stable28/website/data/rail.json --reference _historicweek/website/data/rail.json --output _release/website/data/rail.json
+      - name: Compare all Metro lines and identical other 15 systems at 70 separate historic timepoints
+        timeout-minutes: 15
+        run: node --max-old-space-size=6144 tests/stable29-metro-preservation.mjs
+      - name: Run real Chromium browser at Wednesday peak and Saturday/Sunday; verify all 16 filters
+        timeout-minutes: 22
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --max-old-space-size=6144 tests/stable29-browser-qa.mjs
+      - name: Save exact green website preview and screenshot QA, no public deployment
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable29-verified-seven-day-metro-candidate
+          path: |
+            _release/website/
+            _release/qa-screenshots/
+          retention-days: 7
+          compression-level: 4
