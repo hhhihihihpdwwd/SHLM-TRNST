@@ -1,0 +1,14 @@
+{
+  "app": "Stockholm Rail",
+  "backupOf": "archive/stable30-complete-sl-weekly-website",
+  "arlandaGTFSweek": 1240,
+  "saturdayArchiveJourneys": 160,
+  "nationalOtherSevenOperatorsPreserved": true,
+  "original3DiconsAndPhotosPreserved": true,
+  "originalOSMShapesPreserved": true,
+  "notRealtimeGPS": true,
+  "greenBuild": 44286411921,
+  "greenPublicPreview": 44287719324,
+  "greenPublicMain": 44288507074,
+  "dataSHA256": "01419d80843df6bc12ac9060396c04429752cf6e16f7b802d6deab1eb4eef64f"
+}
