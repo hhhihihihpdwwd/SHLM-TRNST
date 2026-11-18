@@ -1,0 +1,87 @@
+name: Audit currently published Metro 09:47 vs complete historic weekday GTFS (NO DEPLOY)
+on:
+  push:
+    branches: [audit/current-metro-train-completeness-20261118]
+    paths: [.github/workflows/audit-metro-completeness-20261118.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  data-and-live-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable22-metro-weekly-website
+          path: _archived-complete-week
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compare exact screenshot time and entire day (no changes)
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips as liveTrips} from './website/src/rail-data.js';
+          import {activeRailTrips as fullTrips} from './_archived-complete-week/website/src/rail-data.js';
+          const a=JSON.parse(fs.readFileSync('website/data/rail.json','utf8'));
+          const b=JSON.parse(fs.readFileSync('_archived-complete-week/website/data/rail.json','utf8'));
+          const epoch=Date.parse('2026-11-18T09:47:00+01:00')/1000;
+          const count=xs=>Object.fromEntries(['10','11','13','14','17','18','19'].map(line=>[line,xs.filter(x=>x.mode==='metro'&&String(x.line)===line).length]));
+          const activeA=liveTrips(a,epoch,15000).filter(x=>x.mode==='metro');
+          const activeB=fullTrips(b,epoch,15000).filter(x=>x.mode==='metro');
+          console.log('CURRENT STABLE28 SOURCE',a.type,a.simulationTemplateDay,'metro',a.counts.metro,'total',a.trips.length);
+          console.log('OLD COMPLETE-WEEK GTFS SOURCE',b.type,'metro',b.counts.metro,'total',b.trips.length);
+          console.log('WEDNESDAY 2026-11-18 09:47 STABLE28',activeA.length,JSON.stringify(count(activeA)));
+          console.log('WEDNESDAY 2026-11-18 09:47 COMPLETE WEEK',activeB.length,JSON.stringify(count(activeB)));
+          console.log('WEDNESDAY 09:47 TRIPS MISSING VERSUS HISTORICAL',activeB.length-activeA.length);
+          for(const s of ['00:30:00','05:30:00','07:30:00','08:30:00','09:47:00','12:30:00','16:30:00','19:30:00','23:30:00']){
+            const t=Date.parse('2026-11-18T'+s+'+01:00')/1000;
+            const ac=liveTrips(a,t,15000).filter(x=>x.mode==='metro');
+            const bc=fullTrips(b,t,15000).filter(x=>x.mode==='metro');
+            console.log('DAY AUDIT',s,'STABLE28',ac.length,'COMPLETE GTFS',bc.length,'MISSING',bc.length-ac.length);
+          }
+          console.log('ARCHIVED GTFS FULL WEEK LINE COUNTS',JSON.stringify(b.metroWeeklyCoverage));
+          if(activeB.length<=activeA.length)throw Error('Source GTFS does not confirm shortage at screenshot time');
+          JS
+      - name: Test deployed screenshot view and marker counts in actual Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import {chromium} from 'playwright';
+          import fs from 'node:fs';
+          import {activeRailTrips} from './website/src/rail-data.js';
+          const d=JSON.parse(fs.readFileSync('website/data/rail.json','utf8'));
+          const epoch=Date.parse('2026-11-18T09:47:00+01:00')/1000;
+          const expected=activeRailTrips(d,epoch,15000).filter(x=>x.mode==='metro').length;
+          const b=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+            const ctx=await b.newContext({viewport:{width:1877,height:799}});
+            await ctx.addInitScript(t=>{const real=Date.now.bind(Date),delta=t-real();Date.now=()=>real()+delta},epoch*1000);
+            const page=await ctx.newPage();
+            const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+            await page.goto('https://hhhihihihpdwwd.github.io/SHLM-TRNST/?readonly-metro-audit-20261118=1',{waitUntil:'domcontentloaded',timeout:90000});
+            await page.locator('[data-filter="metro"]').click();
+            await page.waitForFunction(n=>document.querySelectorAll('#vehicle-list button.vehicle').length===n,expected,{timeout:90000});
+            await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,expected,{timeout:90000});
+            const visible=await page.evaluate(()=>{
+              const map=document.querySelector('.map-section').getBoundingClientRect();
+              return [...document.querySelectorAll('.leaflet-marker-icon')].filter(el=>{
+                const x=el.getBoundingClientRect();
+                return x.right>=map.left&&x.left<=map.right&&x.bottom>=map.top&&x.top<=map.bottom;
+              }).length;
+            });
+            console.log('LIVE PUBLIC CHROMIUM 09:47 total metro list',expected,'total marker icons',expected,'onscreen',visible,'offscreen',expected-visible);
+            console.log('PAGE ERRORS',JSON.stringify(errors));
+            await page.screenshot({path:'metro-0947-audit.png',fullPage:true});
+            await ctx.close();
+          }finally{await b.close()}
+          JS
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: audit-20261118-0947-no-changes
+          path: metro-0947-audit.png
+          retention-days: 7
