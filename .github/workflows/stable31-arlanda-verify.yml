@@ -1,0 +1,72 @@
+name: STABLE31 authenticate 1,240 Arlanda GTFS weekly X3 routes without changing live
+on:
+  push:
+    branches: [fix/stable31-seven-day-arlanda-20261118]
+    paths: [.github/workflows/stable31-arlanda-verify.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  arlanda:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable30
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve approved STABLE30 entire website and only change Arlanda timetable code
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          existing=Path('_stable30/website');modified=Path('website')
+          oldfiles={str(x.relative_to(existing)):x for x in existing.rglob('*') if x.is_file()}
+          newfiles={str(x.relative_to(modified)):x for x in modified.rglob('*') if x.is_file()}
+          assert oldfiles.keys()==newfiles.keys()
+          for k in oldfiles:
+           if k not in {'index.html','src/app.js','src/rail-data.js'}:
+            assert oldfiles[k].read_bytes()==newfiles[k].read_bytes(),('Unapproved asset change',k)
+          print('STABLE30 ALL METRO COMMUTER LOCAL NATIONAL TRAIN IMAGES AND EXISTING OSM SHAPES PRESERVED')
+          PY
+          mkdir -p _release/website
+          cp -a _stable30/website/. _release/website/
+          cp -a website/index.html _release/website/index.html
+          cp -a website/src/app.js _release/website/src/app.js
+          cp -a website/src/rail-data.js _release/website/src/rail-data.js
+          node --check _release/website/src/app.js
+          node --check _release/website/src/rail-data.js
+      - name: Import all 7 historical Arlanda source days; fail if ANY GTFS train is unverified on existing true OSM
+        timeout-minutes: 22
+        run: |
+          python -u scripts/build_stable31_arlanda_week.py --source _stable30/website/data/rail.json --output _release/website/data/rail.json
+      - name: Validate 1,240 actual Arlanda source trip identities and 63 times while all other 15 rail systems unchanged
+        timeout-minutes: 12
+        run: node --max-old-space-size=6144 tests/stable31-arlanda-preservation.mjs
+      - name: Playwright: original 16-system map, accurate Arlanda weekday/weekend trains at all 7 days
+        timeout-minutes: 20
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --max-old-space-size=6144 tests/stable31-arlanda-browser.mjs
+          node --max-old-space-size=6144 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable31-green-authentic-seven-day-arlanda-only
+          path: |
+            _release/website/
+            _release/qa/
+            _release/qa-screenshots/
+          retention-days: 7
+          compression-level: 4
