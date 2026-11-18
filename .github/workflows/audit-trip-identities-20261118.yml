@@ -1,0 +1,30 @@
+name: Readonly 7 SL train service IDENTITY vs full GTFS (not just counts)
+on:
+  push:
+    branches: [audit/all-15-other-systems-20261118]
+    paths: [.github/workflows/audit-trip-identities-20261118.yml]
+permissions:
+  contents: read
+jobs:
+  identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable24-all-SL-weekly-website
+          path: _stable24
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --max-old-space-size=6000 tests/audit-15-trip-identities-20261118.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: readonly-15-trip-identity-report
+          path: _audit_15/trip-identity-parity.json
+          retention-days: 7
