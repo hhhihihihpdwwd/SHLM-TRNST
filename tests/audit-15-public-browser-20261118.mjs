@@ -48,6 +48,9 @@ try{
       return imgs.length>0 && imgs.every(img=>img.complete && img.naturalWidth>0);
     },null,{timeout:30000});
    }
+   // FocusFilteredActiveTrains uses Leaflet flyToBounds for 0.95s;
+   // measure on-screen vehicles only AFTER the camera animation completes.
+   await page.waitForTimeout(1300);
    const result=await page.evaluate(()=>{
     const elements=[...document.querySelectorAll('.leaflet-marker-icon')];
     const map=document.querySelector('#map').getBoundingClientRect();
