@@ -1,0 +1,146 @@
+name: STABLE31 isolated authentic 7-day Arlanda preview without changing production
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable31-isolated-preview.yml]
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _stable28
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable30
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44286411921
+          artifact-ids: 14419652260
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable31
+      - name: Assemble unchanged STABLE30 main and independent STABLE31 public preview
+        run: |
+          mkdir -p _site/design-preview _site/stable29-preview _site/stable30-preview _site/stable31-preview
+          cp -a _stable30/website/. _site/
+          cp -a _stable28/website/. _site/design-preview/
+          cp -a _stable29/website/. _site/stable29-preview/
+          cp -a _stable30/website/. _site/stable30-preview/
+          cp -a _stable31/website/. _site/stable31-preview/
+      - name: Verify original root byte-identical and Arlanda only source difference
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('_site');old=Path('_stable30/website');new=root/'stable31-preview'
+          originals={str(p.relative_to(old)):p for p in old.rglob('*') if p.is_file()}
+          prod={str(p.relative_to(root)):p for p in root.rglob('*') if p.is_file() and not set(p.parts)&{'design-preview','stable29-preview','stable30-preview','stable31-preview'}}
+          assert originals.keys()==prod.keys()
+          for rel,p in originals.items():
+           assert prod[rel].read_bytes()==p.read_bytes(),('CURRENT PUBLIC SITE CHANGED',rel)
+           if rel not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
+            assert (new/rel).read_bytes()==p.read_bytes(),('Any old icon/photo/route/style changed',rel)
+          a=json.loads((old/'data/rail.json').read_text())
+          b=json.loads((new/'data/rail.json').read_text())
+          assert b['arlandaWeekdaySimulation'] and b['counts']['express']==1240 and a['counts']['express']==540
+          assert b['counts']['metro']==13372 and b['counts']['commuter']==3528
+          assert len(b['trips'])==len(a['trips'])+700
+          assert [t for t in b['trips'] if t.get('agency')!='Arlanda Express']==[t for t in a['trips'] if t.get('agency')!='Arlanda Express']
+          assert a['shapes']==b['shapes']
+          print('STABLE31 PHOTO/SHAPE/DESIGN/NATIONAL INVARIANTS GREEN; EXISTING MAIN STABLE30 UNCHANGED')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: stage
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.page.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: page
+  public-browser:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 48
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable31-seven-day-arlanda-20261118
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44283531282
+          artifact-ids: 14416654991
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _stable30
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 44286411921
+          artifact-ids: 14419652260
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Independently verify published existing root same and preview GTFS exact tested 1240 X3 source rides
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 20 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable31-preview/?stable31=1' | grep -Fq 'app.js?v=stable31-arlanda-week-20261118-01';then
+            echo 'ISOLATED PUBLIC ARLANDA PREVIEW ONLINE';break
+           fi
+           if [ "$i" = 60 ];then echo 'PUBLIC PREVIEW MISSING';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/' -o /tmp/mainindex
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=stable30-sl-week-20261118-01' -o /tmp/maindata
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable31-preview/' -o /tmp/newindex
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable31-preview/data/rail.json?v=stable31-arlanda-week-20261118-01' -o /tmp/newdata
+          python - <<'PY'
+          from pathlib import Path
+          for local,expected in [
+           ('/tmp/mainindex','_stable30/website/index.html'),('/tmp/maindata','_stable30/website/data/rail.json'),
+           ('/tmp/newindex','_release/website/index.html'),('/tmp/newdata','_release/website/data/rail.json')]:
+            assert Path(local).read_bytes()==Path(expected).read_bytes(),('PUB LIVENESS HASH FAIL',local)
+          print('PUBLIC CURRENT WEBSITE UNCHANGED; PREVIEW EXACT MATCH GREEN SOURCE')
+          PY
+      - name: Real public 7-day Arlanda browser + all 16 modes + original Metro test
+        timeout-minutes: 26
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          STABLE31_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable31-preview/' node --max-old-space-size=6144 tests/stable31-arlanda-browser.mjs
+          STABLE29_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable31-preview/' STABLE29_SHOTS='_public_stable31_screens' node --max-old-space-size=6144 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable31-public-preview-browser-proof
+          path: _public_stable31_screens/
+          retention-days: 7
