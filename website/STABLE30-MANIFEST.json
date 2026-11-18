@@ -1,0 +1,17 @@
+{
+  "app": "Stockholm Rail",
+  "baseline": "archive/stable29-complete-metro-week-website",
+  "sourceWeek": "archive/stable24-all-SL-weekly-website",
+  "verifiedFullSLWeek": true,
+  "allNationalOperatorsPreserved": true,
+  "GTFSHistoricOnlyNotLiveGPS": true,
+  "candidateVerifiedRun": 44283531282,
+  "publicPreviewTestRun": 44283950659,
+  "productionTestRun": 44284630262,
+  "dataFileSHA256": "fda28b1dd9dea614ffdc3931be2576d86fd2653a44e883e0e98acb8bbbc50717",
+  "tripCount": 29430,
+  "metroTrips": 13372,
+  "commuterTrips": 3528,
+  "localSlTrips": 11092,
+  "noNewArtificialRailGeometry": true
+}
