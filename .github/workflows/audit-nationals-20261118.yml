@@ -1,0 +1,25 @@
+name: Readonly historic GTFS inventory for all eight national train operators
+on:
+  push:
+    branches: [fix/stable30-complete-all-sl-20261118]
+    paths: [.github/workflows/audit-nationals-20261118.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compare agency-by-agency original historic GTFS counts across seven weekdays; do NOT add unverified trains
+        run: python -u scripts/audit_national_gtfs_week_20261118.py
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: historic-national-rail-gtfs-source-audit-only
+          path: _national_audit/
+          retention-days: 7
