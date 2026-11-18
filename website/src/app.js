@@ -1,6 +1,6 @@
 import {stockholmTime,tripProgress,occupancy,secondsLabel} from './simulation.js';
 import {services,central} from './demo-data.js';
-import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=stable29-metro-20261118-01';
+import {loadRailTimetable,activeRailTrips,railAt,railPathSplit} from './rail-data.js?v=stable30-sl-week-20261118-01';
 import {loadPhotoCatalog,photoForVehicle} from './photos.js?v=real-photos-01';
 import {vehicleFrontSprites} from './vehicle-front-sprites.js';
 import {operatorMarkerSprites} from './operator-marker-sprites.js?v=operator-markers-01';
@@ -292,7 +292,7 @@ function showRealList(){
   const chip=document.createElement('span');chip.className='line-pill';chip.style.background=realColor(v);chip.textContent=(v.line||v.mode.slice(0,2).toUpperCase());
   const t=document.createElement('span');
   const name=document.createElement('span');name.className='vehicle-title';name.textContent=realTitle(v);
-  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.agency==='RDC EuroNight'?'Historiska EN 344/345 · simuleras dagligen · ingen live-GPS':v.agency==='Tågab'?'Historiska Tågab-avgångar · upprepas dagligen · ingen live-GPS':v.agency==='Vy Tåg'?'Historiska Vy-avgångar · upprepas dagligen · ingen live-GPS':(v.mode==='metro'&&railDataset?.metroWeekdaySimulation)?'Historisk veckodagstidtabell · simulerad position, ingen live-GPS':(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema · simulerad reservavgång':v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
+  const sub=document.createElement('span');sub.className='vehicle-sub';sub.textContent=v.agency==='RDC EuroNight'?'Historiska EN 344/345 · simuleras dagligen · ingen live-GPS':v.agency==='Tågab'?'Historiska Tågab-avgångar · upprepas dagligen · ingen live-GPS':v.agency==='Vy Tåg'?'Historiska Vy-avgångar · upprepas dagligen · ingen live-GPS':((v.mode==='metro'&&railDataset?.metroWeekdaySimulation)||(v.mode==='commuter'&&railDataset?.commuterWeekdaySimulation)||(['tram','localrail','saltsjo'].includes(v.mode)&&railDataset?.localWeekdaySimulation))?'Historisk veckodagstidtabell · simulerad position, ingen live-GPS':(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema · simulerad reservavgång':v.timetableProxy?'Historisk fredagsavgång · upprepas varje dag':railDataset?.type?.startsWith('historical-')?'Historiskt dagsmönster · simulerat':v.agency+' · Tidtabell, ingen GPS';
   t.append(name,sub);btn.append(chip,t);btn.onclick=()=>selectReal(v);frag.append(btn);
  }
  list.append(frag);
@@ -327,7 +327,7 @@ function showRealDetail(){
  const stops=v.stops,firstDeparture=stops[0][4],base=v.start-firstDeparture;
  $('train-heading').textContent=realTitle(v);
  showVerifiedPhoto(v);
- $('train-sub').textContent=(v.mode==='metro'&&railDataset?.metroWeekdaySimulation)?'Historisk tidtabell för veckodag · OSM-spår, simulerad position · ingen live-GPS':(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema som simulerad reservavgång · OSM-spår, ingen GPS':v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(['verified-osm-relation','verified-osm-rail-ways'].includes(v.geometryQuality)?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
+ $('train-sub').textContent=((v.mode==='metro'&&railDataset?.metroWeekdaySimulation)||(v.mode==='commuter'&&railDataset?.commuterWeekdaySimulation)||(['tram','localrail','saltsjo'].includes(v.mode)&&railDataset?.localWeekdaySimulation))?'Historisk tidtabell för veckodag · OSM-spår, simulerad position · ingen live-GPS':(v.mode==='tram'&&String(v.line)==='21'&&v.archiveDay==='2026-11-07')?'Historiskt lördagsschema som simulerad reservavgång · OSM-spår, ingen GPS':v.timetableProxy?'Historisk fredagstidtabell varje dag · OSM-spår, ingen GPS':railDataset?.type?.startsWith('historical-')?(['verified-osm-relation','verified-osm-rail-ways'].includes(v.geometryQuality)?'Historiskt veckoschema · OSM-spår · simulerad position':'Historiskt veckoschema · ungefärlig färdväg · ingen GPS'):'GTFS · '+v.agency+' · Planerad färd, ingen GPS';
  if(v.stopAlignmentCaveat)$('train-sub').textContent+=' · Enebybergs stationspunkt avviker cirka 690 m från OSM-linjen';
  $('next-stop-name').textContent=stops[idx][2];
  const toTime=s=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',hour:'2-digit',minute:'2-digit'}).format(new Date((base+s)*1000));
