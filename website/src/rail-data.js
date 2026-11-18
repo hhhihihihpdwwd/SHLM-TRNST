@@ -1,6 +1,6 @@
 // GTFS timetable adapter: UTC epoch for times, source shape coordinates for positions.
 // No fallback straight-track geometry for actual services.
-const TIMETABLE_URL='./data/rail.json?v=stable30-sl-week-20261118-01';
+const TIMETABLE_URL='./data/rail.json?v=stable31-arlanda-week-20261118-01';
 const pathCache=new Map(),projectionCache=new Map();
 export async function loadRailTimetable(){
  try {
@@ -118,7 +118,8 @@ export function activeRailTrips(dataset,epoch,limit=900){
   const weeklyMetro=repeating&&dataset.metroWeekdaySimulation===true&&source.mode==='metro';
   const weeklyCommuter=repeating&&dataset.commuterWeekdaySimulation===true&&source.mode==='commuter';
   const weeklyLocal=repeating&&dataset.localWeekdaySimulation===true&&['tram','localrail','saltsjo'].includes(source.mode);
-  const weeklyTransit=weeklyMetro||weeklyCommuter||weeklyLocal;
+  const weeklyArlanda=repeating&&dataset.arlandaWeekdaySimulation===true&&source.mode==='express'&&source.agency==='Arlanda Express';
+  const weeklyTransit=weeklyMetro||weeklyCommuter||weeklyLocal||weeklyArlanda;
   if(repeating&&!weeklyTransit&&source.serviceDay!==templateDay)continue;
   if(weeklyMetro&&(!source.serviceDay||!dataset.metroWeekdaySourceDays))
    throw Error('Incomplete historic seven-day Tunnelbana metadata');
@@ -126,6 +127,8 @@ export function activeRailTrips(dataset,epoch,limit=900){
    throw Error('Incomplete historic seven-day Pendeltåg metadata');
   if(weeklyLocal&&(!source.serviceDay||!dataset.localWeekdaySourceDays))
    throw Error('Incomplete historic seven-day local SL rail metadata');
+  if(weeklyArlanda&&(!source.serviceDay||!dataset.arlandaWeekdaySourceDays))
+   throw Error('Incomplete historic seven-day Arlanda Express metadata');
   for(let index=0;index<targetDays.length;index++){
    const targetDay=targetDays[index];
    if(weeklyTransit){
