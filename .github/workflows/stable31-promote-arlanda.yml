@@ -45,10 +45,10 @@ jobs:
           a=Path('_stable30/website');b=Path('_stable31/website')
           aa={str(p.relative_to(a)):p for p in a.rglob('*') if p.is_file()}
           bb={str(p.relative_to(b)):p for p in b.rglob('*') if p.is_file()}
-          assert aa.keys()==bb.keys(),('Website source inventory drift',set(aa)^set(bb))
+          assert set(bb)==set(aa)-{'STABLE30-MANIFEST.json'},('Only STABLE30 archive manifest may differ from exact green candidate',set(aa)^set(bb))
           modified={'index.html','src/app.js','src/rail-data.js','data/rail.json'}
           for name,p in aa.items():
-           if name not in modified:
+           if name not in modified and name!='STABLE30-MANIFEST.json':
             assert p.read_bytes()==bb[name].read_bytes(),('Original asset changed',name)
           old=json.loads((a/'data/rail.json').read_text())
           new=json.loads((b/'data/rail.json').read_text())
