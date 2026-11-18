@@ -1,0 +1,39 @@
+name: Readonly exact Tunnelbana source counts Wednesday 09:47 (fast)
+on:
+  push:
+    branches: [audit/current-metro-train-completeness-20261118]
+    paths: [.github/workflows/audit-metro-counts-quick.yml]
+permissions:
+  contents: read
+jobs:
+  counts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable22-metro-weekly-website
+          path: _verified_7day
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Write original and seven-day GTFS metro numbers, by line, at screenshot time
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {activeRailTrips as current} from './website/src/rail-data.js';
+          import {activeRailTrips as week} from './_verified_7day/website/src/rail-data.js';
+          const a=JSON.parse(fs.readFileSync('website/data/rail.json'));
+          const b=JSON.parse(fs.readFileSync('_verified_7day/website/data/rail.json'));
+          const e=Date.parse('2026-11-18T09:47:00+01:00')/1000;
+          const rows=(ds,fn)=>fn(ds,e,20000).filter(x=>x.mode==='metro');
+          const summarize=ts=>Object.fromEntries(['10','11','13','14','17','18','19'].map(n=>[n,ts.filter(t=>String(t.line)===n).length]));
+          console.log('STABLE28 STORED METRO TEMPLATES',a.counts.metro,'historical template day',a.simulationTemplateDay,'type',a.type);
+          console.log('COMPLETE WEEK STORED METRO TRIPS',b.counts.metro,'type',b.type,'metroWeekdaySimulation',b.metroWeekdaySimulation);
+          const old=rows(a,current),reference=rows(b,week);
+          console.log('ACTUAL 2026-11-18 09:47 STABLE28',old.length,JSON.stringify(summarize(old)));
+          console.log('SOURCE GTFS 2026-11-18 09:47 COMPLETE-WEEK SIMULATION',reference.length,JSON.stringify(summarize(reference)));
+          console.log('DEFICIT AT USER SCREENSHOT',reference.length-old.length);
+          if(reference.length<=old.length)throw Error('Deficit not found at screenshot time');
+          JS
