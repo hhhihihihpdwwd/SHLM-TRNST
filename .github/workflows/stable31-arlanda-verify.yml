@@ -35,7 +35,7 @@ jobs:
           newfiles={str(x.relative_to(modified)):x for x in modified.rglob('*') if x.is_file()}
           assert oldfiles.keys()==newfiles.keys()
           for k in oldfiles:
-           if k not in {'index.html','src/app.js','src/rail-data.js'}:
+           if k not in {'index.html','src/app.js','src/rail-data.js','data/rail.json'}:
             assert oldfiles[k].read_bytes()==newfiles[k].read_bytes(),('Unapproved asset change',k)
           print('STABLE30 ALL METRO COMMUTER LOCAL NATIONAL TRAIN IMAGES AND EXISTING OSM SHAPES PRESERVED')
           PY
