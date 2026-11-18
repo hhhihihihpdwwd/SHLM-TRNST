@@ -39,7 +39,15 @@ try{
       expected,{timeout:90000});
    await page.waitForFunction(n=>document.querySelectorAll('.leaflet-marker-icon').length===n,
       expected,{timeout:90000});
-   // Count loaded visual photos exactly like the original app (not just HTML).
+   // The legacy tram/metro symbols use inline preloaded assets; local rail
+   // symbols resolve asynchronously. Wait for image decoding before treating a
+   // transient naturalWidth=0 as a broken image.
+   if(expected>0){
+    await page.waitForFunction(()=>{
+      const imgs=[...document.querySelectorAll('.leaflet-marker-icon img')];
+      return imgs.length>0 && imgs.every(img=>img.complete && img.naturalWidth>0);
+    },null,{timeout:30000});
+   }
    const result=await page.evaluate(()=>{
     const elements=[...document.querySelectorAll('.leaflet-marker-icon')];
     const map=document.querySelector('#map').getBoundingClientRect();
