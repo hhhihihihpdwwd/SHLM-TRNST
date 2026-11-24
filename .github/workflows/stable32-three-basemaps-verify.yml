@@ -1,0 +1,88 @@
+name: STABLE32 verify Karta Satellit Hybrid three REAL layers (preserve all 16 train systems)
+on:
+  push:
+    branches: [fix/stable32-three-map-styles-20261124]
+    paths: [.github/workflows/stable32-three-basemaps-verify.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable31-complete-arlanda-seven-day-website
+          path: _original
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify no GTFS, photo, 3D symbol, style or original railway geometry asset is modified
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          orig=Path('_original/website');new=Path('website')
+          oldfiles={str(p.relative_to(orig)):p for p in orig.rglob('*') if p.is_file()}
+          newfiles={str(p.relative_to(new)):p for p in new.rglob('*') if p.is_file()}
+          assert set(newfiles)==set(oldfiles)|{'src/map-basemaps.js'},('Unexpected website files added/removed',set(oldfiles)^set(newfiles))
+          mutable={'index.html','src/app.js','src/design-ui.css'}
+          for name,p in oldfiles.items():
+           if name not in mutable:
+            assert p.read_bytes()==newfiles[name].read_bytes(),('STABLE31 ORIGINAL ASSET MODIFIED',name)
+          original=json.loads((orig/'data/rail.json').read_text())
+          proposed=json.loads((new/'data/rail.json').read_text())
+          assert original==proposed,'Any GTFS train or OSM geometry change is forbidden'
+          assert original['counts']['metro']==13372 and original['counts']['express']==1240
+          assert all(original[k] is True for k in [
+             'metroWeekdaySimulation','commuterWeekdaySimulation','localWeekdaySimulation','arlandaWeekdaySimulation'])
+          print('BASELINE PERFECT: 16 SYSTEMS, ALL HISTORICAL GTFS, PHOTOS, ORIGINAL STATION TRACKS, SPRITES AND MARKERS BYTE IDENTICAL')
+          PY
+      - name: Assemble approved map-only changes over exact frozen STABLE31
+        run: |
+          mkdir -p _release/website
+          cp -a _original/website/. _release/website/
+          cp -a website/index.html _release/website/index.html
+          cp -a website/src/app.js _release/website/src/app.js
+          cp -a website/src/design-ui.css _release/website/src/design-ui.css
+          cp -a website/src/map-basemaps.js _release/website/src/map-basemaps.js
+          node --check _release/website/src/app.js
+          node --check _release/website/src/map-basemaps.js
+          node --check tests/stable32-basemaps-browser.mjs
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('_release/website')
+          html=(p/'index.html').read_text()
+          assert 'app.js?v=stable32-three-basemaps-20261124-01' in html
+          assert 'design-ui.css?v=stable32-three-basemaps-20261124-01' in html
+          assert 'map-basemaps.js?v=stable32-hybrid-20261124-01' in (p/'src/app.js').read_text()
+          assert html.count('data-basemap=')==3
+          assert html.count('id="basemap-menu"')==1
+          assert (p/'data/rail.json').read_bytes()==Path('_original/website/data/rail.json').read_bytes()
+          print('APP AND VIEW HTML SYNTAX GREEN; 3 LAYER CHOICES EXACT; RAIL.JSON HASH IDENTICAL')
+          PY
+      - name: Run real Chromium desktop and smartphone Karta Satellit Hybrid source tile loads and all marker/route invariants
+        timeout-minutes: 25
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --max-old-space-size=7000 tests/stable32-basemaps-browser.mjs
+      - name: Run existing completely unchanged 16-system train-map browser regression
+        timeout-minutes: 17
+        run: |
+          STABLE29_SHOTS='_release/regression-shots' node --max-old-space-size=7000 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable32-three-real-map-views-green-candidate
+          path: |
+            _release/website/
+            _release/qa-map-styles/
+            _release/regression-shots/
+          retention-days: 7
+          compression-level: 4
