@@ -1,0 +1,22 @@
+{
+  "name": "Stockholm Rail STABLE32",
+  "sourceBaseline": "archive/stable31-complete-arlanda-seven-day-website",
+  "modes": [
+    "Karta",
+    "Satellit",
+    "Hybrid"
+  ],
+  "hybridTileSources": [
+    "Esri World Imagery",
+    "Esri World Transportation",
+    "Esri World Boundaries and Places"
+  ],
+  "GTFSOriginalFullyUnchanged": true,
+  "trainMarkers3DAndPhotographyUnchanged": true,
+  "railwayGeometryAndSelectedRouteUnchanged": true,
+  "candidateGreenRun": 45363577762,
+  "publicPreviewGreenRun": 45363974865,
+  "publicMainGreenRun": 45364567291,
+  "railSHA256": "01419d80843df6bc12ac9060396c04429752cf6e16f7b802d6deab1eb4eef64f",
+  "basemapModuleSHA256": "d38eeb2ac5b892644902b7c39368a2417d8856a6cf58713ce02ba6e86883b09e"
+}
