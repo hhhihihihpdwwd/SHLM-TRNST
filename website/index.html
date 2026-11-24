@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="./src/style.css?v=train-icons-02">
-<link rel="stylesheet" href="./src/design-ui.css?v=ux-20261116-02">
+<link rel="stylesheet" href="./src/design-ui.css?v=stable32-three-basemaps-20261124-01">
 </head>
 <body>
 <div class="app">
@@ -32,7 +32,33 @@
     </nav>
    </div>
    <div class="map-action-stack">
-     <button id="satellite" class="outlined" title="Byt karta och satellit">◫ Satellit</button>
+    <div class="basemap-control" id="basemap-control">
+     <button id="satellite" type="button" class="outlined basemap-trigger" title="Välj kartvy" aria-label="Välj kartvy" aria-controls="basemap-menu" aria-expanded="false">
+      <svg class="basemap-layers-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg>
+      <span id="basemap-current-label">Karta</span>
+      <svg class="basemap-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+     </button>
+     <div id="basemap-menu" class="basemap-menu" role="group" aria-label="Välj karttyp" hidden>
+      <div class="basemap-menu-heading">KARTVY <span>Välj bakgrund</span></div>
+      <button type="button" class="basemap-choice is-selected" data-basemap="standard" aria-pressed="true">
+       <span class="basemap-thumb basemap-thumb-standard" aria-hidden="true"><span class="basemap-thumb-road"></span></span>
+       <span class="basemap-choice-copy"><strong>Karta</strong><small>Gator, spår och platser</small></span>
+       <span class="basemap-choice-check" aria-hidden="true">✓</span>
+      </button>
+      <button type="button" class="basemap-choice" data-basemap="satellite" aria-pressed="false">
+       <span class="basemap-thumb basemap-thumb-satellite" aria-hidden="true"></span>
+       <span class="basemap-choice-copy"><strong>Satellit</strong><small>Flyg- och satellitbilder</small></span>
+       <span class="basemap-choice-check" aria-hidden="true">✓</span>
+      </button>
+      <button type="button" class="basemap-choice" data-basemap="hybrid" aria-pressed="false">
+       <span class="basemap-thumb basemap-thumb-hybrid" aria-hidden="true"><span class="basemap-thumb-label">E4</span></span>
+       <span class="basemap-choice-copy"><strong>Hybrid</strong><small>Satellit, vägnamn och järnvägar</small></span>
+       <span class="basemap-choice-check" aria-hidden="true">✓</span>
+      </button>
+      <div class="basemap-menu-footer">Kartbild &copy; Esri och OpenStreetMap</div>
+     </div>
+     <div id="basemap-warning" class="basemap-warning" role="status" hidden></div>
+    </div>
    </div>
    <div class="map-status"><span class="status-dot" aria-hidden="true"></span><span>HISTORISK SIMULERING · EJ LIVE-GPS</span><span class="status-separator" aria-hidden="true"></span><span id="clock" class="clock">--:--:--</span></div>
    <div class="map-bottom">
@@ -70,5 +96,5 @@
  </main>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="./src/app.js?v=stable31-arlanda-week-20261118-01"></script>
+<script type="module" src="./src/app.js?v=stable32-three-basemaps-20261124-01"></script>
 </body></html>
