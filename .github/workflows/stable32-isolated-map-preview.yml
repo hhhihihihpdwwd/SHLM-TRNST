@@ -1,0 +1,152 @@
+name: STABLE32 public THREE-view map preview, keep production STABLE31 byte-identical
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable32-isolated-map-preview.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  assemble-and-protect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _stable28
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable30-complete-sl-weekly-website
+          path: _stable30
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable31-complete-arlanda-seven-day-website
+          path: _original
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 45363577762
+          artifact-ids: 14905482581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - name: Stage ONLY new /stable32-preview/ alongside the unchanged public STABLE31 homepage
+        run: |
+          mkdir -p _site/design-preview _site/stable29-preview _site/stable30-preview _site/stable31-preview _site/stable32-preview
+          cp -a _original/website/. _site/
+          cp -a _stable28/website/. _site/design-preview/
+          cp -a _stable29/website/. _site/stable29-preview/
+          cp -a _stable30/website/. _site/stable30-preview/
+          cp -a _original/website/. _site/stable31-preview/
+          cp -a _approved/website/. _site/stable32-preview/
+      - name: Require every previous live file byte-identical; forbid changes to rail database, markers, photos and route geometry
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          original=Path('_original/website');staged=Path('_site');candidate=staged/'stable32-preview'
+          oldfiles={str(p.relative_to(original)):p for p in original.rglob('*') if p.is_file()}
+          live={str(p.relative_to(staged)):p for p in staged.rglob('*') if p.is_file() and
+           not set(p.parts)&{'stable32-preview','stable31-preview','stable30-preview','stable29-preview','design-preview'}}
+          newfiles={str(p.relative_to(candidate)):p for p in candidate.rglob('*') if p.is_file()}
+          assert oldfiles.keys()==live.keys(),('Production files differ',set(oldfiles)^set(live))
+          for name,p in oldfiles.items():
+           assert p.read_bytes()==live[name].read_bytes(),('Previous LIVE file changed',name)
+           if name not in {'index.html','src/app.js','src/design-ui.css'}:
+            assert p.read_bytes()==newfiles[name].read_bytes(),('Map-only update changed preexisting asset',name)
+          assert set(newfiles)==set(oldfiles)|{'src/map-basemaps.js'}
+          assert 'stable32-three-basemaps-20261124-01' in (candidate/'index.html').read_text()
+          assert (candidate/'data/rail.json').read_bytes()==(original/'data/rail.json').read_bytes()
+          print('STABLE32 STAGING VERIFIED: old STABLE31 homepage exactly unchanged, new 3-way map isolated, all 16 GTFS and OSM plus photos byte-identical')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy-preview:
+    needs: assemble-and-protect
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.page.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: page
+  verify-public-preview:
+    needs: deploy-preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 48
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable32-three-map-styles-20261124
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable31-complete-arlanda-seven-day-website
+          path: _original
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 45363577762
+          artifact-ids: 14905482581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify live original root unchanged; public preview serves exact approved three-tile module and original GTFS
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 15 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable32-preview/?stable32-check=1' | grep -Fq 'app.js?v=stable32-three-basemaps-20261124-01';then
+            echo 'STABLE32 ISOLATED 3-MAP VIEW PUBLIC';break
+           fi
+           if [ "$i" = 60 ];then echo 'MAP PREVIEW NOT PUBLIC';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/' -o /tmp/basemap-old-index.html
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=stable31-arlanda-week-20261118-01' -o /tmp/basemap-old-rail.json
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable32-preview/' -o /tmp/basemap-new-index.html
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable32-preview/src/app.js?v=stable32-three-basemaps-20261124-01' -o /tmp/basemap-new-app.js
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable32-preview/src/map-basemaps.js?v=stable32-hybrid-20261124-01' -o /tmp/basemap-new-styles.js
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable32-preview/data/rail.json?v=stable31-arlanda-week-20261118-01' -o /tmp/basemap-new-rail.json
+          python - <<'PY'
+          from pathlib import Path
+          expected={
+           '/tmp/basemap-old-index.html':'_original/website/index.html',
+           '/tmp/basemap-old-rail.json':'_original/website/data/rail.json',
+           '/tmp/basemap-new-index.html':'_release/website/index.html',
+           '/tmp/basemap-new-app.js':'_release/website/src/app.js',
+           '/tmp/basemap-new-styles.js':'_release/website/src/map-basemaps.js',
+           '/tmp/basemap-new-rail.json':'_release/website/data/rail.json',
+          }
+          for public,local in expected.items():
+           assert Path(public).read_bytes()==Path(local).read_bytes(),('Public preview differs from approved / existing production source',public)
+          print('GREEN: PUBLIC STABLE32 EXACT TESTED SOURCE AND STABLE31 HOMEPAGE NOT TOUCHED')
+          PY
+      - name: Validate three ACTUAL live tile providers and train-marker invariance via desktop/mobile Chromium
+        timeout-minutes: 27
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          STABLE32_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable32-preview/' STABLE32_SHOTS='_public-preview-map-screenshots' node --max-old-space-size=7000 tests/stable32-basemaps-browser.mjs
+          STABLE29_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/stable32-preview/' STABLE29_SHOTS='_public-preview-original-train-qa' node --max-old-space-size=7000 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable32-public-preview-real-street-railway-labels
+          path: |
+            _public-preview-map-screenshots/
+            _public-preview-original-train-qa/
+          retention-days: 7
