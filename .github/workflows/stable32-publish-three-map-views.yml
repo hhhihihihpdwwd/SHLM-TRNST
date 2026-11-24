@@ -1,0 +1,229 @@
+name: STABLE32 publish genuine Karta Satellit Hybrid views; protect 16 rail systems and backup
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stable32-publish-three-map-views.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: stockholm-rail-pages
+  cancel-in-progress: false
+jobs:
+  verify-exact-tested:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable28-freestanding-localrail-train-icons
+          path: _stable28
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable29-complete-metro-week-website
+          path: _stable29
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable30-complete-sl-weekly-website
+          path: _stable30
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable31-complete-arlanda-seven-day-website
+          path: _stable31
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 45363577762
+          artifact-ids: 14905482581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - name: Require exact same public-preview-approved map code; immutable all 16 train timetables, icons, photographs and OSM
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          original=Path('_stable31/website');new=Path('_approved/website')
+          orig={str(p.relative_to(original)):p for p in original.rglob('*') if p.is_file()}
+          newfiles={str(p.relative_to(new)):p for p in new.rglob('*') if p.is_file()}
+          assert set(newfiles)==set(orig)|{'src/map-basemaps.js'}
+          modified={'index.html','src/app.js','src/design-ui.css'}
+          for name,p in orig.items():
+           if name not in modified:
+            assert p.read_bytes()==newfiles[name].read_bytes(),('Protected original train/photo/style/tile asset changed',name)
+          assert (new/'data/rail.json').read_bytes()==(original/'data/rail.json').read_bytes()
+          assert 'map-basemaps.js?v=stable32-hybrid-20261124-01' in (new/'src/app.js').read_text()
+          assert 'app.js?v=stable32-three-basemaps-20261124-01' in (new/'index.html').read_text()
+          assert 'design-ui.css?v=stable32-three-basemaps-20261124-01' in (new/'index.html').read_text()
+          assert all(x in (new/'index.html').read_text() for x in ('data-basemap="standard"','data-basemap="satellite"','data-basemap="hybrid"'))
+          assert all(x in (new/'src/map-basemaps.js').read_text() for x in ('World_Imagery','World_Transportation','World_Boundaries_and_Places'))
+          print('STABLE32 APPROVED: EXACT GREEN PUBLIC PREVIEW SOURCE; ALL 16 TRAIN SYSTEMS AND ALL VERIFIED TRACKS IDENTICAL TO STABLE31')
+          print('IMMUTABLE ORIGINAL TIMETABLE SHA256',sha256((original/'data/rail.json').read_bytes()).hexdigest())
+          PY
+      - name: Put exact verified STABLE32 on original homepage and retain all old stable URLs
+        run: |
+          mkdir -p _site/design-preview _site/stable29-preview _site/stable30-preview _site/stable31-preview _site/stable32-preview
+          cp -a _approved/website/. _site/
+          cp -a _stable28/website/. _site/design-preview/
+          cp -a _stable29/website/. _site/stable29-preview/
+          cp -a _stable30/website/. _site/stable30-preview/
+          cp -a _stable31/website/. _site/stable31-preview/
+          cp -a _approved/website/. _site/stable32-preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: verify-exact-tested
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.published.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: published
+  verify-live-public:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 49
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable32-three-map-styles-20261124
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable31-complete-arlanda-seven-day-website
+          path: _original
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 45363577762
+          artifact-ids: 14905482581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Byte-compare actual public homepage, style, JS and full 16-system GTFS against publicly pretested release
+        run: |
+          for i in $(seq 1 60);do
+           if curl -fLsS --max-time 15 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/?stable32-live=1' | grep -Fq 'app.js?v=stable32-three-basemaps-20261124-01';then
+            echo 'STABLE32 EXACT NEW KARTA SATELLIT HYBRID HOMEPAGE ONLINE';break
+           fi
+           if [ "$i" = 60 ];then echo 'STABLE32 NOT PUBLIC YET';exit 1;fi
+           sleep 10
+          done
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/' -o /tmp/s32-index.html
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/app.js?v=stable32-three-basemaps-20261124-01' -o /tmp/s32-app.js
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/map-basemaps.js?v=stable32-hybrid-20261124-01' -o /tmp/s32-basemaps.js
+          curl -fLsS --max-time 30 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/src/design-ui.css?v=stable32-three-basemaps-20261124-01' -o /tmp/s32-css
+          curl -fLsS --max-time 120 'https://hhhihihihpdwwd.github.io/SHLM-TRNST/data/rail.json?v=stable31-arlanda-week-20261118-01' -o /tmp/s32-rail.json
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('_release/website')
+          files={
+           '/tmp/s32-index.html':'index.html',
+           '/tmp/s32-app.js':'src/app.js',
+           '/tmp/s32-basemaps.js':'src/map-basemaps.js',
+           '/tmp/s32-css':'src/design-ui.css',
+           '/tmp/s32-rail.json':'data/rail.json'
+          }
+          for live,source in files.items():
+           assert Path(live).read_bytes()==(root/source).read_bytes(),('NOT EXACT CODE RELEASED',source)
+          assert Path(live).exists()
+          assert Path('/tmp/s32-rail.json').read_bytes()==Path('_original/website/data/rail.json').read_bytes()
+          print('STABLE32 LIVE PUBLIC BYTE-IDENTICAL 3-MAP VIEW SOURCE AND NO TIMETABLE OR TRACK REGRESSIONS')
+          PY
+      - name: REAL GitHub Pages Chromium map/imagery/transparent roads and railway labels on desktop and mobile
+        timeout-minutes: 31
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          STABLE32_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/' STABLE32_SHOTS='_live32-maps' node --max-old-space-size=7000 tests/stable32-basemaps-browser.mjs
+          STABLE29_TEST_URL='https://hhhihihihpdwwd.github.io/SHLM-TRNST/' STABLE29_SHOTS='_live32-rail' node --max-old-space-size=7000 tests/stable29-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stable32-public-main-three-map-views-all-16-rail-QA
+          path: |
+            _live32-maps/
+            _live32-rail/
+          retention-days: 7
+  archive-tested-site:
+    needs: verify-live-public
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stable32-three-map-styles-20261124
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          repository: hhhihihihpdwwd/SHLM-TRNST
+          run-id: 45363577762
+          artifact-ids: 14905482581
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _approved
+      - name: Archive exact publicly verified STABLE32 plus source/check hashes and old GTFS provenance
+        run: |
+          rm -rf website
+          cp -a _approved/website website
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import json
+          root=Path('website');data=json.loads((root/'data/rail.json').read_text())
+          assert data['counts']['metro']==13372 and data['counts']['express']==1240
+          assert data['metroWeekdaySimulation'] and data['commuterWeekdaySimulation'] and data['localWeekdaySimulation'] and data['arlandaWeekdaySimulation']
+          manifest={
+           'name':'Stockholm Rail STABLE32',
+           'sourceBaseline':'archive/stable31-complete-arlanda-seven-day-website',
+           'modes':['Karta','Satellit','Hybrid'],
+           'hybridTileSources':['Esri World Imagery','Esri World Transportation','Esri World Boundaries and Places'],
+           'GTFSOriginalFullyUnchanged':True,'trainMarkers3DAndPhotographyUnchanged':True,
+           'railwayGeometryAndSelectedRouteUnchanged':True,
+           'candidateGreenRun':45363577762,
+           'publicPreviewGreenRun':45363974865,
+           'publicMainGreenRun':${{ github.run_id }},
+           'railSHA256':sha256((root/'data/rail.json').read_bytes()).hexdigest(),
+           'basemapModuleSHA256':sha256((root/'src/map-basemaps.js').read_bytes()).hexdigest(),
+          }
+          (root/'STABLE32-MANIFEST.json').write_text(json.dumps(manifest,indent=2,ensure_ascii=False))
+          PY
+          git config user.name "stockholm-rail-stable-archive"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c archive/stable32-three-basemaps-hybrid-website
+          git add -f website
+          git commit -m "archive: STABLE32 true 3-way street satellite hybrid map; preserve all 16 train systems and 7-day GTFS"
+          git push origin HEAD:refs/heads/archive/stable32-three-basemaps-hybrid-website
+  rollback-if-public-map-broken:
+    if: ${{ always() && needs.deploy.result == 'success' && needs.verify-live-public.result == 'failure' }}
+    needs: [deploy, verify-live-public]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: archive/stable31-complete-arlanda-seven-day-website
+          path: _rollback31
+      - uses: actions/configure-pages@v5
+      - name: Restore exact last stable site if hybrid breaks any 16-system train map
+        run: |
+          mkdir -p _rollback-site/stable31-preview
+          cp -a _rollback31/website/. _rollback-site/
+          cp -a _rollback31/website/. _rollback-site/stable31-preview/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: stable32-failed-restore-31
+          path: _rollback-site
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: stable32-failed-restore-31
