@@ -11,52 +11,18 @@ import {rdcMarker} from './rdc-marker-sprite.js?v=rdc-01';
 import {updatedThreeTrainMarkers} from './updated-train-markers.js?v=markers-3d-01';
 import {matchesRailFilter,railFilterTitle} from './rail-filter.js?v=rdc-01';
 import {initializeDesignChrome,syncRailCarousel} from './design-ui.js?v=ux-20261116-01';
+import {initializeBasemapControl} from './map-basemaps.js?v=stable32-hybrid-20261124-01';
 const $=id=>document.getElementById(id);
-const state={filter:'commuter',selected:null,follow:false,satellite:false,station:false};
-let map,roads,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
+const state={filter:'commuter',selected:null,follow:false,station:false};
+let map,railLayer,lastRouteUpdate=0,markers=new Map(),lastDetailUpdate=0;
 function setupMap(){
  if(!window.L){$('map-fallback').hidden=false;return}
  map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([59.334,18.058],11);
  L.control.zoom({position:'topright'}).addTo(map);
- setBaseLayer(false);
+ initializeBasemapControl(map);
  railLayer=L.layerGroup().addTo(map);
  map.on('dragstart zoomstart',()=>{state.follow=false;updateFollow()});
 }
-// No API key required. A failed basemap is replaced rather than left blank.
-const BASEMAPS={
-  standard:[
-    {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',credit:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'},
-    {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',credit:'Tiles &copy; Esri'}
-  ],
-  satellite:[
-    {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',credit:'Imagery &copy; Esri'}
-  ]
-};
-let baseLoadGeneration=0;
-function setBaseLayer(satellite,providerIndex=0){
- if(!map)return;
- const generation=++baseLoadGeneration;
- const providers=BASEMAPS[satellite?'satellite':'standard'];
- const provider=providers[providerIndex]||providers[0];
- if(roads){map.removeLayer(roads);roads=null}
- const layer=L.tileLayer(provider.url,{maxZoom:19,updateWhenIdle:true,keepBuffer:2,attribution:provider.credit});
- roads=layer;let errors=0,success=0;
- layer.on('tileload',()=>{success++;if(generation!==baseLoadGeneration)return;$('map-fallback').hidden=true});
- layer.on('tileerror',()=>{
-  if(generation!==baseLoadGeneration)return;
-  errors++;
-  if(success===0 && errors>=3 && providerIndex+1<providers.length){
-   setBaseLayer(satellite,providerIndex+1);
-  }else if(success===0&&errors>=3){
-   $('map-fallback').hidden=false;
-   $('map-fallback').textContent='Kartendienst nicht erreichbar. Bitte Verbindung prüfen.';
-  }
- });
- layer.addTo(map);
- layer.bringToBack();
- $('satellite').textContent=satellite?'▦ Karta':'◫ Satellit';
-}
-function switchTiles(){setBaseLayer(state.satellite)}
 function scheduledStops(v,clock){
  const base=Math.floor(clock.seconds/1800)*1800+({'metro-13':-370,'metro-19':-180,'commuter-43':-550,'rail-1':-240}[v.id]||0);
  return v.stops.map(s=>({...s,t:base+s.t}));
@@ -596,7 +562,7 @@ function start(){
   refreshList();tick();
   focusFilteredActiveTrains();
  });
- $('satellite').onclick=()=>{state.satellite=!state.satellite;switchTiles()};
+ 
  $('home').onclick=()=>{clearSelected();map?.flyTo([59.334,18.058],11,{duration:1.1})};
  $('tab-trains').onclick=clearSelected;
  $('clear').onclick=clearSelected;
