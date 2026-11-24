@@ -127,8 +127,8 @@ export function initializeBasemapControl(map){
   overlay.on('tileload',()=>{
    if(generation!==token)return;
    loaded++;
-   if(referenceLayers.every(x=>x._srLoaded))notify('');
    overlay._srLoaded=true;
+   if(referenceLayers.every(x=>x._srLoaded))notify('');
   });
   overlay.on('tileerror',()=>{
    if(generation!==token)return;
